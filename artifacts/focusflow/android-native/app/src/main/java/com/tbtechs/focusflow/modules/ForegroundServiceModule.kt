@@ -1,4 +1,4 @@
-package com.tbtechs.focusday.modules
+package com.tbtechs.focusflow.modules
 
 import android.content.Intent
 import android.os.Build
@@ -9,7 +9,7 @@ import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
-import com.tbtechs.focusday.services.ForegroundTaskService
+import com.tbtechs.focusflow.services.ForegroundTaskService
 
 /**
  * ForegroundServiceModule

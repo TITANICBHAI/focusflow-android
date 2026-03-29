@@ -143,13 +143,13 @@ function withFocusDayManifest(config) {
 
     // ── Foreground Task Service ───────────────────────────────────────────────
     const serviceExists = (app.service || []).some(
-      (s) => s.$['android:name'] === 'com.tbtechs.focusday.services.ForegroundTaskService'
+      (s) => s.$['android:name'] === 'com.tbtechs.focusflow.services.ForegroundTaskService'
     );
     if (!serviceExists) {
       if (!app.service) app.service = [];
       app.service.push({
         $: {
-          'android:name':                'com.tbtechs.focusday.services.ForegroundTaskService',
+          'android:name':                'com.tbtechs.focusflow.services.ForegroundTaskService',
           'android:enabled':             'true',
           'android:exported':            'false',
           'android:foregroundServiceType': 'specialUse',
@@ -165,13 +165,13 @@ function withFocusDayManifest(config) {
 
     // ── Accessibility Service ─────────────────────────────────────────────────
     const a11yExists = (app.service || []).some(
-      (s) => s.$['android:name'] === 'com.tbtechs.focusday.services.AppBlockerAccessibilityService'
+      (s) => s.$['android:name'] === 'com.tbtechs.focusflow.services.AppBlockerAccessibilityService'
     );
     if (!a11yExists) {
       if (!app.service) app.service = [];
       app.service.push({
         $: {
-          'android:name':       'com.tbtechs.focusday.services.AppBlockerAccessibilityService',
+          'android:name':       'com.tbtechs.focusflow.services.AppBlockerAccessibilityService',
           'android:enabled':    'true',
           'android:exported':   'true',
           'android:label':      'FocusDay Focus Mode',
@@ -189,13 +189,13 @@ function withFocusDayManifest(config) {
 
     // ── Boot Receiver ─────────────────────────────────────────────────────────
     const bootExists = (app.receiver || []).some(
-      (r) => r.$['android:name'] === 'com.tbtechs.focusday.services.BootReceiver'
+      (r) => r.$['android:name'] === 'com.tbtechs.focusflow.services.BootReceiver'
     );
     if (!bootExists) {
       if (!app.receiver) app.receiver = [];
       app.receiver.push({
         $: {
-          'android:name':     'com.tbtechs.focusday.services.BootReceiver',
+          'android:name':     'com.tbtechs.focusflow.services.BootReceiver',
           'android:enabled':  'true',
           'android:exported': 'true',
         },
@@ -221,7 +221,7 @@ function withFocusDayKotlin(config) {
       const projectRoot  = cfg.modRequest.projectRoot;
       const platformRoot = cfg.modRequest.platformProjectRoot;
 
-      const pkg        = 'com/tbtechs/focusday';
+      const pkg        = 'com/tbtechs/focusflow';
       const srcRoot    = path.join(projectRoot, 'android-native', 'app', 'src', 'main');
       const destRoot   = path.join(platformRoot, 'app', 'src', 'main');
 
@@ -258,7 +258,7 @@ function withFocusDayKotlin(config) {
         if (!src.includes('FocusDayPackage')) {
           src = src.replace(
             'import com.facebook.react.ReactApplication',
-            'import com.facebook.react.ReactApplication\nimport com.tbtechs.focusday.modules.FocusDayPackage'
+            'import com.facebook.react.ReactApplication\nimport com.tbtechs.focusflow.modules.FocusDayPackage'
           );
 
           src = src.replace(

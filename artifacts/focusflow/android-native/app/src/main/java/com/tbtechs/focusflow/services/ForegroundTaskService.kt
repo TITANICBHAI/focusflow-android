@@ -1,4 +1,4 @@
-package com.tbtechs.focusday.services
+package com.tbtechs.focusflow.services
 
 import android.app.*
 import android.content.Context
@@ -8,7 +8,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import androidx.core.app.NotificationCompat
-import com.tbtechs.focusday.MainActivity
+import com.tbtechs.focusflow.MainActivity
 
 /**
  * ForegroundTaskService
@@ -32,8 +32,8 @@ class ForegroundTaskService : Service() {
         const val CHANNEL_ID       = "focusday_foreground"
         const val CHANNEL_NAME     = "FocusDay Active Task"
         const val NOTIFICATION_ID  = 1001
-        const val ACTION_STOP      = "com.tbtechs.focusday.STOP_SERVICE"
-        const val ACTION_TASK_ENDED = "com.tbtechs.focusday.TASK_ENDED"
+        const val ACTION_STOP      = "com.tbtechs.focusflow.STOP_SERVICE"
+        const val ACTION_TASK_ENDED = "com.tbtechs.focusflow.TASK_ENDED"
 
         // Extras
         const val EXTRA_TASK_NAME  = "taskName"

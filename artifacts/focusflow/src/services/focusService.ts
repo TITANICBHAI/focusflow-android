@@ -147,7 +147,7 @@ function startAndroidUsageMonitor(task: Task, allowed: string[]): void {
         (a) => foreground.toLowerCase().includes(a.toLowerCase()),
       );
 
-      if (!isAllowed && foreground !== 'com.tbtechs.focusday') {
+      if (!isAllowed && foreground !== 'com.tbtechs.focusflow') {
         onFocusViolation?.(foreground);
 
         const { ForegroundLaunchModule } = await import('@/native-modules/ForegroundLaunchModule');

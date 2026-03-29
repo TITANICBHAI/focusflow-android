@@ -1,4 +1,4 @@
-package com.tbtechs.focusday.modules
+package com.tbtechs.focusflow.modules
 
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -7,7 +7,7 @@ import android.content.IntentFilter
 import android.os.Build
 import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
-import com.tbtechs.focusday.services.ForegroundTaskService
+import com.tbtechs.focusflow.services.ForegroundTaskService
 
 /**
  * FocusDayBridgeModule
@@ -32,7 +32,7 @@ class FocusDayBridgeModule(private val reactContext: ReactApplicationContext) :
 
     companion object {
         const val JS_EVENT_NAME = "FocusDayEvent"
-        const val ACTION_APP_BLOCKED = "com.tbtechs.focusday.APP_BLOCKED"
+        const val ACTION_APP_BLOCKED = "com.tbtechs.focusflow.APP_BLOCKED"
         const val EXTRA_BLOCKED_PKG  = "blockedPackage"
     }
 

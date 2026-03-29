@@ -1,11 +1,11 @@
-package com.tbtechs.focusday.modules
+package com.tbtechs.focusflow.modules
 
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.ReadableArray
-import com.tbtechs.focusday.services.AppBlockerAccessibilityService
+import com.tbtechs.focusflow.services.AppBlockerAccessibilityService
 
 /**
  * SharedPrefsModule

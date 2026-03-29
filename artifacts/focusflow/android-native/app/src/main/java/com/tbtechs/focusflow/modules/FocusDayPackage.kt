@@ -1,4 +1,4 @@
-package com.tbtechs.focusday.modules
+package com.tbtechs.focusflow.modules
 
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.NativeModule
