@@ -75,21 +75,26 @@ class ForegroundServiceModule(private val reactContext: ReactApplicationContext)
      */
     @ReactMethod
     fun updateNotification(taskName: String, endTimeMs: Double, nextName: String?, promise: Promise) {
-        stopService(object : Promise {
-            override fun resolve(value: Any?) {
-                startService(taskName, endTimeMs, nextName, promise)
+        try {
+            val stopIntent = Intent(reactContext, ForegroundTaskService::class.java).apply {
+                action = ForegroundTaskService.ACTION_STOP
             }
-            override fun reject(code: String?, message: String?) = promise.reject(code, message)
-            override fun reject(code: String?, throwable: Throwable?) = promise.reject(code, throwable)
-            override fun reject(code: String?, message: String?, throwable: Throwable?) = promise.reject(code, message, throwable)
-            override fun reject(throwable: Throwable?) = promise.reject(throwable)
-            override fun reject(throwable: Throwable?, userInfo: com.facebook.react.bridge.WritableMap?) = promise.reject(throwable, userInfo)
-            override fun reject(code: String?, userInfo: com.facebook.react.bridge.WritableMap) = promise.reject(code, userInfo)
-            override fun reject(code: String?, message: String?, userInfo: com.facebook.react.bridge.WritableMap) = promise.reject(code, message, userInfo)
-            override fun reject(code: String?, throwable: Throwable?, userInfo: com.facebook.react.bridge.WritableMap) = promise.reject(code, throwable, userInfo)
-            override fun reject(code: String?, message: String?, throwable: Throwable?, userInfo: com.facebook.react.bridge.WritableMap) = promise.reject(code, message, throwable, userInfo)
-            override fun reject(message: String?) = promise.reject(message)
-        })
+            reactContext.startService(stopIntent)
+
+            val startIntent = Intent(reactContext, ForegroundTaskService::class.java).apply {
+                putExtra(ForegroundTaskService.EXTRA_TASK_NAME, taskName)
+                putExtra(ForegroundTaskService.EXTRA_END_MS, endTimeMs.toLong())
+                nextName?.let { putExtra(ForegroundTaskService.EXTRA_NEXT_NAME, it) }
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                reactContext.startForegroundService(startIntent)
+            } else {
+                reactContext.startService(startIntent)
+            }
+            promise.resolve(null)
+        } catch (e: Exception) {
+            promise.reject("UPDATE_ERROR", e.message, e)
+        }
     }
 
     /**
