@@ -174,7 +174,7 @@ function withFocusDayManifest(config) {
           'android:name':       'com.tbtechs.focusflow.services.AppBlockerAccessibilityService',
           'android:enabled':    'true',
           'android:exported':   'true',
-          'android:label':      'FocusDay Focus Mode',
+          'android:label':      'FocusFlow Focus Mode',
           'android:permission': 'android.permission.BIND_ACCESSIBILITY_SERVICE',
         },
         'intent-filter': [{ action: [{ $: { 'android:name': 'android.accessibilityservice.AccessibilityService' } }] }],
@@ -372,7 +372,7 @@ function withFocusDayKotlin(config) {
         if (!content.includes('accessibility_service_description')) {
           content = content.replace(
             '</resources>',
-            `    <string name="accessibility_service_description">FocusDay uses Accessibility to detect and block distracting apps during your focus sessions. No personal data or messages are read.</string>\n</resources>`
+            `    <string name="accessibility_service_description">FocusFlow uses Accessibility to detect and block distracting apps during your scheduled focus sessions. No personal data, messages, or browsing history are read.</string>\n</resources>`
           );
           fs.writeFileSync(stringsPath, content, 'utf8');
         }

@@ -85,23 +85,20 @@ class UsageStatsModule(private val reactContext: ReactApplicationContext) :
     }
 
     /**
-     * Opens the Usage Access settings screen, deep-linking directly to this app's entry
-     * on Android Q+ (API 29+). Falls back to the global usage access list on older versions.
-     * Uses currentActivity when available so the intent fires from a live Activity context,
-     * which is more reliable than starting from the application context on Android 12+.
+     * Opens the Usage Access settings list.
+     *
+     * Samsung One UI does NOT reliably handle the package-URI variant of
+     * ACTION_USAGE_ACCESS_SETTINGS (the deep-link silently opens an empty screen
+     * on many One UI 5/6 builds). We therefore always open the full list and let
+     * the user tap FocusFlow manually — this is universally compatible.
+     *
+     * Uses currentActivity when available for reliable foreground-launch on API 34+.
      */
     @ReactMethod
     fun openUsageAccessSettings(promise: Promise) {
         try {
-            val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
-                    data = Uri.parse("package:${reactContext.packageName}")
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-            } else {
-                Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
+            val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             val activity = reactContext.currentActivity
             if (activity != null && !activity.isFinishing) {
@@ -116,43 +113,57 @@ class UsageStatsModule(private val reactContext: ReactApplicationContext) :
     }
 
     /**
-     * Opens the Device Admin activation dialog for this app's FocusDayDeviceAdminReceiver.
-     * If the component does not exist or the intent fails, falls back to Security Settings.
+     * Opens the Device Admin activation dialog for FocusDayDeviceAdminReceiver.
+     *
+     * Tries ACTION_ADD_DEVICE_ADMIN first (shows the system activation dialog).
+     * On Samsung One UI the dialog may not appear if startActivity is called from
+     * the application context; using currentActivity fixes this.
+     * Falls back to the Samsung-specific security/device-admin path, then the
+     * generic security settings, so the user always lands somewhere useful.
      */
     @ReactMethod
     fun openDeviceAdminSettings(promise: Promise) {
-        try {
-            val component = ComponentName(
-                reactContext.packageName,
-                "com.tbtechs.focusflow.services.FocusDayDeviceAdminReceiver"
+        val component = ComponentName(
+            reactContext.packageName,
+            "com.tbtechs.focusflow.services.FocusDayDeviceAdminReceiver"
+        )
+        val adminIntent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+            putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, component)
+            putExtra(
+                DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                "Prevents aggressive battery killers from stopping FocusFlow's blocking service."
             )
-            val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
-                putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, component)
-                putExtra(
-                    DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                    "FocusFlow needs Device Admin rights to prevent aggressive OEM battery killers from stopping the blocking service."
-                )
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            val activity = reactContext.currentActivity
-            if (activity != null && !activity.isFinishing) {
-                activity.startActivity(intent)
-            } else {
-                reactContext.startActivity(intent)
-            }
-            promise.resolve(null)
-        } catch (e: Exception) {
-            // Fallback: open general security settings
-            try {
-                val fallback = Intent(Settings.ACTION_SECURITY_SETTINGS).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                reactContext.startActivity(fallback)
-                promise.resolve(null)
-            } catch (e2: Exception) {
-                promise.reject("DEVICE_ADMIN_ERROR", e2.message, e2)
-            }
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
+
+        val activity = reactContext.currentActivity
+        val launched = if (activity != null && !activity.isFinishing) {
+            try { activity.startActivity(adminIntent); true } catch (_: Exception) { false }
+        } else {
+            try { reactContext.startActivity(adminIntent); true } catch (_: Exception) { false }
+        }
+
+        if (launched) {
+            promise.resolve(null)
+            return
+        }
+
+        // Fallback chain for Samsung One UI and other OEMs
+        val fallbacks = listOf(
+            // Samsung One UI 5+: Biometrics & Security → Device admin apps
+            "com.android.settings.DeviceAdminSettings",
+            Settings.ACTION_SECURITY_SETTINGS
+        )
+        for (fb in fallbacks) {
+            try {
+                val fbIntent = Intent(fb).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK }
+                reactContext.startActivity(fbIntent)
+                promise.resolve(null)
+                return
+            } catch (_: Exception) { /* try next */ }
+        }
+
+        promise.reject("DEVICE_ADMIN_ERROR", "Could not open device admin settings")
     }
 
     /**

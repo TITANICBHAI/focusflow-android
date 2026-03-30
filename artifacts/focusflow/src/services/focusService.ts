@@ -10,8 +10,7 @@
  */
 
 import { AppState, type AppStateStatus } from 'react-native';
-import * as Notifications from 'expo-notifications';
-import { dismissPersistentNotification, showPersistentTaskNotification } from './notificationService';
+import { dismissPersistentNotification } from './notificationService';
 import { dbStartFocusSession, dbEndFocusSession } from '@/data/database';
 import { ForegroundServiceModule } from '@/native-modules/ForegroundServiceModule';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
@@ -58,7 +57,6 @@ export async function startFocusMode(
   const endMs = new Date(task.endTime).getTime();
 
   await ForegroundServiceModule.startService(task.title, endMs, nextTask?.title ?? null);
-  await showPersistentTaskNotification(task).catch(() => {});
   await ForegroundServiceModule.requestBatteryOptimizationExemption();
 
   // Send the user to the home screen so focus mode starts with a clean slate.
@@ -80,8 +78,6 @@ export async function startFocusMode(
   // above) and intercepts window changes at the OS level — no JS poll needed.
   // startAndroidUsageMonitor is intentionally not called here.
 
-  // Listen for app backgrounding to send a nudge notification when the user
-  // leaves FocusFlow. This does not conflict with the Kotlin blocker.
   appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
 }
 
@@ -115,21 +111,10 @@ export function getCurrentFocusTask(): Task | null {
 
 // ─── App State Handling ───────────────────────────────────────────────────────
 
-function handleAppStateChange(state: AppStateStatus): void {
-  if (!focusActive || !currentTask) return;
-
-  if (state === 'background') {
-    Notifications.scheduleNotificationAsync({
-      identifier: 'focus-leave-alert',
-      content: {
-        title: `🎯 Stay Focused!`,
-        body: `Return to: ${currentTask.title}`,
-        data: { type: 'focus-alert' },
-        sound: 'default',
-      },
-      trigger: null,
-    }).catch(() => {});
-  }
+function handleAppStateChange(_state: AppStateStatus): void {
+  // App blocking is handled entirely by AppBlockerAccessibilityService (Kotlin).
+  // No JS-side nudge notifications are needed — they would be dismissable and
+  // create a false sense of enforcement.
 }
 
 // ─── Android: Usage Stats Polling ────────────────────────────────────────────

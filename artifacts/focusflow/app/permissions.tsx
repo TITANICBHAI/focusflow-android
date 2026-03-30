@@ -34,7 +34,7 @@ const PERMISSIONS: PermissionItem[] = [
     id: 'accessibility',
     title: 'Accessibility Service',
     description:
-      'Required to detect and block apps during Focus Mode. Enable "FocusDay Focus Mode" in the Accessibility services list.',
+      'Required to detect and block apps during Focus Mode. Enable "FocusFlow Focus Mode" in the Accessibility services list.',
     icon: 'eye-outline',
     deepLinkLabel: 'Open Accessibility Settings',
     check: async (): Promise<PermStatus> => {
@@ -55,7 +55,7 @@ const PERMISSIONS: PermissionItem[] = [
     id: 'usage',
     title: 'Usage Access',
     description:
-      'Lets FocusFlow see which apps are running so it can enforce app blocking. Grant to "FocusFlow" in the Usage Access list.',
+      'Lets FocusFlow see which apps are running. Tap to open the Usage Access list, then find "FocusFlow" and enable it.',
     icon: 'analytics-outline',
     deepLinkLabel: 'Open Usage Access Settings',
     check: async (): Promise<PermStatus> => {
@@ -74,7 +74,7 @@ const PERMISSIONS: PermissionItem[] = [
     id: 'battery',
     title: 'Battery Optimization',
     description:
-      'Exempt FocusFlow from battery optimization so the persistent notification and blocking service stay alive — especially important on MIUI, ColorOS, and Realme UI.',
+      'Exempt FocusFlow from battery optimization so the blocking service stays alive. Critical on Samsung One UI, MIUI, ColorOS, and Realme UI — without this the service gets killed within minutes.',
     icon: 'battery-charging-outline',
     deepLinkLabel: 'Request Exemption',
     check: async (): Promise<PermStatus> => {
@@ -134,7 +134,7 @@ const PERMISSIONS: PermissionItem[] = [
     id: 'device_admin',
     title: 'Device Admin (optional)',
     description:
-      'Some aggressive OEM skins (MIUI, ColorOS) kill the app even with battery exemption. Granting Device Admin prevents this on affected devices. Not required on stock Android.',
+      'Extra protection against Samsung One UI, MIUI, and ColorOS force-stopping the app. On Samsung: Biometrics & Security → Device admin apps → FocusFlow → Activate. Not required on stock Android.',
     icon: 'shield-outline',
     deepLinkLabel: 'Activate Device Admin',
     check: async (): Promise<PermStatus> => {
