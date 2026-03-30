@@ -11,7 +11,7 @@
 
 import { AppState, type AppStateStatus } from 'react-native';
 import * as Notifications from 'expo-notifications';
-import { dismissPersistentNotification } from './notificationService';
+import { dismissPersistentNotification, showPersistentTaskNotification } from './notificationService';
 import { dbStartFocusSession, dbEndFocusSession } from '@/data/database';
 import { ForegroundServiceModule } from '@/native-modules/ForegroundServiceModule';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
@@ -58,6 +58,7 @@ export async function startFocusMode(
   const endMs = new Date(task.endTime).getTime();
 
   await ForegroundServiceModule.startService(task.title, endMs, nextTask?.title ?? '');
+  await showPersistentTaskNotification(task).catch(() => {});
   await ForegroundServiceModule.requestBatteryOptimizationExemption();
 
   // Send the user to the home screen so focus mode starts with a clean slate.

@@ -27,11 +27,15 @@ export function AllowedAppsModal({ visible, allowedPackages, onSave, onClose }: 
   const [selected, setSelected] = useState<Set<string>>(new Set(allowedPackages));
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
+  const [manualInput, setManualInput] = useState('');
+  const [manualPackages, setManualPackages] = useState<string[]>([]);
 
   useEffect(() => {
     if (!visible) return;
     setSelected(new Set(allowedPackages));
     setSearch('');
+    setManualInput('');
+    setManualPackages([]);
     void loadApps();
   }, [visible]);
 
@@ -43,8 +47,15 @@ export function AllowedAppsModal({ visible, allowedPackages, onSave, onClose }: 
         a.appName.toLowerCase().localeCompare(b.appName.toLowerCase())
       );
       setApps(sorted);
+      // Derive manual packages: entries in allowedPackages not found in installed apps
+      const installedPkgs = new Set(sorted.map((a) => a.packageName));
+      const manual = allowedPackages.filter((pkg) => !installedPkgs.has(pkg));
+      setManualPackages(manual);
     } catch (e) {
       console.warn('[AllowedAppsModal] Failed to load apps', e);
+      setApps([]);
+      // If loading failed, treat all allowedPackages as manual entries
+      setManualPackages([...allowedPackages]);
     } finally {
       setLoading(false);
     }
@@ -70,6 +81,16 @@ export function AllowedAppsModal({ visible, allowedPackages, onSave, onClose }: 
       }
       return next;
     });
+  };
+
+  const handleAddManual = () => {
+    const pkg = manualInput.trim().toLowerCase();
+    if (!pkg || !pkg.includes('.')) return;
+    if (!manualPackages.includes(pkg)) {
+      setManualPackages((prev) => [...prev, pkg]);
+    }
+    setSelected((prev) => new Set([...prev, pkg]));
+    setManualInput('');
   };
 
   const handleSave = async () => {
@@ -98,6 +119,24 @@ export function AllowedAppsModal({ visible, allowedPackages, onSave, onClose }: 
         <View style={styles.appInfo}>
           <Text style={styles.appName} numberOfLines={1}>{item.appName}</Text>
           <Text style={styles.packageName} numberOfLines={1}>{item.packageName}</Text>
+        </View>
+        <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
+          {checked && <Ionicons name="checkmark" size={14} color="#fff" />}
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderManualPackage = (pkg: string) => {
+    const checked = selected.has(pkg);
+    return (
+      <TouchableOpacity key={pkg} style={styles.row} onPress={() => toggle(pkg)} activeOpacity={0.7}>
+        <View style={styles.iconPlaceholder}>
+          <Ionicons name="cube-outline" size={22} color={COLORS.muted} />
+        </View>
+        <View style={styles.appInfo}>
+          <Text style={styles.appName} numberOfLines={1}>Manual Entry</Text>
+          <Text style={styles.packageName} numberOfLines={1}>{pkg}</Text>
         </View>
         <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
           {checked && <Ionicons name="checkmark" size={14} color="#fff" />}
@@ -149,11 +188,51 @@ export function AllowedAppsModal({ visible, allowedPackages, onSave, onClose }: 
             ItemSeparatorComponent={() => <View style={styles.separator} />}
             contentContainerStyle={styles.list}
             keyboardShouldPersistTaps="handled"
+            ListHeaderComponent={
+              manualPackages.length > 0 ? (
+                <View style={styles.manualSection}>
+                  <Text style={styles.manualSectionLabel}>MANUALLY ADDED</Text>
+                  {manualPackages.map(renderManualPackage)}
+                  <View style={styles.separator} />
+                </View>
+              ) : null
+            }
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyText}>
                   {search ? 'No apps match your search.' : 'No user-installed apps found.'}
                 </Text>
+                <Text style={styles.emptyHint}>
+                  Use the field below to add apps by package name.
+                </Text>
+              </View>
+            }
+            ListFooterComponent={
+              <View style={styles.manualSection}>
+                <Text style={styles.manualSectionLabel}>ADD BY PACKAGE NAME</Text>
+                <Text style={styles.manualHint}>
+                  e.g. com.whatsapp, com.spotify
+                </Text>
+                <View style={styles.manualInputRow}>
+                  <TextInput
+                    style={styles.manualInput}
+                    placeholder="com.example.app"
+                    placeholderTextColor={COLORS.muted}
+                    value={manualInput}
+                    onChangeText={setManualInput}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    onSubmitEditing={handleAddManual}
+                    returnKeyType="done"
+                  />
+                  <TouchableOpacity
+                    style={[styles.addBtn, !manualInput.trim().includes('.') && styles.addBtnDisabled]}
+                    onPress={handleAddManual}
+                    disabled={!manualInput.trim().includes('.')}
+                  >
+                    <Text style={styles.addBtnText}>Add</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             }
           />
@@ -291,9 +370,63 @@ const styles = StyleSheet.create({
   emptyContainer: {
     paddingTop: SPACING.xxl,
     alignItems: 'center',
+    gap: SPACING.sm,
   },
   emptyText: {
     fontSize: FONT.sm,
     color: COLORS.muted,
+  },
+  emptyHint: {
+    fontSize: FONT.xs,
+    color: COLORS.muted,
+    textAlign: 'center',
+    paddingHorizontal: SPACING.lg,
+  },
+  manualSection: {
+    marginTop: SPACING.lg,
+    gap: SPACING.sm,
+  },
+  manualSectionLabel: {
+    fontSize: FONT.xs,
+    fontWeight: '700',
+    color: COLORS.muted,
+    letterSpacing: 0.8,
+    marginBottom: SPACING.xs,
+  },
+  manualHint: {
+    fontSize: FONT.xs,
+    color: COLORS.muted,
+  },
+  manualInputRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    alignItems: 'center',
+  },
+  manualInput: {
+    flex: 1,
+    backgroundColor: COLORS.card,
+    borderRadius: RADIUS.md,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    fontSize: FONT.md,
+    color: COLORS.text,
+  },
+  addBtn: {
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addBtnDisabled: {
+    backgroundColor: COLORS.primaryLight,
+  },
+  addBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: FONT.sm,
   },
 });

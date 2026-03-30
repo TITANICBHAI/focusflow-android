@@ -4,12 +4,13 @@
  * Shown only on first launch. Walks the user through granting:
  *   1. Notification permission (Android 13+)
  *   2. Battery optimization exemption (Android)
- *   3. Usage Access / Accessibility Service (Android, manual Settings step)
+ *   3. Usage Access (manual Settings step)
+ *   4. Accessibility Service (manual Settings step)
  *
  * Once complete, sets settings.onboardingComplete = true → tabs appear.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -17,12 +18,16 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
+  AppState,
+  Linking,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '@/context/AppContext';
 import { requestPermissions } from '@/services/notificationService';
 import { ForegroundServiceModule } from '@/native-modules/ForegroundServiceModule';
+import { UsageStatsModule } from '@/native-modules/UsageStatsModule';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 
 type StepStatus = 'pending' | 'granted' | 'skipped' | 'manual';
@@ -34,6 +39,7 @@ interface Step {
   description: string;
   action: 'auto' | 'manual';
   status: StepStatus;
+  intentAction?: string;
 }
 
 const INITIAL_STEPS: Step[] = [
@@ -58,9 +64,20 @@ const INITIAL_STEPS: Step[] = [
     icon: 'shield-outline',
     title: 'Usage Access',
     description:
-      'Allow FocusDay to detect which app is in the foreground so it can enforce focus mode. Go to: Settings → Apps → Special app access → Usage access → FocusDay → Enable.',
+      'Allow FocusDay to detect which app is in the foreground so it can enforce focus mode. Tap to open Settings → Special app access → Usage access → FocusDay → Enable.',
     action: 'manual',
     status: 'pending',
+    intentAction: 'android.settings.USAGE_ACCESS_SETTINGS',
+  },
+  {
+    id: 'accessibility',
+    icon: 'accessibility-outline',
+    title: 'Accessibility Service',
+    description:
+      'Required for Focus Mode to block distracting apps. Tap to open Settings → Accessibility → Installed apps → FocusDay → Enable.',
+    action: 'manual',
+    status: 'pending',
+    intentAction: 'android.settings.ACCESSIBILITY_SETTINGS',
   },
 ];
 
@@ -68,16 +85,72 @@ export default function OnboardingScreen() {
   const { state, updateSettings } = useApp();
   const [steps, setSteps] = useState<Step[]>(INITIAL_STEPS);
   const [loading, setLoading] = useState<string | null>(null);
+  const appStateRef = useRef(AppState.currentState);
 
   const setStepStatus = (id: string, status: StepStatus) => {
     setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, status } : s)));
   };
 
+  // When the user returns from Settings, re-check permission statuses
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', async (nextState) => {
+      if (appStateRef.current.match(/inactive|background/) && nextState === 'active') {
+        // Re-check usage access permission via native module
+        try {
+          const hasUsage = await UsageStatsModule.hasPermission();
+          if (hasUsage) {
+            setStepStatus('usage', 'granted');
+          }
+        } catch {
+          // Native module not available in dev
+        }
+
+        // Accessibility permission cannot be checked programmatically (no native module).
+        // Users confirm by tapping the card again after returning from Settings.
+      }
+      appStateRef.current = nextState;
+    });
+    return () => subscription.remove();
+  }, []);
+
   const handleStep = async (step: Step) => {
     if (step.status === 'granted') return;
 
     if (step.action === 'manual') {
+      if (step.status === 'manual') {
+        // User has returned from Settings — try to verify via native module first
+        if (step.id === 'usage') {
+          setLoading(step.id);
+          try {
+            const hasUsage = await UsageStatsModule.hasPermission();
+            setStepStatus(step.id, hasUsage ? 'granted' : 'pending');
+          } catch {
+            // Native module not available — let user confirm manually
+            setStepStatus(step.id, 'granted');
+          } finally {
+            setLoading(null);
+          }
+          return;
+        }
+        // For accessibility and other manual steps without a native check,
+        // accept the user's tap as confirmation they granted the permission.
+        setStepStatus(step.id, 'granted');
+        return;
+      }
       setStepStatus(step.id, 'manual');
+      // Open the correct Android settings screen
+      if (Platform.OS === 'android' && step.intentAction) {
+        try {
+          await Linking.sendIntent(step.intentAction);
+        } catch {
+          // Fallback to app settings if intent not available
+          try {
+            await Linking.openSettings();
+          } catch {
+            // ignore
+          }
+        }
+      }
       return;
     }
 
@@ -145,13 +218,16 @@ export default function OnboardingScreen() {
               <Text style={styles.stepDesc}>{step.description}</Text>
               {step.status === 'manual' && (
                 <Text style={styles.manualNote}>
-                  Open Settings manually to grant this permission, then tap Done below.
+                  Settings opened — grant the permission, then tap here to confirm.
                 </Text>
               )}
             </View>
 
             {step.status !== 'granted' && step.action === 'auto' && (
               <Ionicons name="chevron-forward" size={18} color={COLORS.muted} />
+            )}
+            {step.status !== 'granted' && step.action === 'manual' && (
+              <Ionicons name="open-outline" size={18} color={COLORS.muted} />
             )}
           </TouchableOpacity>
         ))}

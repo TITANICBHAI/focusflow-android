@@ -27,12 +27,14 @@ import { AppProvider } from '@/context/AppContext';
 import { EventBridge } from '@/services/eventBridge';
 import { navigateToTask, consumePendingTaskNavigation } from '@/navigation/navigationRef';
 import { registerBackgroundFetch, registerOverrunCheckTask } from '@/tasks/backgroundTasks';
+import { dismissPersistentNotification, showPersistentTaskNotification } from '@/services/notificationService';
+import { dbGetTasksForDate } from '@/data/database';
 
 // ─── 2. Foreground notification display behaviour ─────────────────────────────
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
     const data = notification.request.content.data as { type?: string };
-    if (data?.type === 'focus-persistent') {
+    if (data?.type === 'focus-persistent' || data?.type === 'persistent-dismiss') {
       return { shouldShowBanner: false, shouldShowList: false, shouldPlaySound: false, shouldSetBadge: false };
     }
     return { shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false };
@@ -64,13 +66,34 @@ Notifications.addNotificationResponseReceivedListener((response) => {
 });
 
 // ─── 6. Foreground notification received listener ────────────────────────────
-Notifications.addNotificationReceivedListener((notification) => {
+Notifications.addNotificationReceivedListener(async (notification) => {
   const data = notification.request.content.data as {
     taskId?: string;
     type?: string;
   };
   if (data?.type === 'LATE_START_WARNING' && data.taskId) {
     // Handled by ScheduleScreen polling
+  }
+  if (data?.type === 'task-start' && data.taskId) {
+    // Show the persistent in-progress notification when the task start fires
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const tasks = await dbGetTasksForDate(today);
+      const task = tasks.find((t) => t.id === data.taskId);
+      if (task) {
+        await showPersistentTaskNotification(task);
+      }
+    } catch {
+      // ignore — native module may not be linked in dev
+    }
+  }
+  if (data?.type === 'persistent-dismiss') {
+    // Auto-dismiss the persistent notification when the task ends
+    try {
+      await dismissPersistentNotification();
+    } catch {
+      // ignore
+    }
   }
 });
 

@@ -68,28 +68,53 @@ export async function scheduleTaskReminders(task: Task): Promise<void> {
   const endMs   = new Date(task.endTime).getTime();
 
   // Pre-start reminders
-  const preStart: Array<{ offsetMs: number; body: string }> = [
+  const preStart: Array<{ offsetMs: number; body: string; isStart?: boolean }> = [
     { offsetMs: -10 * 60_000, body: `Starting in 10 minutes` },
     { offsetMs: -5  * 60_000, body: `Starting in 5 minutes` },
     { offsetMs: -1  * 60_000, body: `Starting in 1 minute — get ready!` },
-    { offsetMs: 0,            body: `Time to start! (${formatDuration(task.durationMinutes)})` },
+    { offsetMs: 0,            body: `Time to start! (${formatDuration(task.durationMinutes)})`, isStart: true },
   ];
 
   for (const r of preStart) {
     const fireAt = startMs + r.offsetMs;
-    if (fireAt - now < 1000) continue;
+    if (fireAt - now < 1000) {
+      // If start time is in the past, show persistent notification immediately
+      if (r.isStart && startMs <= now && now < endMs) {
+        await showPersistentTaskNotification(task);
+      }
+      continue;
+    }
 
     await Notifications.scheduleNotificationAsync({
       identifier: `${task.id}-pre${r.offsetMs}`,
       content: {
         title: `🎯 ${task.title}`,
         body:  r.body,
-        data:  { taskId: task.id, type: 'reminder' },
+        data:  { taskId: task.id, type: r.isStart ? 'task-start' : 'reminder' },
         sound: 'default',
         categoryIdentifier: 'task-reminder',
         channelId: REMINDER_CHANNEL_ID,
       } as AndroidContent,
       trigger: { date: new Date(fireAt) },
+    });
+
+    // The 'task-start' notification fires at start time; the foreground listener
+    // and background task handler both call showPersistentTaskNotification(task)
+    // when they receive a notification with type === 'task-start'.
+  }
+
+  // Schedule persistent notification dismissal when the task ends
+  if (endMs - now > 1000) {
+    await Notifications.scheduleNotificationAsync({
+      identifier: `${task.id}-persistent-dismiss`,
+      content: {
+        title: `Task ended: ${task.title}`,
+        body:  `Focus session complete.`,
+        data:  { taskId: task.id, type: 'persistent-dismiss' },
+        sound: null,
+        channelId: REMINDER_CHANNEL_ID,
+      } as AndroidContent,
+      trigger: { date: new Date(endMs) },
     });
   }
 

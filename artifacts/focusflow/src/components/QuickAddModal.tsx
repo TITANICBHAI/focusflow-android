@@ -44,6 +44,8 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
   const [startDate, setStartDate] = useState<Date>(() => initialDate(initialStartTime));
   const [showPicker, setShowPicker] = useState(false);
   const [duration, setDuration] = useState(60);
+  const [isCustomDuration, setIsCustomDuration] = useState(false);
+  const [customDurationText, setCustomDurationText] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('medium');
   const [tags, setTags] = useState('');
   const [color, setColor] = useState(TASK_COLORS[0]);
@@ -100,6 +102,8 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
     setStartDate(initialDate(initialStartTime));
     setShowPicker(false);
     setDuration(60);
+    setIsCustomDuration(false);
+    setCustomDurationText('');
     setPriority('medium');
     setTags('');
     setColor(TASK_COLORS[0]);
@@ -191,7 +195,7 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
                       value={startDate}
                       mode="time"
                       is24Hour={false}
-                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                      display={Platform.OS === 'ios' ? 'spinner' : 'clock'}
                       onChange={(_event: DateTimePickerEvent, selected?: Date) => {
                         setShowPicker(false);
                         if (selected) setStartDate(selected);
@@ -201,20 +205,46 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
                 </Field>
 
                 {/* Duration */}
-                <Field label={`Duration: ${formatDuration(duration)}`}>
+                <Field label={`Duration: ${isCustomDuration ? (parseInt(customDurationText, 10) > 0 ? formatDuration(parseInt(customDurationText, 10)) : 'Custom') : formatDuration(duration)}`}>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
                     {DURATION_OPTIONS.map((d) => (
                       <TouchableOpacity
                         key={d}
-                        style={[styles.chip, d === duration && styles.chipSelected]}
-                        onPress={() => setDuration(d)}
+                        style={[styles.chip, !isCustomDuration && d === duration && styles.chipSelected]}
+                        onPress={() => { setDuration(d); setIsCustomDuration(false); setCustomDurationText(''); }}
                       >
-                        <Text style={[styles.chipText, d === duration && styles.chipTextSelected]}>
+                        <Text style={[styles.chipText, !isCustomDuration && d === duration && styles.chipTextSelected]}>
                           {formatDuration(d)}
                         </Text>
                       </TouchableOpacity>
                     ))}
+                    <TouchableOpacity
+                      style={[styles.chip, isCustomDuration && styles.chipSelected]}
+                      onPress={() => { setIsCustomDuration(true); setCustomDurationText(String(duration)); }}
+                    >
+                      <Text style={[styles.chipText, isCustomDuration && styles.chipTextSelected]}>
+                        Custom
+                      </Text>
+                    </TouchableOpacity>
                   </ScrollView>
+                  {isCustomDuration && (
+                    <View style={styles.customDurationRow}>
+                      <TextInput
+                        style={[styles.input, styles.customDurationInput]}
+                        value={customDurationText}
+                        onChangeText={(text) => {
+                          setCustomDurationText(text);
+                          const parsed = parseInt(text, 10);
+                          if (!isNaN(parsed) && parsed > 0) setDuration(parsed);
+                        }}
+                        keyboardType="number-pad"
+                        placeholder="Minutes"
+                        placeholderTextColor={COLORS.muted}
+                        autoFocus
+                      />
+                      <Text style={styles.customDurationLabel}>minutes</Text>
+                    </View>
+                  )}
                 </Field>
 
                 {/* Priority */}
@@ -382,4 +412,17 @@ const styles = StyleSheet.create({
   },
   switchLabel: { fontSize: FONT.md, fontWeight: '600', color: COLORS.text },
   switchDesc: { fontSize: FONT.sm, color: COLORS.muted, marginTop: 2 },
+  customDurationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginTop: SPACING.xs,
+  },
+  customDurationInput: {
+    width: 100,
+  },
+  customDurationLabel: {
+    fontSize: FONT.md,
+    color: COLORS.textSecondary,
+  },
 });

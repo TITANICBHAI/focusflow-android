@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,9 @@ import {
   StyleSheet,
   Animated,
   Alert,
+  Linking,
+  Platform,
+  AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,15 +16,34 @@ import { useApp } from '@/context/AppContext';
 import { useTaskTimer } from '@/hooks/useTimer';
 import { formatTime } from '@/services/taskService';
 import { dbLogFocusOverride } from '@/data/database';
+import { UsageStatsModule } from '@/native-modules/UsageStatsModule';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 
 export default function FocusScreen() {
   const { state, activeTask, startFocusMode, stopFocusMode, completeTask, extendTaskTime } = useApp();
   const isFocusing = state.focusSession !== null && state.focusSession.isActive;
+  const [hasAccessibilityPermission, setHasAccessibilityPermission] = useState<boolean | null>(null);
 
   const task = activeTask;
 
   const pulseAnim = React.useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const checkPermission = async () => {
+      try {
+        const granted = await UsageStatsModule.hasPermission();
+        setHasAccessibilityPermission(granted);
+      } catch {
+        setHasAccessibilityPermission(null);
+      }
+    };
+    void checkPermission();
+
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void checkPermission();
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     if (!isFocusing) return;
@@ -52,6 +74,34 @@ export default function FocusScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: task.color + '18' }]}>
+      {/* Accessibility permission warning banner */}
+      {hasAccessibilityPermission === false && (
+        <TouchableOpacity
+          style={styles.permissionBanner}
+          onPress={async () => {
+            try {
+              if (Platform.OS === 'android') {
+                await Linking.sendIntent('android.settings.ACCESSIBILITY_SETTINGS');
+              } else {
+                await Linking.openSettings();
+              }
+            } catch {
+              await Linking.openSettings().catch(() => {});
+            }
+          }}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="warning-outline" size={18} color={COLORS.orange} />
+          <View style={styles.permissionBannerText}>
+            <Text style={styles.permissionBannerTitle}>Accessibility permission needed</Text>
+            <Text style={styles.permissionBannerDesc}>
+              Focus Mode can't block apps without Accessibility access. Tap to open Settings.
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={COLORS.orange} />
+        </TouchableOpacity>
+      )}
+
       {/* Focus status */}
       <View style={styles.statusRow}>
         <View style={[styles.statusDot, { backgroundColor: isFocusing ? COLORS.green : COLORS.muted }]} />
@@ -335,6 +385,30 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.red + '08',
   },
   emergencyBtnText: { fontSize: FONT.sm, fontWeight: '600', color: COLORS.red },
+  permissionBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.orange + '18',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.orange + '44',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+  },
+  permissionBannerText: {
+    flex: 1,
+    gap: 2,
+  },
+  permissionBannerTitle: {
+    fontSize: FONT.sm,
+    fontWeight: '700',
+    color: COLORS.orange,
+  },
+  permissionBannerDesc: {
+    fontSize: FONT.xs,
+    color: COLORS.textSecondary,
+    lineHeight: 16,
+  },
 });
 
 const timerStyles = StyleSheet.create({

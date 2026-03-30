@@ -172,7 +172,7 @@ export default function EditTaskModal({ task, visible, onClose, onSave, onDelete
                 value={startDate}
                 mode="time"
                 is24Hour={false}
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                display={Platform.OS === 'ios' ? 'spinner' : 'clock'}
                 onChange={(_event: DateTimePickerEvent, selected?: Date) => {
                   setShowPicker(false);
                   if (selected) setStartDate(selected);
