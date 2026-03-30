@@ -1,6 +1,13 @@
-import { NativeModules } from 'react-native';
+import { TurboModuleRegistry } from 'react-native';
 
-const { SharedPrefs } = NativeModules;
+interface SharedPrefsSpec {
+  setFocusActive(active: boolean): Promise<void>;
+  setAllowedPackages(packages: string[]): Promise<void>;
+  setActiveTask(name: string, endMs: number, nextName: string | null): Promise<void>;
+  setStandaloneBlock(active: boolean, packages: string[], untilMs: number): Promise<void>;
+}
+
+const SharedPrefs = TurboModuleRegistry.get<SharedPrefsSpec>('SharedPrefs');
 
 /**
  * SharedPrefsModule
@@ -11,7 +18,10 @@ const { SharedPrefs } = NativeModules;
  */
 export const SharedPrefsModule = {
   async setFocusActive(active: boolean): Promise<void> {
-    if (!SharedPrefs) return;
+    if (!SharedPrefs) {
+      console.error('[SharedPrefsModule] Native module "SharedPrefs" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
+      return;
+    }
     return SharedPrefs.setFocusActive(active);
   },
 
@@ -20,12 +30,18 @@ export const SharedPrefsModule = {
    * The AccessibilityService blocks any foreground app NOT in this list during a task.
    */
   async setAllowedPackages(packages: string[]): Promise<void> {
-    if (!SharedPrefs) return;
+    if (!SharedPrefs) {
+      console.error('[SharedPrefsModule] Native module "SharedPrefs" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
+      return;
+    }
     return SharedPrefs.setAllowedPackages(packages);
   },
 
   async setActiveTask(name: string, endMs: number, nextName: string | null): Promise<void> {
-    if (!SharedPrefs) return;
+    if (!SharedPrefs) {
+      console.error('[SharedPrefsModule] Native module "SharedPrefs" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
+      return;
+    }
     return SharedPrefs.setActiveTask(name, endMs, nextName ?? null);
   },
 
@@ -42,7 +58,10 @@ export const SharedPrefsModule = {
    * @param untilMs   Epoch ms when standalone blocking expires (0 = no time limit)
    */
   async setStandaloneBlock(active: boolean, packages: string[], untilMs: number): Promise<void> {
-    if (!SharedPrefs) return;
+    if (!SharedPrefs) {
+      console.error('[SharedPrefsModule] Native module "SharedPrefs" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
+      return;
+    }
     return SharedPrefs.setStandaloneBlock(active, packages, untilMs);
   },
 };

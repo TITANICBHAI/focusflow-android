@@ -10,7 +10,7 @@
  *   - getInstalledApps(): Array<InstalledApp>
  */
 
-import { NativeModules } from 'react-native';
+import { TurboModuleRegistry } from 'react-native';
 
 export interface InstalledApp {
   packageName: string;
@@ -18,12 +18,16 @@ export interface InstalledApp {
   iconBase64?: string;
 }
 
-const { InstalledApps } = NativeModules;
+interface InstalledAppsSpec {
+  getInstalledApps(): Promise<InstalledApp[]>;
+}
+
+const InstalledApps = TurboModuleRegistry.get<InstalledAppsSpec>('InstalledApps');
 
 export const InstalledAppsModule = {
   async getInstalledApps(): Promise<InstalledApp[]> {
     if (!InstalledApps) {
-      console.warn('[InstalledAppsModule] Native module not linked. Run EAS build.');
+      console.error('[InstalledAppsModule] Native module "InstalledApps" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
       return [];
     }
     return InstalledApps.getInstalledApps();

@@ -12,9 +12,17 @@
  * File: android-native/app/.../services/ForegroundTaskService.kt
  */
 
-import { NativeModules } from 'react-native';
+import { TurboModuleRegistry } from 'react-native';
 
-const { ForegroundService } = NativeModules;
+interface ForegroundServiceSpec {
+  startIdleService(): Promise<void>;
+  startService(taskName: string, endTimeMs: number, nextTaskName: string): Promise<void>;
+  stopService(): Promise<void>;
+  updateNotification(taskName: string, endTimeMs: number, nextTaskName: string): Promise<void>;
+  requestBatteryOptimizationExemption(): Promise<void>;
+}
+
+const ForegroundService = TurboModuleRegistry.get<ForegroundServiceSpec>('ForegroundService');
 
 export const ForegroundServiceModule = {
   /**
@@ -24,7 +32,7 @@ export const ForegroundServiceModule = {
    */
   async startIdleService(): Promise<void> {
     if (!ForegroundService) {
-      console.warn('[ForegroundService] Native module not linked. Run EAS build.');
+      console.error('[ForegroundServiceModule] Native module "ForegroundService" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
       return;
     }
     return ForegroundService.startIdleService();
@@ -32,7 +40,7 @@ export const ForegroundServiceModule = {
 
   async startService(taskName: string, endTimeMs: number, nextTaskName: string): Promise<void> {
     if (!ForegroundService) {
-      console.warn('[ForegroundService] Native module not linked. Run EAS build.');
+      console.error('[ForegroundServiceModule] Native module "ForegroundService" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
       return;
     }
     return ForegroundService.startService(taskName, endTimeMs, nextTaskName);
@@ -43,17 +51,26 @@ export const ForegroundServiceModule = {
    * Does NOT stop the service — it remains alive to keep the process running.
    */
   async stopService(): Promise<void> {
-    if (!ForegroundService) return;
+    if (!ForegroundService) {
+      console.error('[ForegroundServiceModule] Native module "ForegroundService" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
+      return;
+    }
     return ForegroundService.stopService();
   },
 
   async updateNotification(taskName: string, endTimeMs: number, nextTaskName: string): Promise<void> {
-    if (!ForegroundService) return;
+    if (!ForegroundService) {
+      console.error('[ForegroundServiceModule] Native module "ForegroundService" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
+      return;
+    }
     return ForegroundService.updateNotification(taskName, endTimeMs, nextTaskName);
   },
 
   async requestBatteryOptimizationExemption(): Promise<void> {
-    if (!ForegroundService) return;
+    if (!ForegroundService) {
+      console.error('[ForegroundServiceModule] Native module "ForegroundService" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
+      return;
+    }
     return ForegroundService.requestBatteryOptimizationExemption();
   },
 };

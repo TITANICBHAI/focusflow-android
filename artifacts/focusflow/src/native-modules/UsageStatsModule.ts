@@ -15,26 +15,41 @@
  *   - isIgnoringBatteryOptimizations(): Boolean — checks battery optimization exemption
  */
 
-import { NativeModules } from 'react-native';
+import { TurboModuleRegistry } from 'react-native';
 
-const { UsageStats } = NativeModules;
+interface UsageStatsSpec {
+  getForegroundApp(): Promise<string | null>;
+  hasPermission(): Promise<boolean>;
+  openUsageAccessSettings(): Promise<void>;
+  hasAccessibilityPermission(): Promise<boolean>;
+  isIgnoringBatteryOptimizations(): Promise<boolean>;
+  isDeviceAdminActive(): Promise<boolean>;
+}
+
+const UsageStats = TurboModuleRegistry.get<UsageStatsSpec>('UsageStats');
 
 export const UsageStatsModule = {
   async getForegroundApp(): Promise<string | null> {
     if (!UsageStats) {
-      console.warn('[UsageStatsModule] Native module not linked. Run EAS build.');
+      console.error('[UsageStatsModule] Native module "UsageStats" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
       return null;
     }
     return UsageStats.getForegroundApp();
   },
 
   async hasPermission(): Promise<boolean> {
-    if (!UsageStats) return false;
+    if (!UsageStats) {
+      console.error('[UsageStatsModule] Native module "UsageStats" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
+      return false;
+    }
     return UsageStats.hasPermission();
   },
 
   async openUsageAccessSettings(): Promise<void> {
-    if (!UsageStats) return;
+    if (!UsageStats) {
+      console.error('[UsageStatsModule] Native module "UsageStats" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
+      return;
+    }
     return UsageStats.openUsageAccessSettings();
   },
 
@@ -43,7 +58,10 @@ export const UsageStatsModule = {
    * Uses Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES to check the service ID.
    */
   async hasAccessibilityPermission(): Promise<boolean> {
-    if (!UsageStats) return false;
+    if (!UsageStats) {
+      console.error('[UsageStatsModule] Native module "UsageStats" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
+      return false;
+    }
     return UsageStats.hasAccessibilityPermission();
   },
 
@@ -52,7 +70,10 @@ export const UsageStatsModule = {
    * Uses PowerManager.isIgnoringBatteryOptimizations() on Android M+.
    */
   async isIgnoringBatteryOptimizations(): Promise<boolean> {
-    if (!UsageStats) return false;
+    if (!UsageStats) {
+      console.error('[UsageStatsModule] Native module "UsageStats" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
+      return false;
+    }
     return UsageStats.isIgnoringBatteryOptimizations();
   },
 
@@ -62,7 +83,10 @@ export const UsageStatsModule = {
    * component is not declared or not active.
    */
   async isDeviceAdminActive(): Promise<boolean> {
-    if (!UsageStats) return false;
+    if (!UsageStats) {
+      console.error('[UsageStatsModule] Native module "UsageStats" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
+      return false;
+    }
     return UsageStats.isDeviceAdminActive();
   },
 };

@@ -13,7 +13,7 @@
  *   - JS handlers registered per-event-type via subscribe()
  */
 
-import { NativeEventEmitter, NativeModules, EmitterSubscription } from 'react-native';
+import { NativeEventEmitter, TurboModuleRegistry, EmitterSubscription } from 'react-native';
 
 export type NativeEventType =
   | 'TASK_ENDED'        // foreground service: task timer reached zero
@@ -37,15 +37,23 @@ export interface NativeEvent {
 
 type EventHandler = (event: NativeEvent) => void;
 
+interface FocusDayBridgeSpec {
+  addListener(eventName: string): void;
+  removeListeners(count: number): void;
+}
+
 class EventBridgeClass {
   private emitter: NativeEventEmitter | null = null;
   private subscription: EmitterSubscription | null = null;
   private handlers = new Map<NativeEventType, Set<EventHandler>>();
 
   init(): void {
-    const bridge = NativeModules.FocusDayBridge;
+    // Use TurboModuleRegistry.get for correct resolution under RN 0.76 New Architecture
+    // bridgeless mode. NativeModules.FocusDayBridge may return an empty proxy that is
+    // truthy but whose methods are no-ops; TurboModuleRegistry.get returns null if unlinked.
+    const bridge = TurboModuleRegistry.get<FocusDayBridgeSpec>('FocusDayBridge');
     if (!bridge) {
-      console.warn('[EventBridge] FocusDayBridge native module not found. Running in stub mode.');
+      console.error('[EventBridge] FocusDayBridge native module not found. Ensure FocusDayPackage is registered and an EAS build was used. Running in stub mode — native events will not fire.');
       return;
     }
 

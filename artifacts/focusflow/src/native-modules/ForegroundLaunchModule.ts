@@ -20,9 +20,17 @@
  * ──────────────────────────────────────────────────────────────────────────────
  */
 
-import { NativeModules } from 'react-native';
+import { TurboModuleRegistry } from 'react-native';
 
-const { ForegroundLaunch } = NativeModules;
+interface ForegroundLaunchSpec {
+  goHome(): Promise<void>;
+  bringToFront(): Promise<void>;
+  showOverlay(message: string): Promise<void>;
+  hasOverlayPermission(): Promise<boolean>;
+  requestOverlayPermission(): Promise<void>;
+}
+
+const ForegroundLaunch = TurboModuleRegistry.get<ForegroundLaunchSpec>('ForegroundLaunch');
 
 export const ForegroundLaunchModule = {
   /**
@@ -32,7 +40,7 @@ export const ForegroundLaunchModule = {
    */
   async goHome(): Promise<void> {
     if (!ForegroundLaunch) {
-      console.warn('[ForegroundLaunchModule] Native module not linked. Run EAS build.');
+      console.error('[ForegroundLaunchModule] Native module "ForegroundLaunch" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
       return;
     }
     return ForegroundLaunch.goHome();
@@ -40,7 +48,7 @@ export const ForegroundLaunchModule = {
 
   async bringToFront(): Promise<void> {
     if (!ForegroundLaunch) {
-      console.warn('[ForegroundLaunchModule] Native module not linked. Run EAS build.');
+      console.error('[ForegroundLaunchModule] Native module "ForegroundLaunch" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
       return;
     }
     return ForegroundLaunch.bringToFront();
@@ -48,20 +56,23 @@ export const ForegroundLaunchModule = {
 
   async showOverlay(message: string): Promise<void> {
     if (!ForegroundLaunch) {
-      console.warn('[ForegroundLaunchModule] Native module not linked. Run EAS build.');
+      console.error('[ForegroundLaunchModule] Native module "ForegroundLaunch" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
       return;
     }
     return ForegroundLaunch.showOverlay(message);
   },
 
   async hasOverlayPermission(): Promise<boolean> {
-    if (!ForegroundLaunch) return false;
+    if (!ForegroundLaunch) {
+      console.error('[ForegroundLaunchModule] Native module "ForegroundLaunch" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
+      return false;
+    }
     return ForegroundLaunch.hasOverlayPermission();
   },
 
   async requestOverlayPermission(): Promise<void> {
     if (!ForegroundLaunch) {
-      console.warn('[ForegroundLaunchModule] Native module not linked. Run EAS build.');
+      console.error('[ForegroundLaunchModule] Native module "ForegroundLaunch" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
       return;
     }
     return ForegroundLaunch.requestOverlayPermission();

@@ -7,7 +7,7 @@
  *   3. Declares ForegroundTaskService
  *   4. Declares AppBlockerAccessibilityService
  *   5. Declares BootReceiver
- *   6. Patches MainApplication.kt to register FocusDayPackage
+ *   6. Registers FocusDayPackage via withMainApplication (reliable for RN 0.76+)
  *   7. Copies all Kotlin source files from android-native/ into the project
  *
  * Applied automatically during `npx expo prebuild --platform android`.
@@ -19,7 +19,7 @@ const fs   = require('fs');
 
 // Use expo/config-plugins (the official re-export) so we never need
 // @expo/config-plugins as a direct dependency.
-const { withAndroidManifest, withDangerousMod } = require('expo/config-plugins');
+const { withAndroidManifest, withDangerousMod, withMainApplication } = require('expo/config-plugins');
 
 // ─── 1. Patch settings.gradle for pnpm monorepo ───────────────────────────────
 //
@@ -223,7 +223,98 @@ function withFocusDayManifest(config) {
   });
 }
 
-// ─── 3. Copy Kotlin source files + patch MainApplication.kt ──────────────────
+// ─── 3. Register FocusDayPackage via withMainApplication ─────────────────────
+//
+// Uses Expo's withMainApplication modifier (available in expo/config-plugins)
+// which provides the Kotlin source as a string with a reliable hook. This
+// replaces the previous fragile regex-based patching approach.
+//
+// If the injection point cannot be found (e.g. unexpected template format),
+// an error is thrown so the build fails loudly instead of producing a silently
+// broken APK.
+
+function withFocusDayPackageRegistration(config) {
+  return withMainApplication(config, (cfg) => {
+    let src = cfg.modResults.contents;
+
+    // Check if already registered to avoid double-patching on re-runs
+    if (/add\(\s*FocusDayPackage\s*\(\s*\)\s*\)/.test(src)) {
+      console.log('[withFocusDayAndroid] MainApplication.kt already registers FocusDayPackage — skipping patch.');
+      cfg.modResults.contents = src;
+      return cfg;
+    }
+
+    // ── Inject import if not already present ─────────────────────────────────
+    if (!src.includes('com.tbtechs.focusflow.modules.FocusDayPackage')) {
+      if (src.includes('import com.facebook.react.ReactApplication')) {
+        src = src.replace(
+          'import com.facebook.react.ReactApplication',
+          'import com.facebook.react.ReactApplication\nimport com.tbtechs.focusflow.modules.FocusDayPackage'
+        );
+      } else if (/^package\s+[\w.]+/m.test(src)) {
+        src = src.replace(
+          /^(package\s+[\w.]+)/m,
+          '$1\nimport com.tbtechs.focusflow.modules.FocusDayPackage'
+        );
+      } else {
+        throw new Error(
+          '[withFocusDayAndroid] ERROR: Cannot inject FocusDayPackage import — no known import anchor found in MainApplication.kt. ' +
+          'This is a fatal build error; the generated MainApplication.kt has an unexpected structure.'
+        );
+      }
+    }
+
+    // ── Strategy A: RN 0.76+ / Expo SDK 52+ expression-body format ───────────
+    // Matches:  PackageList(this).packages.apply {
+    // Injects:  add(FocusDayPackage()) as first line inside apply block
+    const modernRegex = /(PackageList\(this\)\.packages\.apply\s*\{)/;
+    if (modernRegex.test(src)) {
+      src = src.replace(modernRegex, '$1\n              add(FocusDayPackage())');
+      console.log('[withFocusDayAndroid] Patched MainApplication.kt (modern expression-body format).');
+      cfg.modResults.contents = src;
+      return cfg;
+    }
+
+    // ── Strategy B: Old block-body format (RN < 0.76) ────────────────────────
+    // Matches:  val packages = PackageList(this).packages
+    const legacyRegex = /(val packages = PackageList\(this\)\.packages)/;
+    if (legacyRegex.test(src)) {
+      src = src.replace(
+        legacyRegex,
+        `$1\n        packages.add(FocusDayPackage())`
+      );
+      console.log('[withFocusDayAndroid] Patched MainApplication.kt (legacy block-body format).');
+      cfg.modResults.contents = src;
+      return cfg;
+    }
+
+    // ── Strategy C: getPackages() return expression fallback ─────────────────
+    // Handles any Expo SDK 54 / RN 0.76 template variation where the
+    // function body uses a different local variable name or structure.
+    const getPackagesReturnRegex = /(override\s+fun\s+getPackages[\s\S]*?)(return\s+PackageList\(this\)\.packages(?:\.apply\s*\{[^}]*\})?)/;
+    if (getPackagesReturnRegex.test(src)) {
+      src = src.replace(
+        getPackagesReturnRegex,
+        (match, prefix, returnStmt) => {
+          const pkgsExpr = returnStmt.replace(/^return\s+/, '');
+          return `${prefix}val _focusDayPkgs = ${pkgsExpr}\n        _focusDayPkgs.add(FocusDayPackage())\n        return _focusDayPkgs`;
+        }
+      );
+      console.log('[withFocusDayAndroid] Patched MainApplication.kt (getPackages() regex fallback).');
+      cfg.modResults.contents = src;
+      return cfg;
+    }
+
+    // ── No strategy matched — throw so EAS build fails loudly ────────────────
+    throw new Error(
+      '[withFocusDayAndroid] ERROR: Could not find a known getPackages() pattern in MainApplication.kt. ' +
+      'FocusDayPackage was NOT registered. This is a fatal build error — check the generated MainApplication.kt ' +
+      'and update the plugin to match its structure.'
+    );
+  });
+}
+
+// ─── 4. Copy Kotlin source files + resource files ────────────────────────────
 
 function withFocusDayKotlin(config) {
   return withDangerousMod(config, [
@@ -259,83 +350,6 @@ function withFocusDayKotlin(config) {
         }
       }
 
-      // ── Patch MainApplication.kt ──────────────────────────────────────────
-      const mainAppPath = path.join(
-        platformRoot, 'app', 'src', 'main', 'java', pkg, 'MainApplication.kt'
-      );
-      if (fs.existsSync(mainAppPath)) {
-        let src = fs.readFileSync(mainAppPath, 'utf8');
-
-        // Check specifically for add(FocusDayPackage()) to detect only successful
-        // registration, not just the presence of the class import or class name.
-        const alreadyRegistered = /add\(\s*FocusDayPackage\s*\(\s*\)\s*\)/.test(src);
-
-        if (!alreadyRegistered) {
-          // ── Inject import if not already present ─────────────────────────
-          // Strategy: try the ReactApplication import anchor first (works when the
-          // file starts with that import). If absent, fall back to inserting after
-          // the first "package com." declaration, which is always present.
-          if (!src.includes('com.tbtechs.focusflow.modules.FocusDayPackage')) {
-            if (src.includes('import com.facebook.react.ReactApplication')) {
-              src = src.replace(
-                'import com.facebook.react.ReactApplication',
-                'import com.facebook.react.ReactApplication\nimport com.tbtechs.focusflow.modules.FocusDayPackage'
-              );
-            } else {
-              // Expo SDK 54 templates may reorder imports — insert after the package declaration
-              src = src.replace(
-                /^(package\s+[\w.]+)/m,
-                '$1\nimport com.tbtechs.focusflow.modules.FocusDayPackage'
-              );
-            }
-          }
-
-          // ── Strategy A: RN 0.76+ / Expo SDK 52+ expression-body format ──
-          // Matches:  PackageList(this).packages.apply {
-          // Injects:  add(FocusDayPackage()) as first line inside apply block
-          const modernRegex = /(PackageList\(this\)\.packages\.apply\s*\{)/;
-          if (modernRegex.test(src)) {
-            src = src.replace(modernRegex, '$1\n              add(FocusDayPackage())');
-            console.log('[withFocusDayAndroid] Patched MainApplication.kt (modern expression-body format).');
-          } else {
-            // ── Strategy B: Old block-body format (RN < 0.76) ─────────────
-            // Matches:  val packages = PackageList(this).packages
-            const legacyRegex = /(val packages = PackageList\(this\)\.packages)/;
-            if (legacyRegex.test(src)) {
-              src = src.replace(
-                legacyRegex,
-                `$1\n        packages.add(FocusDayPackage())`
-              );
-              console.log('[withFocusDayAndroid] Patched MainApplication.kt (legacy block-body format).');
-            } else {
-              // ── Strategy C: Regex fallback — search for getPackages() body ──
-              // Handles any Expo SDK 54 / RN 0.76 template variation where the
-              // function body uses a different local variable name or structure.
-              // Wraps the entire return expression: captures `return PackageList(this).packages`
-              // (with optional .apply { ... } or nothing after) and replaces it with an explicit
-              // val + add() + return block so FocusDayPackage is always included.
-              const getPackagesReturnRegex = /(override\s+fun\s+getPackages[\s\S]*?)(return\s+PackageList\(this\)\.packages(?:\.apply\s*\{[^}]*\})?)/;
-              if (getPackagesReturnRegex.test(src)) {
-                src = src.replace(
-                  getPackagesReturnRegex,
-                  (match, prefix, returnStmt) => {
-                    const pkgsExpr = returnStmt.replace(/^return\s+/, '');
-                    return `${prefix}val _focusDayPkgs = ${pkgsExpr}\n        _focusDayPkgs.add(FocusDayPackage())\n        return _focusDayPkgs`;
-                  }
-                );
-                console.log('[withFocusDayAndroid] Patched MainApplication.kt (getPackages() regex fallback).');
-              } else {
-                console.warn('[withFocusDayAndroid] WARNING: Could not find a known getPackages() pattern in MainApplication.kt. FocusDayPackage was NOT registered. Check the generated file manually.');
-              }
-            }
-          }
-
-          fs.writeFileSync(mainAppPath, src, 'utf8');
-        } else {
-          console.log('[withFocusDayAndroid] MainApplication.kt already registers FocusDayPackage — skipping patch.');
-        }
-      }
-
       return cfg;
     },
   ]);
@@ -347,6 +361,7 @@ module.exports = function withFocusDayAndroid(config) {
   config = withFocusDaySettings(config);
   config = withFocusDayManifest(config);
   config = withFocusDayKotlin(config);
+  config = withFocusDayPackageRegistration(config);
   return config;
 };
 
