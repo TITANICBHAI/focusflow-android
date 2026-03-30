@@ -32,8 +32,6 @@ import {
   cancelTaskReminders,
   setupNotificationChannels,
   requestPermissions,
-  showPersistentTaskNotification,
-  dismissPersistentNotification,
 } from '@/services/notificationService';
 import {
   startFocusMode as _startFocusMode,
@@ -41,6 +39,7 @@ import {
   isFocusActive,
 } from '@/services/focusService';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
+import { EventBridge } from '@/services/eventBridge';
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -209,6 +208,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, [state.isDbReady, state.tasks, state.settings]);
 
+  // ── Native event subscriptions ───────────────────────────────────────────────
+
+  useEffect(() => {
+    const unsubTaskEnded = EventBridge.subscribe('TASK_ENDED', () => {
+      void _stopFocusMode();
+      dispatch({ type: 'SET_FOCUS_SESSION', payload: null });
+    });
+
+    const unsubAppBlocked = EventBridge.subscribe('APP_BLOCKED', (event) => {
+      dispatch({ type: 'SET_FOCUS_VIOLATION', payload: event.blockedApp ?? null });
+    });
+
+    return () => {
+      unsubTaskEnded();
+      unsubAppBlocked();
+    };
+  }, []);
+
   // ── Tasks ───────────────────────────────────────────────────────────────────
 
   const refreshTasks = useCallback(async () => {
@@ -327,7 +344,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const stopFocusMode = useCallback(async () => {
     await _stopFocusMode();
-    await dismissPersistentNotification();
     dispatch({ type: 'SET_FOCUS_SESSION', payload: null });
   }, []);
 

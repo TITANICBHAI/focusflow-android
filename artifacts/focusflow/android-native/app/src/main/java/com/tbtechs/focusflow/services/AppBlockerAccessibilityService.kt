@@ -83,10 +83,11 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         val allowedJson = prefs.getString(PREF_ALLOWED_PKG, "[]") ?: "[]"
         val allowedList = parseJsonArray(allowedJson)
 
-        // Block any app that is NOT in the allowed list (and not our own package)
-        val isBlocked = isAlwaysBlocked || (allowedList.isNotEmpty() && !allowedList.any { allowed ->
+        // Block any app that is NOT in the allowed list (and not our own package).
+        // Empty allowed list = maximum strictness: block everything.
+        val isBlocked = isAlwaysBlocked || !allowedList.any { allowed ->
             pkg.equals(allowed, ignoreCase = true) || pkg.contains(allowed, ignoreCase = true)
-        })
+        }
 
         if (isBlocked && pkg != lastBlockedPkg) {
             lastBlockedPkg = pkg

@@ -174,6 +174,23 @@ TaskManager.defineTask(TASK_NOTIFICATION_BG, async ({ data, error }: any) => {
   }
 });
 
+// ─── Register overrun-check task with expo-notifications ─────────────────────
+//
+// Without this, TaskManager.defineTask(TASK_OVERRUN_CHECK, …) is never fired —
+// expo-notifications requires an explicit link between a notification-triggered
+// task and the notifications system.  Call once at startup.
+
+export async function registerOverrunCheckTask(): Promise<void> {
+  try {
+    await Notifications.registerTaskAsync(TASK_OVERRUN_CHECK);
+    console.log('[BgTask] Registered overrun check task with notifications.');
+  } catch (e: any) {
+    if (!e.message?.includes('already registered')) {
+      console.warn('[BgTask] Failed to register overrun check task:', e);
+    }
+  }
+}
+
 // ─── Register background fetch with the OS ───────────────────────────────────
 //
 // Call this once at startup (from App.tsx). Safe to call multiple times.

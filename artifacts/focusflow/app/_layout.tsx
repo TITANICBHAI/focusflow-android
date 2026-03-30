@@ -25,8 +25,8 @@ import { StyleSheet } from 'react-native';
 
 import { AppProvider } from '@/context/AppContext';
 import { EventBridge } from '@/services/eventBridge';
-import { navigateToTask } from '@/navigation/navigationRef';
-import { registerBackgroundFetch } from '@/tasks/backgroundTasks';
+import { navigateToTask, consumePendingTaskNavigation } from '@/navigation/navigationRef';
+import { registerBackgroundFetch, registerOverrunCheckTask } from '@/tasks/backgroundTasks';
 
 // ─── 2. Foreground notification display behaviour ─────────────────────────────
 Notifications.setNotificationHandler({
@@ -115,6 +115,8 @@ export default function RootLayout() {
     async function bootstrap() {
       await setupNotificationCategories();
       await registerBackgroundFetch();
+      await registerOverrunCheckTask();
+      consumePendingTaskNavigation();
 
       try {
         const { ForegroundServiceModule } = await import('@/native-modules/ForegroundServiceModule');

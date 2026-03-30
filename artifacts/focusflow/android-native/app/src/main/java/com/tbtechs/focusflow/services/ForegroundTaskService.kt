@@ -143,7 +143,7 @@ class ForegroundTaskService : Service() {
             .setContentTitle("🎯 $taskName")
             .setContentText(timeStr)
             .setSubText(nextName?.let { "Next: $it" })
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm) // replace with your app icon
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(tapPending)

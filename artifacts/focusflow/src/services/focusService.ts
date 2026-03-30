@@ -11,7 +11,7 @@
 
 import { AppState, type AppStateStatus } from 'react-native';
 import * as Notifications from 'expo-notifications';
-import { showPersistentTaskNotification, dismissPersistentNotification } from './notificationService';
+import { dismissPersistentNotification } from './notificationService';
 import { dbStartFocusSession, dbEndFocusSession } from '@/data/database';
 import { ForegroundServiceModule } from '@/native-modules/ForegroundServiceModule';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
@@ -47,7 +47,6 @@ export async function startFocusMode(
   };
 
   await dbStartFocusSession(session);
-  await showPersistentTaskNotification(task);
 
   const nextTask = getUpcomingTask([task]);
   const endMs = new Date(task.endTime).getTime();

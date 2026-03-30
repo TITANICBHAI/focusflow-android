@@ -16,7 +16,7 @@
 import { NativeEventEmitter, NativeModules, EmitterSubscription } from 'react-native';
 
 export type NativeEventType =
-  | 'TASK_END'          // foreground service: task timer reached zero
+  | 'TASK_ENDED'        // foreground service: task timer reached zero
   | 'TASK_TICK'         // foreground service: every 30s update
   | 'APP_BLOCKED'       // app blocker: forbidden app was detected
   | 'FOCUS_START'       // native side started focus mode
@@ -76,35 +76,6 @@ class EventBridgeClass {
         console.error('[EventBridge] Handler error for', event.type, e);
       }
     });
-  }
-
-  // ── JS → Native calls ──────────────────────────────────────────────────────
-
-  notifyTaskStarted(taskId: string, taskName: string, endTimeMs: number, nextTaskName: string): void {
-    try {
-      const { ForegroundService } = NativeModules;
-      ForegroundService?.startService(taskName, endTimeMs, nextTaskName);
-    } catch (e) {
-      console.warn('[EventBridge] notifyTaskStarted failed', e);
-    }
-  }
-
-  notifyTaskEnded(taskId: string): void {
-    try {
-      const { ForegroundService } = NativeModules;
-      ForegroundService?.stopService();
-    } catch (e) {
-      console.warn('[EventBridge] notifyTaskEnded failed', e);
-    }
-  }
-
-  updateTimer(taskName: string, endTimeMs: number, nextTaskName: string): void {
-    try {
-      const { ForegroundService } = NativeModules;
-      ForegroundService?.updateNotification(taskName, endTimeMs, nextTaskName);
-    } catch (e) {
-      console.warn('[EventBridge] updateTimer failed', e);
-    }
   }
 
   destroy(): void {
