@@ -31,6 +31,7 @@ class FocusDayBridgeModule(private val reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext), LifecycleEventListener {
 
     companion object {
+        const val NAME = "FocusDayBridge"
         const val JS_EVENT_NAME = "FocusDayEvent"
         const val ACTION_APP_BLOCKED = "com.tbtechs.focusflow.APP_BLOCKED"
         const val EXTRA_BLOCKED_PKG  = "blockedPackage"
@@ -51,7 +52,7 @@ class FocusDayBridgeModule(private val reactContext: ReactApplicationContext) :
         }
     }
 
-    override fun getName(): String = "FocusDayBridge"
+    override fun getName(): String = NAME
 
     override fun initialize() {
         super.initialize()

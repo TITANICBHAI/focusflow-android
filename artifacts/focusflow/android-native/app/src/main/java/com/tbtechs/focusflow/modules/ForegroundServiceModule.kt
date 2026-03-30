@@ -25,7 +25,11 @@ import com.tbtechs.focusflow.services.ForegroundTaskService
 class ForegroundServiceModule(private val reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
 
-    override fun getName(): String = "ForegroundService"
+    companion object {
+        const val NAME = "ForegroundService"
+    }
+
+    override fun getName(): String = NAME
 
     /**
      * Ensures the foreground service is running in idle mode.

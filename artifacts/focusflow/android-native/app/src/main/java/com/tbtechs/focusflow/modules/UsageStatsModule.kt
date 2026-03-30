@@ -33,13 +33,14 @@ class UsageStatsModule(private val reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
 
     companion object {
+        const val NAME = "UsageStats"
         private const val ACCESSIBILITY_SERVICE_ID =
             "com.tbtechs.focusflow/com.tbtechs.focusflow.services.AppBlockerAccessibilityService"
         private const val DEVICE_ADMIN_RECEIVER =
             "com.tbtechs.focusflow/com.tbtechs.focusflow.services.FocusDayDeviceAdminReceiver"
     }
 
-    override fun getName(): String = "UsageStats"
+    override fun getName(): String = NAME
 
     /**
      * Returns the package name of the current foreground app.

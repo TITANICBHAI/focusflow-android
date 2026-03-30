@@ -272,11 +272,22 @@ function withFocusDayKotlin(config) {
 
         if (!alreadyRegistered) {
           // ── Inject import if not already present ─────────────────────────
+          // Strategy: try the ReactApplication import anchor first (works when the
+          // file starts with that import). If absent, fall back to inserting after
+          // the first "package com." declaration, which is always present.
           if (!src.includes('com.tbtechs.focusflow.modules.FocusDayPackage')) {
-            src = src.replace(
-              'import com.facebook.react.ReactApplication',
-              'import com.facebook.react.ReactApplication\nimport com.tbtechs.focusflow.modules.FocusDayPackage'
-            );
+            if (src.includes('import com.facebook.react.ReactApplication')) {
+              src = src.replace(
+                'import com.facebook.react.ReactApplication',
+                'import com.facebook.react.ReactApplication\nimport com.tbtechs.focusflow.modules.FocusDayPackage'
+              );
+            } else {
+              // Expo SDK 54 templates may reorder imports — insert after the package declaration
+              src = src.replace(
+                /^(package\s+[\w.]+)/m,
+                '$1\nimport com.tbtechs.focusflow.modules.FocusDayPackage'
+              );
+            }
           }
 
           // ── Strategy A: RN 0.76+ / Expo SDK 52+ expression-body format ──
@@ -297,7 +308,25 @@ function withFocusDayKotlin(config) {
               );
               console.log('[withFocusDayAndroid] Patched MainApplication.kt (legacy block-body format).');
             } else {
-              console.warn('[withFocusDayAndroid] WARNING: Could not find a known getPackages() pattern in MainApplication.kt. FocusDayPackage was NOT registered. Check the generated file manually.');
+              // ── Strategy C: Regex fallback — search for getPackages() body ──
+              // Handles any Expo SDK 54 / RN 0.76 template variation where the
+              // function body uses a different local variable name or structure.
+              // Wraps the entire return expression: captures `return PackageList(this).packages`
+              // (with optional .apply { ... } or nothing after) and replaces it with an explicit
+              // val + add() + return block so FocusDayPackage is always included.
+              const getPackagesReturnRegex = /(override\s+fun\s+getPackages[\s\S]*?)(return\s+PackageList\(this\)\.packages(?:\.apply\s*\{[^}]*\})?)/;
+              if (getPackagesReturnRegex.test(src)) {
+                src = src.replace(
+                  getPackagesReturnRegex,
+                  (match, prefix, returnStmt) => {
+                    const pkgsExpr = returnStmt.replace(/^return\s+/, '');
+                    return `${prefix}val _focusDayPkgs = ${pkgsExpr}\n        _focusDayPkgs.add(FocusDayPackage())\n        return _focusDayPkgs`;
+                  }
+                );
+                console.log('[withFocusDayAndroid] Patched MainApplication.kt (getPackages() regex fallback).');
+              } else {
+                console.warn('[withFocusDayAndroid] WARNING: Could not find a known getPackages() pattern in MainApplication.kt. FocusDayPackage was NOT registered. Check the generated file manually.');
+              }
             }
           }
 

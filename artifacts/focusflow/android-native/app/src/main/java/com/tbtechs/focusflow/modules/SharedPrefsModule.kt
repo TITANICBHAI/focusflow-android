@@ -25,7 +25,11 @@ import com.tbtechs.focusflow.services.AppBlockerAccessibilityService
 class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
 
-    override fun getName(): String = "SharedPrefs"
+    companion object {
+        const val NAME = "SharedPrefs"
+    }
+
+    override fun getName(): String = NAME
 
     private fun prefs() = reactContext.getSharedPreferences(
         AppBlockerAccessibilityService.PREFS_NAME, android.content.Context.MODE_PRIVATE

@@ -28,7 +28,11 @@ import java.io.ByteArrayOutputStream
 class InstalledAppsModule(private val reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
 
-    override fun getName(): String = "InstalledApps"
+    companion object {
+        const val NAME = "InstalledApps"
+    }
+
+    override fun getName(): String = NAME
 
     @ReactMethod
     fun getInstalledApps(promise: Promise) {

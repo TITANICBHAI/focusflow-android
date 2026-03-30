@@ -40,7 +40,11 @@ import com.facebook.react.bridge.ReactMethod
 class ForegroundLaunchModule(private val reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
 
-    override fun getName(): String = "ForegroundLaunch"
+    companion object {
+        const val NAME = "ForegroundLaunch"
+    }
+
+    override fun getName(): String = NAME
 
     /**
      * Sends the device to the home screen.
