@@ -9,7 +9,6 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "NODE_ENV": "development",
         "NPM_CONFIG_NODE_LINKER": "hoisted",
         "EXPO_ROUTER_APP_ROOT": "app"
       },
@@ -20,7 +19,6 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "NODE_ENV": "production",
         "NPM_CONFIG_NODE_LINKER": "hoisted",
         "EXPO_ROUTER_APP_ROOT": "app"
       },
@@ -31,7 +29,6 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "NODE_ENV": "production",
         "NPM_CONFIG_NODE_LINKER": "hoisted",
         "EXPO_ROUTER_APP_ROOT": "app"
       },
