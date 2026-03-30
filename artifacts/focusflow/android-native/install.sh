@@ -14,7 +14,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 ANDROID_DIR="$ROOT_DIR/android"
-PKG_DIR="$ANDROID_DIR/app/src/main/java/com/tbtechs/focusday"
+PKG_DIR="$ANDROID_DIR/app/src/main/java/com/tbtechs/focusflow"
 RES_DIR="$ANDROID_DIR/app/src/main/res"
 
 if [ ! -d "$ANDROID_DIR" ]; then
@@ -27,11 +27,11 @@ echo "📦  Copying Kotlin source files..."
 
 # Modules
 mkdir -p "$PKG_DIR/modules"
-cp "$SCRIPT_DIR/app/src/main/java/com/tbtechs/focusday/modules/"*.kt "$PKG_DIR/modules/"
+cp "$SCRIPT_DIR/app/src/main/java/com/tbtechs/focusflow/modules/"*.kt "$PKG_DIR/modules/"
 
 # Services
 mkdir -p "$PKG_DIR/services"
-cp "$SCRIPT_DIR/app/src/main/java/com/tbtechs/focusday/services/"*.kt "$PKG_DIR/services/"
+cp "$SCRIPT_DIR/app/src/main/java/com/tbtechs/focusflow/services/"*.kt "$PKG_DIR/services/"
 
 echo "🖼   Copying resource files..."
 
@@ -62,10 +62,10 @@ echo "  1. Add permissions + service/receiver entries to:"
 echo "     android/app/src/main/AndroidManifest.xml"
 echo ""
 echo "  2. Register FocusDayPackage in:"
-echo "     android/app/src/main/java/com/tbtechs/focusday/MainApplication.kt"
+echo "     android/app/src/main/java/com/tbtechs/focusflow/MainApplication.kt"
 echo ""
 echo "     Add import:"
-echo "       import com.tbtechs.focusday.modules.FocusDayPackage"
+echo "       import com.tbtechs.focusflow.modules.FocusDayPackage"
 echo ""
 echo "     In getPackages():"
 echo "       packages.add(FocusDayPackage())"
