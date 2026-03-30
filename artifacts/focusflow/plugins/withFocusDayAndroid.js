@@ -121,6 +121,11 @@ function withFocusDayManifest(config) {
       'android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS',
       'android.permission.WAKE_LOCK',
       'android.permission.BIND_ACCESSIBILITY_SERVICE',
+      // Required on Android 11+ (API 30+) for PackageManager.getInstalledApplications()
+      // to return all installed apps including user-installed ones. Without this, only
+      // packages with matching <queries> entries are visible. This is how Stay Focused,
+      // Google Family Link, and other app-blocker apps enumerate the installed app list.
+      'android.permission.QUERY_ALL_PACKAGES',
     ];
 
     const existing = (manifest.manifest['uses-permission'] || []).map(

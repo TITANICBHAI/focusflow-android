@@ -1,7 +1,10 @@
 /**
  * Android InstalledApps Native Module
  *
- * Returns all user-installed apps (system apps excluded).
+ * Returns all apps that appear in the device's app drawer — including user-installed
+ * apps AND pre-installed/updated system apps that have a launcher icon (Chrome, YouTube,
+ * Gmail, Samsung apps, etc.). Uses getLaunchIntentForPackage() as the filter, which is
+ * exactly the signal the Android launcher uses to populate the app drawer.
  *
  * ─── Kotlin Implementation ────────────────────────────────────────────────────
  * File: android-native/app/src/main/java/com/tbtechs/focusflow/modules/InstalledAppsModule.kt

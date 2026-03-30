@@ -1,10 +1,12 @@
 package com.tbtechs.focusflow.modules
 
-import android.content.pm.ApplicationInfo
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.Drawable
+import android.os.Build
 import android.util.Base64
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
@@ -23,13 +25,28 @@ import java.io.ByteArrayOutputStream
  * Exposes a single method to JS:
  *   - getInstalledApps() → Promise<Array<{ packageName, appName, iconBase64? }>>
  *
- * Only returns user-installed apps (system apps are filtered out by FLAG_SYSTEM).
+ * Filter logic: only returns apps that have a launcher icon (i.e. appear in the
+ * device's app drawer). This uses getLaunchIntentForPackage() — the same signal
+ * the Android launcher uses — instead of the FLAG_SYSTEM flag.
+ *
+ * Why NOT use FLAG_SYSTEM / FLAG_UPDATED_SYSTEM_APP:
+ *   Filtering by FLAG_UPDATED_SYSTEM_APP excludes apps like YouTube, Chrome, Gmail,
+ *   Samsung Browser, Instagram (pre-installed on some devices), etc. — exactly the
+ *   apps users want to block. The correct signal is "does this app appear in the
+ *   app drawer?" which is getLaunchIntentForPackage() != null.
+ *
+ * Icons are scaled to ICON_SIZE × ICON_SIZE (64 dp equivalent) and PNG-compressed
+ * at 80% quality before being base64-encoded, keeping each icon under ~10 KB.
+ *
+ * AdaptiveIconDrawable (API 26+) is rendered onto a white background so
+ * the foreground layer is always visible regardless of the system's icon shape.
  */
 class InstalledAppsModule(private val reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
 
     companion object {
         const val NAME = "InstalledApps"
+        private const val ICON_SIZE = 96  // px — ~1.5× a 64 dp icon, good for hdpi screens
     }
 
     override fun getName(): String = NAME
@@ -38,25 +55,40 @@ class InstalledAppsModule(private val reactContext: ReactApplicationContext) :
     fun getInstalledApps(promise: Promise) {
         try {
             val pm = reactContext.packageManager
+
+            // Query all installed packages — returns the full list.
+            // On Android 11+ (API 30+) this is limited by package visibility unless
+            // QUERY_ALL_PACKAGES is granted or a matching <queries> block exists in the manifest.
+            @Suppress("DEPRECATION")
             val apps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+
             val result: WritableArray = Arguments.createArray()
 
             for (app in apps) {
-                val isSystemApp = (app.flags and ApplicationInfo.FLAG_SYSTEM) != 0
-                val isUpdatedSystemApp = (app.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
-                if (isSystemApp || isUpdatedSystemApp) continue
+                // Skip our own package
+                if (app.packageName == reactContext.packageName) continue
+
+                // Only include apps that appear in the app drawer.
+                // This naturally includes user-installed apps and pre-installed apps
+                // with a launcher icon (Chrome, YouTube, Gmail, Samsung Apps, etc.)
+                // while excluding background services, frameworks, and core OS packages.
+                val launchIntent = pm.getLaunchIntentForPackage(app.packageName) ?: continue
 
                 val map: WritableMap = Arguments.createMap()
                 map.putString("packageName", app.packageName)
 
-                val label = pm.getApplicationLabel(app).toString()
+                val label = try {
+                    pm.getApplicationLabel(app).toString()
+                } catch (_: Exception) {
+                    app.packageName
+                }
                 map.putString("appName", label)
 
                 try {
                     val icon: Drawable = pm.getApplicationIcon(app.packageName)
                     val bitmap = drawableToBitmap(icon)
                     val stream = ByteArrayOutputStream()
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 85, stream)
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 80, stream)
                     val b64 = Base64.encodeToString(stream.toByteArray(), Base64.NO_WRAP)
                     map.putString("iconBase64", b64)
                 } catch (_: Exception) {
@@ -72,13 +104,28 @@ class InstalledAppsModule(private val reactContext: ReactApplicationContext) :
         }
     }
 
+    /**
+     * Converts any Drawable (including AdaptiveIconDrawable) to a fixed-size Bitmap.
+     *
+     * AdaptiveIconDrawable (Android 8+) has a foreground and background layer.
+     * We draw it on a white background at ICON_SIZE so the icon is always visible
+     * regardless of whether the system would normally apply a shape mask.
+     */
     private fun drawableToBitmap(drawable: Drawable): Bitmap {
-        val width  = drawable.intrinsicWidth.takeIf  { it > 0 } ?: 48
-        val height = drawable.intrinsicHeight.takeIf { it > 0 } ?: 48
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val bitmap = Bitmap.createBitmap(ICON_SIZE, ICON_SIZE, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        drawable.setBounds(0, 0, canvas.width, canvas.height)
-        drawable.draw(canvas)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            drawable is AdaptiveIconDrawable) {
+            // Fill white background so the foreground layer renders correctly
+            canvas.drawColor(android.graphics.Color.WHITE)
+            drawable.setBounds(0, 0, ICON_SIZE, ICON_SIZE)
+            drawable.draw(canvas)
+        } else {
+            drawable.setBounds(0, 0, ICON_SIZE, ICON_SIZE)
+            drawable.draw(canvas)
+        }
+
         return bitmap
     }
 }
