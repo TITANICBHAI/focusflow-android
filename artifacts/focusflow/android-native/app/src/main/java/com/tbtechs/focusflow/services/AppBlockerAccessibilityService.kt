@@ -35,6 +35,19 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         const val PREFS_NAME       = "focusday_prefs"
         const val PREF_ALLOWED_PKG = "allowed_packages"
         const val PREF_FOCUS_ON    = "focus_active"
+
+        /**
+         * Package installers / uninstall UIs that are ALWAYS blocked during a focus
+         * session, regardless of what JS writes to SharedPreferences.
+         * JS settings cannot override this set.
+         */
+        val ALWAYS_BLOCKED: Set<String> = setOf(
+            "com.android.packageinstaller",
+            "com.google.android.packageinstaller",
+            "com.samsung.android.packageinstaller",
+            "com.miui.packageinstaller",
+            "com.android.vending"
+        )
     }
 
     private lateinit var prefs: SharedPreferences
@@ -61,13 +74,18 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         val pkg = event.packageName?.toString() ?: return
         if (pkg == packageName) return  // never block our own app
 
+        // Always block package installers / uninstall UIs — JS cannot override this.
+        val isAlwaysBlocked = ALWAYS_BLOCKED.any { blocked ->
+            pkg.equals(blocked, ignoreCase = true) || pkg.contains(blocked, ignoreCase = true)
+        }
+
         val allowedJson = prefs.getString(PREF_ALLOWED_PKG, "[]") ?: "[]"
         val allowedList = parseJsonArray(allowedJson)
 
         // Block any app that is NOT in the allowed list (and not our own package)
-        val isBlocked = allowedList.isNotEmpty() && !allowedList.any { allowed ->
+        val isBlocked = isAlwaysBlocked || (allowedList.isNotEmpty() && !allowedList.any { allowed ->
             pkg.equals(allowed, ignoreCase = true) || pkg.contains(allowed, ignoreCase = true)
-        }
+        })
 
         if (isBlocked && pkg != lastBlockedPkg) {
             lastBlockedPkg = pkg
