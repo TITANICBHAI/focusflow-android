@@ -166,7 +166,10 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         }
         sendBroadcast(broadcast)
 
-        // 2. Bring FocusFlow to the front immediately
+        // 2. Press Home immediately to exit the blocked app
+        performGlobalAction(GLOBAL_ACTION_HOME)
+
+        // 3. Bring FocusFlow to the front so user sees the block notification
         val launchIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
             addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK or
@@ -176,9 +179,6 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             putExtra("blocked_app", blockedPackage)
         }
         launchIntent?.let { startActivity(it) }
-
-        // 3. Press Back to push the blocked app off the stack
-        performGlobalAction(GLOBAL_ACTION_BACK)
     }
 
     // ─── JSON helper ──────────────────────────────────────────────────────────

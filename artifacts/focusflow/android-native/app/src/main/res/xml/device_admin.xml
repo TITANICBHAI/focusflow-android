@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Device Admin policy for FocusDayDeviceAdminReceiver.
+  No special policies are declared — FocusFlow only needs Device Admin status
+  to prevent OEM battery killers from force-stopping the app on MIUI/ColorOS/Realme UI.
+  The system will still show a deactivate button in Security Settings.
+-->
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies />
+</device-admin>

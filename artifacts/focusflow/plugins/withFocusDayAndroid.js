@@ -208,6 +208,34 @@ function withFocusDayManifest(config) {
       });
     }
 
+    // ── Device Admin Receiver ─────────────────────────────────────────────────
+    const adminExists = (app.receiver || []).some(
+      (r) => r.$['android:name'] === 'com.tbtechs.focusflow.services.FocusDayDeviceAdminReceiver'
+    );
+    if (!adminExists) {
+      if (!app.receiver) app.receiver = [];
+      app.receiver.push({
+        $: {
+          'android:name':       'com.tbtechs.focusflow.services.FocusDayDeviceAdminReceiver',
+          'android:enabled':    'true',
+          'android:exported':   'true',
+          'android:permission': 'android.permission.BIND_DEVICE_ADMIN',
+          'android:label':      'FocusFlow',
+        },
+        'meta-data': [{
+          $: {
+            'android:name':     'android.app.device_admin',
+            'android:resource': '@xml/device_admin',
+          },
+        }],
+        'intent-filter': [{
+          action: [
+            { $: { 'android:name': 'android.app.action.DEVICE_ADMIN_ENABLED' } },
+          ],
+        }],
+      });
+    }
+
     // ── <queries> block for Android 11+ package visibility ────────────────────
     // Without this, PackageManager.getInstalledPackages() returns an empty list
     // on API 30+ for user-installed apps (package visibility restrictions).

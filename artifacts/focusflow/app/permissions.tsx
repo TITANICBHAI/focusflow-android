@@ -136,7 +136,7 @@ const PERMISSIONS: PermissionItem[] = [
     description:
       'Some aggressive OEM skins (MIUI, ColorOS) kill the app even with battery exemption. Granting Device Admin prevents this on affected devices. Not required on stock Android.',
     icon: 'shield-outline',
-    deepLinkLabel: 'Open Security Settings',
+    deepLinkLabel: 'Activate Device Admin',
     check: async (): Promise<PermStatus> => {
       try {
         const active = await UsageStatsModule.isDeviceAdminActive();
@@ -146,7 +146,7 @@ const PERMISSIONS: PermissionItem[] = [
       }
     },
     open: () => {
-      Linking.sendIntent('android.settings.SECURITY_SETTINGS').catch(() =>
+      UsageStatsModule.openDeviceAdminSettings().catch(() =>
         Linking.openSettings()
       );
     },

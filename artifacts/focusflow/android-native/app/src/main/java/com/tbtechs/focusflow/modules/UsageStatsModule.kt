@@ -6,6 +6,7 @@ import android.app.usage.UsageStatsManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.os.Process
@@ -84,18 +85,73 @@ class UsageStatsModule(private val reactContext: ReactApplicationContext) :
     }
 
     /**
-     * Opens the Usage Access settings screen so the user can grant permission.
+     * Opens the Usage Access settings screen, deep-linking directly to this app's entry
+     * on Android Q+ (API 29+). Falls back to the global usage access list on older versions.
+     * Uses currentActivity when available so the intent fires from a live Activity context,
+     * which is more reliable than starting from the application context on Android 12+.
      */
     @ReactMethod
     fun openUsageAccessSettings(promise: Promise) {
         try {
-            val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+                    data = Uri.parse("package:${reactContext.packageName}")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+            } else {
+                Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
             }
-            reactContext.startActivity(intent)
+            val activity = reactContext.currentActivity
+            if (activity != null && !activity.isFinishing) {
+                activity.startActivity(intent)
+            } else {
+                reactContext.startActivity(intent)
+            }
             promise.resolve(null)
         } catch (e: Exception) {
             promise.reject("SETTINGS_ERROR", e.message, e)
+        }
+    }
+
+    /**
+     * Opens the Device Admin activation dialog for this app's FocusDayDeviceAdminReceiver.
+     * If the component does not exist or the intent fails, falls back to Security Settings.
+     */
+    @ReactMethod
+    fun openDeviceAdminSettings(promise: Promise) {
+        try {
+            val component = ComponentName(
+                reactContext.packageName,
+                "com.tbtechs.focusflow.services.FocusDayDeviceAdminReceiver"
+            )
+            val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+                putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, component)
+                putExtra(
+                    DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                    "FocusFlow needs Device Admin rights to prevent aggressive OEM battery killers from stopping the blocking service."
+                )
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            val activity = reactContext.currentActivity
+            if (activity != null && !activity.isFinishing) {
+                activity.startActivity(intent)
+            } else {
+                reactContext.startActivity(intent)
+            }
+            promise.resolve(null)
+        } catch (e: Exception) {
+            // Fallback: open general security settings
+            try {
+                val fallback = Intent(Settings.ACTION_SECURITY_SETTINGS).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                reactContext.startActivity(fallback)
+                promise.resolve(null)
+            } catch (e2: Exception) {
+                promise.reject("DEVICE_ADMIN_ERROR", e2.message, e2)
+            }
         }
     }
 

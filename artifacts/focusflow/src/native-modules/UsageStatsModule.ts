@@ -24,6 +24,7 @@ interface UsageStatsSpec extends TurboModule {
   hasAccessibilityPermission(): Promise<boolean>;
   isIgnoringBatteryOptimizations(): Promise<boolean>;
   isDeviceAdminActive(): Promise<boolean>;
+  openDeviceAdminSettings(): Promise<void>;
 }
 
 const UsageStats = TurboModuleRegistry.get<UsageStatsSpec>('UsageStats');
@@ -89,5 +90,17 @@ export const UsageStatsModule = {
       return false;
     }
     return UsageStats.isDeviceAdminActive();
+  },
+
+  /**
+   * Opens the Device Admin activation dialog for FocusDayDeviceAdminReceiver.
+   * Falls back to Security Settings if the receiver is not registered.
+   */
+  async openDeviceAdminSettings(): Promise<void> {
+    if (!UsageStats) {
+      console.error('[UsageStatsModule] Native module "UsageStats" not found. Ensure FocusDayPackage is registered and an EAS build was used.');
+      return;
+    }
+    return UsageStats.openDeviceAdminSettings();
   },
 };
