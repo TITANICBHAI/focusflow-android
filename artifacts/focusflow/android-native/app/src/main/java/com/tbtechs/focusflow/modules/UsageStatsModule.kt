@@ -3,6 +3,7 @@ package com.tbtechs.focusflow.modules
 import android.app.AppOpsManager
 import android.app.admin.DevicePolicyManager
 import android.app.usage.UsageStatsManager
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -11,6 +12,7 @@ import android.os.Build
 import android.os.PowerManager
 import android.os.Process
 import android.provider.Settings
+import android.view.accessibility.AccessibilityManager
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
@@ -167,22 +169,42 @@ class UsageStatsModule(private val reactContext: ReactApplicationContext) :
     }
 
     /**
-     * Returns whether the FocusDay AppBlockerAccessibilityService is enabled.
+     * Returns whether the AppBlockerAccessibilityService is enabled.
      *
-     * Reads the system's enabled accessibility services list from Settings.Secure
-     * and checks if our service ID is present. This is the correct runtime check
-     * for accessibility service status.
+     * Uses AccessibilityManager.getEnabledAccessibilityServiceList() rather than
+     * reading the raw Settings.Secure string. Samsung One UI (and some other OEMs)
+     * store service component names in a shortened dot-relative format that does
+     * NOT match a plain string-contains check against the fully-qualified class
+     * name — causing false negatives even when the service is enabled.
+     *
+     * The AccessibilityManager API always returns the resolved package name
+     * regardless of how the OEM formats the internal settings string.
      */
     @ReactMethod
     fun hasAccessibilityPermission(promise: Promise) {
         try {
-            val enabledServices = Settings.Secure.getString(
-                reactContext.contentResolver,
-                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-            ) ?: ""
-            promise.resolve(enabledServices.contains(ACCESSIBILITY_SERVICE_ID, ignoreCase = true))
+            val am = reactContext.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+            val enabled = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+            val found = enabled.any { info ->
+                info.resolveInfo.serviceInfo.packageName == reactContext.packageName
+            }
+            promise.resolve(found)
         } catch (e: Exception) {
-            promise.resolve(false)
+            // Fallback: scan the raw settings string, checking for both the full
+            // class name and the dot-relative shorthand Samsung sometimes uses.
+            try {
+                val raw = Settings.Secure.getString(
+                    reactContext.contentResolver,
+                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+                ) ?: ""
+                val found = raw.split(":").any { component ->
+                    component.contains(reactContext.packageName, ignoreCase = true) &&
+                    component.contains("AppBlockerAccessibilityService", ignoreCase = true)
+                }
+                promise.resolve(found)
+            } catch (e2: Exception) {
+                promise.resolve(false)
+            }
         }
     }
 

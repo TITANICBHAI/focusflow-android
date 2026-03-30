@@ -172,7 +172,14 @@ export default function PermissionsScreen() {
   useEffect(() => {
     void checkAll();
     const sub = AppState.addEventListener('change', (s) => {
-      if (s === 'active') void checkAll();
+      if (s === 'active') {
+        // Check immediately, then again after a short delay.
+        // Android (especially Samsung One UI) may not have flushed the updated
+        // permission state to AccessibilityManager by the time the app regains focus.
+        void checkAll();
+        const t = setTimeout(() => void checkAll(), 800);
+        return () => clearTimeout(t);
+      }
     });
     return () => sub.remove();
   }, [checkAll]);
