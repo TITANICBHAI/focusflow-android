@@ -12,14 +12,15 @@ import com.tbtechs.focusflow.services.AppBlockerAccessibilityService
  *
  * JS name: NativeModules.SharedPrefs
  *
- * Lets JS write focus-mode state into Android SharedPreferences so the
- * AppBlockerAccessibilityService can read it even when the JS bundle is not running
- * (e.g. app killed, phone rebooted).
+ * Lets JS write focus-mode and standalone-block state into Android SharedPreferences
+ * so AppBlockerAccessibilityService and BootReceiver can read it even when the JS
+ * bundle is not running (app killed, phone rebooted).
  *
  * Methods:
- *   - setFocusActive(active: boolean)          → Promise<null>
- *   - setAllowedPackages(packages: string[])   → Promise<null>
- *   - setActiveTask(name, endMs, nextName?)     → Promise<null>
+ *   - setFocusActive(active)                          → Promise<null>
+ *   - setAllowedPackages(packages)                    → Promise<null>
+ *   - setActiveTask(name, endMs, nextName?)            → Promise<null>
+ *   - setStandaloneBlock(active, packages, untilMs)   → Promise<null>
  */
 class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
@@ -30,9 +31,7 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
         AppBlockerAccessibilityService.PREFS_NAME, android.content.Context.MODE_PRIVATE
     )
 
-    /**
-     * Tells the AccessibilityService and BootReceiver whether focus mode is active.
-     */
+    /** Tells the AccessibilityService and BootReceiver whether task focus mode is active. */
     @ReactMethod
     fun setFocusActive(active: Boolean, promise: Promise) {
         prefs().edit().putBoolean("focus_active", active).apply()
@@ -40,14 +39,9 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
     }
 
     /**
-     * Writes the list of ALLOWED package names as a JSON array string.
-     * The AccessibilityService blocks any foreground app NOT in this list.
-     *
-     * Pass the full allow-list every time — the service replaces the previous value.
-     * The app's own package is always exempted inside the service regardless.
-     *
-     * @param packages  ReadableArray of package name strings
-     *                  e.g. ["com.android.dialer", "com.whatsapp"]
+     * Writes the list of ALLOWED package names for task-based focus blocking.
+     * The AccessibilityService blocks any app NOT in this list during a task focus.
+     * Pass the full allow-list every call — the service replaces the previous value.
      */
     @ReactMethod
     fun setAllowedPackages(packages: ReadableArray, promise: Promise) {
@@ -70,6 +64,30 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
             .putString("task_name", name)
             .putLong("task_end_ms", endMs.toLong())
             .putString("next_task_name", nextName?.takeIf { it.isNotBlank() })
+            .apply()
+        promise.resolve(null)
+    }
+
+    /**
+     * Controls standalone app blocking — independent of any task.
+     *
+     * When active = true, the AccessibilityService will block every package in the
+     * provided list until untilMs is reached, even if no task focus is running.
+     *
+     * Collision with task-based blocking: union (both block lists are enforced).
+     *
+     * @param active    Whether standalone blocking is currently enabled
+     * @param packages  ReadableArray of package names to block
+     * @param untilMs   Epoch milliseconds when standalone blocking expires (0 = no expiry)
+     */
+    @ReactMethod
+    fun setStandaloneBlock(active: Boolean, packages: ReadableArray, untilMs: Double, promise: Promise) {
+        val list = (0 until packages.size()).map { "\"${packages.getString(it)}\"" }
+        val json = "[${list.joinToString(",")}]"
+        prefs().edit()
+            .putBoolean("standalone_block_active", active)
+            .putString("standalone_blocked_packages", json)
+            .putLong("standalone_block_until_ms", untilMs.toLong())
             .apply()
         promise.resolve(null)
     }

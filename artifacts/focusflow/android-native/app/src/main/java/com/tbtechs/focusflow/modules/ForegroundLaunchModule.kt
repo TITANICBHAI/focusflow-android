@@ -4,7 +4,6 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
-import android.view.WindowManager
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
@@ -15,10 +14,28 @@ import com.facebook.react.bridge.ReactMethod
  *
  * JS name: NativeModules.ForegroundLaunch
  * Methods:
- *   - bringToFront()            → Promise<null>  — re-launches FocusDay over the blocked app
- *   - showOverlay(message)      → Promise<null>  — brings to front (overlay requires SYSTEM_ALERT_WINDOW)
- *   - hasOverlayPermission()    → Promise<Boolean>
- *   - requestOverlayPermission() → Promise<null>
+ *   - goHome()                      → Promise<null>  — send device to home screen
+ *   - bringToFront()                → Promise<null>  — re-launch FocusFlow over blocked app
+ *   - showOverlay(message)          → Promise<null>  — brings to front (full overlay is deferred)
+ *   - hasOverlayPermission()        → Promise<Boolean>
+ *   - requestOverlayPermission()    → Promise<null>
+ *
+ * ──────────────────────────────────────────────────────────────────────────────
+ * DEFERRED FEATURE: Full-screen lock overlay
+ *
+ * The intent is to show a full-screen lock UI (task name + countdown) over the home
+ * screen immediately when Activate Focus is tapped. Implementation requires:
+ *
+ *   1. A dedicated FocusLockActivity declared in AndroidManifest with
+ *      android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
+ *   2. Either USE_FULL_SCREEN_INTENT permission on the foreground notification
+ *      (to launch FocusLockActivity as a high-priority full-screen intent)
+ *      OR SYSTEM_ALERT_WINDOW permission for a WindowManager TYPE_APPLICATION_OVERLAY view.
+ *   3. Config plugin (withFocusDayAndroid.js) addition to register the activity.
+ *   4. The overlay must handle the Back button gracefully and dismiss when focus ends.
+ *
+ * Currently showOverlay() just calls bringToFront() as a placeholder.
+ * ──────────────────────────────────────────────────────────────────────────────
  */
 class ForegroundLaunchModule(private val reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
@@ -26,7 +43,27 @@ class ForegroundLaunchModule(private val reactContext: ReactApplicationContext) 
     override fun getName(): String = "ForegroundLaunch"
 
     /**
-     * Brings FocusDay back to the foreground.
+     * Sends the device to the home screen.
+     * Used after Activate Focus is tapped so the user lands on their home screen,
+     * while FocusFlow continues enforcing in the background.
+     * No special permission required — this is a standard home intent.
+     */
+    @ReactMethod
+    fun goHome(promise: Promise) {
+        try {
+            val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            reactContext.startActivity(homeIntent)
+            promise.resolve(null)
+        } catch (e: Exception) {
+            promise.reject("HOME_ERROR", e.message, e)
+        }
+    }
+
+    /**
+     * Brings FocusFlow back to the foreground.
      * Uses FLAG_ACTIVITY_SINGLE_TOP so the existing Activity is reused rather than stacked.
      */
     @ReactMethod
@@ -44,18 +81,15 @@ class ForegroundLaunchModule(private val reactContext: ReactApplicationContext) 
     }
 
     /**
-     * Shows a brief overlay message then brings FocusDay to front.
-     * Full WindowManager overlay requires SYSTEM_ALERT_WINDOW; this simpler version
-     * just re-launches the app. Replace with a custom Activity for a full-screen blocker.
+     * Placeholder for the deferred full-screen overlay.
+     * Currently just brings FocusFlow to front.
      */
     @ReactMethod
     fun showOverlay(message: String, promise: Promise) {
         bringToFront(promise)
     }
 
-    /**
-     * Returns whether the SYSTEM_ALERT_WINDOW ("Draw over other apps") permission is granted.
-     */
+    /** Returns whether the SYSTEM_ALERT_WINDOW permission is granted. */
     @ReactMethod
     fun hasOverlayPermission(promise: Promise) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -65,9 +99,7 @@ class ForegroundLaunchModule(private val reactContext: ReactApplicationContext) 
         }
     }
 
-    /**
-     * Opens the system overlay permission screen for the user to grant SYSTEM_ALERT_WINDOW.
-     */
+    /** Opens the system overlay permission screen. */
     @ReactMethod
     fun requestOverlayPermission(promise: Promise) {
         try {

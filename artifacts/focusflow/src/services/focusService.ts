@@ -15,6 +15,7 @@ import { dismissPersistentNotification } from './notificationService';
 import { dbStartFocusSession, dbEndFocusSession } from '@/data/database';
 import { ForegroundServiceModule } from '@/native-modules/ForegroundServiceModule';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
+import { ForegroundLaunchModule } from '@/native-modules/ForegroundLaunchModule';
 import { getUpcomingTask } from './taskService';
 import type { Task, FocusSession } from '@/data/types';
 
@@ -58,6 +59,10 @@ export async function startFocusMode(
 
   await ForegroundServiceModule.startService(task.title, endMs, nextTask?.title ?? '');
   await ForegroundServiceModule.requestBatteryOptimizationExemption();
+
+  // Send the user to the home screen so focus mode starts with a clean slate.
+  // The service + AccessibilityService continue enforcing in the background.
+  await ForegroundLaunchModule.goHome();
 
   // Write state to SharedPreferences so:
   //   • AppBlockerAccessibilityService knows focus is on and which apps to block

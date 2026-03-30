@@ -14,15 +14,19 @@ import com.tbtechs.focusflow.MainActivity
 /**
  * ForegroundTaskService
  *
- * A persistent foreground service that:
- *   1. Shows a sticky notification with the current task name and a live countdown.
- *   2. Ticks every second, updating the notification time-remaining string.
- *   3. Fires a "TASK_ENDED" broadcast when the countdown reaches zero.
+ * Runs persistently at all times — not only during focus sessions.
+ * This keeps the process alive so the AccessibilityService is never killed.
  *
- * Started / stopped via ForegroundServiceModule (NativeModules.ForegroundService).
- * The broadcast is caught by FocusDayBridgeModule which forwards it to JS.
+ * Two modes:
+ *   IDLE   — No active task. Shows a quiet "FocusFlow is monitoring" notification.
+ *   ACTIVE — Focus session running. Shows task name + live countdown.
  *
- * Intent extras expected on start:
+ * Actions:
+ *   ACTION_SET_IDLE  — Switch to idle mode (called by JS stopService / on session end).
+ *   ACTION_STOP      — Truly stop the service (not called in normal flow, kept for emergencies).
+ *   ACTION_TASK_ENDED — Broadcast fired when countdown reaches zero (caught by JS bridge).
+ *
+ * Intent extras for ACTIVE mode:
  *   "taskName"   String  — display name of the active task
  *   "endTimeMs"  Long    — absolute epoch ms when the task ends
  *   "nextName"   String? — name of the next task (shown as sub-text)
@@ -30,35 +34,34 @@ import com.tbtechs.focusflow.MainActivity
 class ForegroundTaskService : Service() {
 
     companion object {
-        const val CHANNEL_ID       = "focusday_foreground"
-        const val CHANNEL_NAME     = "FocusDay Active Task"
-        const val NOTIFICATION_ID  = 1001
-        const val ACTION_STOP      = "com.tbtechs.focusflow.STOP_SERVICE"
+        const val CHANNEL_ID        = "focusday_foreground"
+        const val CHANNEL_NAME      = "FocusDay Active Task"
+        const val NOTIFICATION_ID   = 1001
+        const val ACTION_STOP       = "com.tbtechs.focusflow.STOP_SERVICE"
+        const val ACTION_SET_IDLE   = "com.tbtechs.focusflow.SET_IDLE"
         const val ACTION_TASK_ENDED = "com.tbtechs.focusflow.TASK_ENDED"
 
-        // Extras
-        const val EXTRA_TASK_NAME  = "taskName"
-        const val EXTRA_END_MS     = "endTimeMs"
-        const val EXTRA_NEXT_NAME  = "nextName"
+        const val EXTRA_TASK_NAME   = "taskName"
+        const val EXTRA_END_MS      = "endTimeMs"
+        const val EXTRA_NEXT_NAME   = "nextName"
     }
 
-    private var taskName: String  = "Focus Task"
+    private var taskName: String  = ""
     private var endTimeMs: Long   = 0L
     private var nextName: String? = null
+    private var isActiveMode: Boolean = false
 
     private val handler = Handler(Looper.getMainLooper())
     private val tickRunnable = object : Runnable {
         override fun run() {
             val remaining = endTimeMs - System.currentTimeMillis()
             if (remaining <= 0) {
-                // Kotlin owns this — clear focus state before telling JS.
-                // This guarantees the AccessibilityService stops blocking even if
-                // JS is dead, slow, or never receives the TASK_ENDED broadcast.
+                // Kotlin owns session end — clear flag before telling JS.
                 clearFocusActive()
                 sendBroadcast(Intent(ACTION_TASK_ENDED).apply {
                     `package` = applicationContext.packageName
                 })
-                stopSelf()
+                goIdle()
                 return
             }
             updateNotification(remaining)
@@ -69,32 +72,51 @@ class ForegroundTaskService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        // Start immediately in idle mode so the process is kept alive from the first launch.
+        startForeground(NOTIFICATION_ID, buildIdleNotification())
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_STOP) {
-            handler.removeCallbacks(tickRunnable)
-            // Safety net: clear the flag so the AccessibilityService stops immediately.
-            // JS calls setFocusActive(false) too, but a race can exist between the two.
-            clearFocusActive()
-            // minSdkVersion = 26 (>= Android N/24), so STOP_FOREGROUND_REMOVE is always available.
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
-            return START_NOT_STICKY
+        when (intent?.action) {
+            ACTION_STOP -> {
+                // Emergency hard-stop — not called in normal flow.
+                handler.removeCallbacks(tickRunnable)
+                clearFocusActive()
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return START_NOT_STICKY
+            }
+            ACTION_SET_IDLE -> {
+                // JS called stopService() or session ended — go idle but keep running.
+                handler.removeCallbacks(tickRunnable)
+                clearFocusActive()
+                goIdle()
+                return START_STICKY
+            }
+            else -> {
+                // Start or update an active focus session.
+                val name    = intent?.getStringExtra(EXTRA_TASK_NAME)
+                val endMs   = intent?.getLongExtra(EXTRA_END_MS, 0L) ?: 0L
+                val next    = intent?.getStringExtra(EXTRA_NEXT_NAME)
+
+                if (name != null && endMs > 0L) {
+                    taskName     = name
+                    endTimeMs    = endMs
+                    nextName     = next
+                    isActiveMode = true
+
+                    val notification = buildActiveNotification(endMs - System.currentTimeMillis())
+                    startForeground(NOTIFICATION_ID, notification)
+
+                    handler.removeCallbacks(tickRunnable)
+                    handler.post(tickRunnable)
+                } else {
+                    // No task extras — stay/go idle.
+                    goIdle()
+                }
+            }
         }
-
-        taskName  = intent?.getStringExtra(EXTRA_TASK_NAME) ?: "Focus Task"
-        endTimeMs = intent?.getLongExtra(EXTRA_END_MS, 0L) ?: 0L
-        nextName  = intent?.getStringExtra(EXTRA_NEXT_NAME)
-
-        val notification = buildNotification(endTimeMs - System.currentTimeMillis())
-        startForeground(NOTIFICATION_ID, notification)
-
-        handler.removeCallbacks(tickRunnable)
-        handler.post(tickRunnable)
-
-        // If killed by the system, restart with the same intent
-        return START_REDELIVER_INTENT
+        return START_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -104,16 +126,28 @@ class ForegroundTaskService : Service() {
         super.onDestroy()
     }
 
-    // ─── Private helpers ─────────────────────────────────────────────────────
+    // ─── Mode helpers ──────────────────────────────────────────────────────────
+
+    private fun goIdle() {
+        isActiveMode = false
+        taskName     = ""
+        endTimeMs    = 0L
+        nextName     = null
+        handler.removeCallbacks(tickRunnable)
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.notify(NOTIFICATION_ID, buildIdleNotification())
+    }
+
+    // ─── Notification builders ─────────────────────────────────────────────────
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 CHANNEL_NAME,
-                NotificationManager.IMPORTANCE_LOW  // Low = no sound, still always visible
+                NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Keeps FocusDay running and shows your active task"
+                description = "Keeps FocusFlow running and shows your active task"
                 setShowBadge(false)
             }
             val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -121,9 +155,28 @@ class ForegroundTaskService : Service() {
         }
     }
 
-    private fun buildNotification(remainingMs: Long): Notification {
-        val mins = (remainingMs / 60_000).coerceAtLeast(0)
-        val secs = ((remainingMs % 60_000) / 1_000).coerceAtLeast(0)
+    private fun buildIdleNotification(): Notification {
+        val tapIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        val tapPending = PendingIntent.getActivity(
+            this, 0, tapIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("FocusFlow")
+            .setContentText("Monitoring active — tap to open")
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setContentIntent(tapPending)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .build()
+    }
+
+    private fun buildActiveNotification(remainingMs: Long): Notification {
+        val mins    = (remainingMs / 60_000).coerceAtLeast(0)
+        val secs    = ((remainingMs % 60_000) / 1_000).coerceAtLeast(0)
         val timeStr = String.format("%d:%02d remaining", mins, secs)
 
         val tapIntent = Intent(this, MainActivity::class.java).apply {
@@ -135,7 +188,7 @@ class ForegroundTaskService : Service() {
         )
 
         val stopIntent = Intent(this, ForegroundTaskService::class.java).apply {
-            action = ACTION_STOP
+            action = ACTION_SET_IDLE
         }
         val stopPending = PendingIntent.getService(
             this, 1, stopIntent,
@@ -150,24 +203,20 @@ class ForegroundTaskService : Service() {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(tapPending)
-            // Icon 0 = no icon. Stock android.R.drawable icons should not appear in
-            // published APKs; a custom monochrome drawable can be substituted later.
             .addAction(0, "Stop Focus", stopPending)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
     }
 
     private fun updateNotification(remainingMs: Long) {
-        val notification = buildNotification(remainingMs)
+        val notification = buildActiveNotification(remainingMs)
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         nm.notify(NOTIFICATION_ID, notification)
     }
 
     /**
      * Authoritatively clears the focus_active flag in SharedPreferences.
-     * Called by Kotlin on natural expiry and manual stop — before JS is notified.
-     * Ensures the AccessibilityService stops blocking immediately, regardless of
-     * whether JS is alive to call SharedPrefs.setFocusActive(false).
+     * Called by Kotlin on natural expiry and when going idle — before JS is notified.
      */
     private fun clearFocusActive() {
         getSharedPreferences(AppBlockerAccessibilityService.PREFS_NAME, Context.MODE_PRIVATE)

@@ -16,8 +16,9 @@ import com.tbtechs.focusflow.services.ForegroundTaskService
  *
  * JS name: NativeModules.ForegroundService
  * Methods:
- *   - startService(taskName, endTimeMs, nextName)  → Promise<null>
- *   - stopService()                                → Promise<null>
+ *   - startIdleService()                           → Promise<null>  — ensure service is running in idle mode
+ *   - startService(taskName, endTimeMs, nextName)  → Promise<null>  — start active focus session
+ *   - stopService()                                → Promise<null>  — switch to idle (service stays alive)
  *   - updateNotification(taskName, endTimeMs, nextName) → Promise<null>
  *   - requestBatteryOptimizationExemption()        → Promise<null>
  */
@@ -27,7 +28,29 @@ class ForegroundServiceModule(private val reactContext: ReactApplicationContext)
     override fun getName(): String = "ForegroundService"
 
     /**
-     * Starts the foreground task service.
+     * Ensures the foreground service is running in idle mode.
+     * Call on app startup to guarantee the persistent notification is always present.
+     * Safe to call if the service is already running — it will remain in its current state.
+     */
+    @ReactMethod
+    fun startIdleService(promise: Promise) {
+        try {
+            val intent = Intent(reactContext, ForegroundTaskService::class.java).apply {
+                action = ForegroundTaskService.ACTION_SET_IDLE
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                reactContext.startForegroundService(intent)
+            } else {
+                reactContext.startService(intent)
+            }
+            promise.resolve(null)
+        } catch (e: Exception) {
+            promise.reject("SERVICE_IDLE_ERROR", e.message, e)
+        }
+    }
+
+    /**
+     * Starts the foreground task service in ACTIVE mode with countdown and task name.
      *
      * @param taskName  Display name of the active focus task
      * @param endTimeMs Epoch milliseconds when the task ends
@@ -53,13 +76,15 @@ class ForegroundServiceModule(private val reactContext: ReactApplicationContext)
     }
 
     /**
-     * Stops the foreground task service by sending it the STOP action.
+     * Switches the service to idle mode (persistent notification stays, countdown stops).
+     * The service is NOT stopped — it stays alive to keep the process running.
+     * This preserves the always-on notification and prevents Android from killing the service.
      */
     @ReactMethod
     fun stopService(promise: Promise) {
         try {
             val intent = Intent(reactContext, ForegroundTaskService::class.java).apply {
-                action = ForegroundTaskService.ACTION_STOP
+                action = ForegroundTaskService.ACTION_SET_IDLE
             }
             reactContext.startService(intent)
             promise.resolve(null)
@@ -69,27 +94,21 @@ class ForegroundServiceModule(private val reactContext: ReactApplicationContext)
     }
 
     /**
-     * Updates the notification in a running service without restarting it.
-     * Internally: stops and restarts with new extras. The service tick counter resets,
-     * but since we always use an absolute endTimeMs the countdown remains accurate.
+     * Updates the active focus session notification with new task details.
+     * Sends a new start command directly — the service handles it in onStartCommand.
      */
     @ReactMethod
     fun updateNotification(taskName: String, endTimeMs: Double, nextName: String?, promise: Promise) {
         try {
-            val stopIntent = Intent(reactContext, ForegroundTaskService::class.java).apply {
-                action = ForegroundTaskService.ACTION_STOP
-            }
-            reactContext.startService(stopIntent)
-
-            val startIntent = Intent(reactContext, ForegroundTaskService::class.java).apply {
+            val intent = Intent(reactContext, ForegroundTaskService::class.java).apply {
                 putExtra(ForegroundTaskService.EXTRA_TASK_NAME, taskName)
                 putExtra(ForegroundTaskService.EXTRA_END_MS, endTimeMs.toLong())
                 nextName?.let { putExtra(ForegroundTaskService.EXTRA_NEXT_NAME, it) }
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                reactContext.startForegroundService(startIntent)
+                reactContext.startForegroundService(intent)
             } else {
-                reactContext.startService(startIntent)
+                reactContext.startService(intent)
             }
             promise.resolve(null)
         } catch (e: Exception) {
@@ -99,7 +118,7 @@ class ForegroundServiceModule(private val reactContext: ReactApplicationContext)
 
     /**
      * Opens the battery optimization exemption screen so Android stops killing the service.
-     * This is critical on MIUI, ColorOS, Realme UI, and other aggressive OEM skins.
+     * Critical on MIUI, ColorOS, Realme UI, and other aggressive OEM skins.
      */
     @ReactMethod
     fun requestBatteryOptimizationExemption(promise: Promise) {

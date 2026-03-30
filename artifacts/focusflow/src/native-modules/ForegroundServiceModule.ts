@@ -1,35 +1,15 @@
 /**
  * Android Foreground Service Module
  *
- * A foreground service runs even when the app is backgrounded or the screen is off.
- * It shows a PERSISTENT notification (cannot be swiped away) with:
- *   - Current task name + time remaining
- *   - Next task name
- *   - Action buttons (Done, Extend)
+ * The ForegroundTaskService runs PERSISTENTLY at all times — not only during focus.
+ * This keeps the process alive so Android cannot kill the AccessibilityService.
  *
- * The service also:
- *   - Survives Doze mode (uses setExactAndAllowWhileIdle internally)
- *   - Restarts automatically if killed (START_STICKY)
- *   - Registers a BOOT_COMPLETED receiver to re-launch after device restart
+ * Modes:
+ *   IDLE   — Quiet "FocusFlow is monitoring" notification shown at all times.
+ *   ACTIVE — Focus session running: shows task name + live countdown.
  *
  * ─── Android Implementation ──────────────────────────────────────────────────
- * File: android-native/app/src/main/java/com/tbtechs/focusday/services/ForegroundTaskService.kt
- *
- * Manifest additions (handled automatically by withFocusDayAndroid plugin):
- *   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
- *   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
- *   <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
- *   <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
- *
- *   <service android:name=".services.ForegroundTaskService"
- *            android:foregroundServiceType="specialUse"
- *            android:exported="false" />
- *
- *   <receiver android:name=".services.BootReceiver" android:exported="true">
- *     <intent-filter>
- *       <action android:name="android.intent.action.BOOT_COMPLETED" />
- *     </intent-filter>
- *   </receiver>
+ * File: android-native/app/.../services/ForegroundTaskService.kt
  */
 
 import { NativeModules } from 'react-native';
@@ -37,6 +17,19 @@ import { NativeModules } from 'react-native';
 const { ForegroundService } = NativeModules;
 
 export const ForegroundServiceModule = {
+  /**
+   * Ensures the foreground service is running in idle mode.
+   * Call on every app startup to guarantee the persistent notification always exists.
+   * Safe to call if the service is already running in active mode — it will stay active.
+   */
+  async startIdleService(): Promise<void> {
+    if (!ForegroundService) {
+      console.warn('[ForegroundService] Native module not linked. Run EAS build.');
+      return;
+    }
+    return ForegroundService.startIdleService();
+  },
+
   async startService(taskName: string, endTimeMs: number, nextTaskName: string): Promise<void> {
     if (!ForegroundService) {
       console.warn('[ForegroundService] Native module not linked. Run EAS build.');
@@ -45,6 +38,10 @@ export const ForegroundServiceModule = {
     return ForegroundService.startService(taskName, endTimeMs, nextTaskName);
   },
 
+  /**
+   * Switches the service to idle mode (persistent notification stays, countdown stops).
+   * Does NOT stop the service — it remains alive to keep the process running.
+   */
   async stopService(): Promise<void> {
     if (!ForegroundService) return;
     return ForegroundService.stopService();

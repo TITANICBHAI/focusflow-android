@@ -39,6 +39,7 @@ import {
   isFocusActive,
 } from '@/services/focusService';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
+import { ForegroundServiceModule } from '@/native-modules/ForegroundServiceModule';
 import { EventBridge } from '@/services/eventBridge';
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -108,6 +109,8 @@ const defaultSettings: AppSettings = {
   pomodoroBreak: 5,
   notificationsEnabled: true,
   onboardingComplete: false,
+  standaloneBlockPackages: [],
+  standaloneBlockUntil: null,
 };
 
 const initialState: AppState = {
@@ -137,6 +140,7 @@ interface AppContextValue {
   stopFocusMode: () => Promise<void>;
 
   updateSettings: (settings: AppSettings) => Promise<void>;
+  setStandaloneBlock: (packages: string[], untilMs: number | null) => Promise<void>;
   refreshTasks: () => Promise<void>;
 }
 
@@ -163,9 +167,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await setupNotificationChannels();
       await requestPermissions();
 
+      // Ensure the foreground service is always running from the first app open.
+      // This keeps the process alive so Android cannot kill the AccessibilityService.
+      await ForegroundServiceModule.startIdleService();
+
       const settings = await dbGetSettings();
       dispatch({ type: 'SET_SETTINGS', payload: settings });
       dispatch({ type: 'SET_DB_READY' });
+
+      // Re-apply standalone block from persisted settings on startup.
+      await _syncStandaloneBlock(settings);
 
       await refreshTasks();
 
@@ -186,6 +197,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       console.error('[AppContext] init error', e);
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  }
+
+  /**
+   * Syncs standalone block state from settings into SharedPreferences.
+   * Clears the block if it has already expired.
+   */
+  async function _syncStandaloneBlock(settings: AppSettings): Promise<void> {
+    const { standaloneBlockPackages, standaloneBlockUntil } = settings;
+    const packages = standaloneBlockPackages ?? [];
+    if (packages.length === 0 || !standaloneBlockUntil) {
+      await SharedPrefsModule.setStandaloneBlock(false, [], 0);
+      return;
+    }
+    const untilMs = new Date(standaloneBlockUntil).getTime();
+    if (untilMs <= Date.now()) {
+      // Expired — clear from SharedPrefs and settings
+      await SharedPrefsModule.setStandaloneBlock(false, [], 0);
+      const cleared = { ...settings, standaloneBlockPackages: [], standaloneBlockUntil: null };
+      await dbSaveSettings(cleared);
+      dispatch({ type: 'SET_SETTINGS', payload: cleared });
+    } else {
+      await SharedPrefsModule.setStandaloneBlock(true, packages, untilMs);
     }
   }
 
@@ -364,7 +398,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         settings.allowedInFocus.filter((p) => p.includes('.')),
       );
     }
+    // Always sync standalone block — it works independently of task focus.
+    await _syncStandaloneBlock(settings);
   }, [state.focusSession]);
+
+  /**
+   * Enable or disable standalone app blocking.
+   * Writes to both the SQLite settings and SharedPreferences (native layer).
+   *
+   * @param packages  Package names to block (empty array = disable)
+   * @param untilMs   Epoch ms when block expires (null = disable)
+   */
+  const setStandaloneBlock = useCallback(async (packages: string[], untilMs: number | null) => {
+    const untilIso = untilMs ? new Date(untilMs).toISOString() : null;
+    const newSettings: AppSettings = {
+      ...state.settings,
+      standaloneBlockPackages: packages,
+      standaloneBlockUntil: untilIso,
+    };
+    await dbSaveSettings(newSettings);
+    dispatch({ type: 'SET_SETTINGS', payload: newSettings });
+    const active = packages.length > 0 && untilMs !== null && untilMs > Date.now();
+    await SharedPrefsModule.setStandaloneBlock(active, packages, untilMs ?? 0);
+  }, [state.settings]);
 
   // ── Derived ──────────────────────────────────────────────────────────────────
 
@@ -384,6 +440,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     startFocusMode,
     stopFocusMode,
     updateSettings,
+    setStandaloneBlock,
     refreshTasks,
   };
 

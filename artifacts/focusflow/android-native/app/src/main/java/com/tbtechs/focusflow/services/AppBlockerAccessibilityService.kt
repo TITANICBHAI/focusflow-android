@@ -10,24 +10,28 @@ import com.tbtechs.focusflow.modules.FocusDayBridgeModule
 /**
  * AppBlockerAccessibilityService
  *
- * Listens for window-content-changed and window-state-changed events.
- * When a blocked app comes to the foreground, it:
- *   1. Fires a broadcast to FocusDayBridgeModule → forwarded as "APP_BLOCKED" to JS.
- *   2. Launches FocusDay's MainActivity over the top of the blocked app.
+ * Listens for window-state-changed events and enforces two independent blocking systems:
  *
- * How to enable:
- *   - Declare in AndroidManifest (already done in manifest_additions.xml).
- *   - User must grant in: Settings → Accessibility → FocusDay → Allow.
+ *   1. TASK-BASED BLOCK (focus_active = true)
+ *      - Blocks any app NOT in the "allowed_packages" list.
+ *      - Cleared automatically when task_end_ms is passed (native time authority).
  *
- * How JS controls which apps are blocked:
- *   - When focus mode starts, JS (via FocusService) writes a JSON array of blocked
- *     package names into SharedPreferences under the key "blocked_packages".
- *   - This service reads that key on every window event.
- *   - The app's own package is always exempted so FocusDay itself is never blocked.
+ *   2. STANDALONE BLOCK (standalone_block_active = true)
+ *      - Blocks specific apps listed in "standalone_blocked_packages".
+ *      - Independent of any task — stays active until standalone_block_until_ms.
+ *      - Cleared automatically when the expiry timestamp is passed.
+ *
+ * When BOTH are active at the same time, enforcement is additive (union):
+ *   - Task-blocked apps AND standalone-blocked apps are both enforced.
  *
  * SharedPreferences file: "focusday_prefs"
- * Key: "blocked_packages" → JSON array string, e.g. '["com.instagram.android","com.twitter.android"]'
- * Key: "focus_active"     → "true" | "false"
+ * Keys:
+ *   focus_active                 Boolean — task focus is running
+ *   allowed_packages             String  — JSON array of packages allowed during task focus
+ *   task_end_ms                  Long    — task session end epoch ms
+ *   standalone_block_active      Boolean — standalone block is enabled
+ *   standalone_blocked_packages  String  — JSON array of packages to always block
+ *   standalone_block_until_ms    Long    — standalone block expiry epoch ms
  */
 class AppBlockerAccessibilityService : AccessibilityService() {
 
@@ -36,12 +40,13 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         const val PREF_ALLOWED_PKG = "allowed_packages"
         const val PREF_FOCUS_ON    = "focus_active"
 
+        const val PREF_SA_ACTIVE   = "standalone_block_active"
+        const val PREF_SA_PKGS     = "standalone_blocked_packages"
+        const val PREF_SA_UNTIL    = "standalone_block_until_ms"
+
         /**
-         * Package installers / uninstall UIs that are ALWAYS blocked during a focus
-         * session, regardless of what JS writes to SharedPreferences.
+         * Package installers / uninstall UIs always blocked during a task focus session.
          * JS settings cannot override this set.
-         * NOTE: com.android.vending (Play Store) is intentionally excluded — it is
-         * only blocked if the user explicitly adds it to the blocked list.
          */
         val ALWAYS_BLOCKED: Set<String> = setOf(
             "com.android.packageinstaller",
@@ -61,7 +66,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
                          AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
             feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
-            notificationTimeout = 100L   // milliseconds between events
+            notificationTimeout = 100L
             flags = AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS
         }
     }
@@ -69,15 +74,33 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
 
-        val focusActive = prefs.getBoolean(PREF_FOCUS_ON, false)
-        if (!focusActive) return
+        val now = System.currentTimeMillis()
 
-        // Native time authority: validate the session window independently of JS.
-        // If the task's end time has passed and JS hasn't cleaned up (crashed, delayed,
-        // or killed), Kotlin self-corrects here — clears the stale flag and stops blocking.
-        val endTimeMs = prefs.getLong("task_end_ms", 0L)
-        if (endTimeMs > 0L && System.currentTimeMillis() > endTimeMs) {
-            prefs.edit().putBoolean(PREF_FOCUS_ON, false).apply()
+        // ── Task-based focus state ────────────────────────────────────────────
+        var focusActive = prefs.getBoolean(PREF_FOCUS_ON, false)
+        if (focusActive) {
+            val endMs = prefs.getLong("task_end_ms", 0L)
+            if (endMs > 0L && now > endMs) {
+                // Native authority: task expired but JS didn't clean up — self-correct.
+                prefs.edit().putBoolean(PREF_FOCUS_ON, false).apply()
+                focusActive = false
+                lastBlockedPkg = null
+            }
+        }
+
+        // ── Standalone block state ────────────────────────────────────────────
+        var saActive = prefs.getBoolean(PREF_SA_ACTIVE, false)
+        if (saActive) {
+            val untilMs = prefs.getLong(PREF_SA_UNTIL, 0L)
+            if (untilMs > 0L && now > untilMs) {
+                // Standalone block expired — self-correct.
+                prefs.edit().putBoolean(PREF_SA_ACTIVE, false).apply()
+                saActive = false
+            }
+        }
+
+        // If neither system is active, nothing to enforce.
+        if (!focusActive && !saActive) {
             lastBlockedPkg = null
             return
         }
@@ -85,19 +108,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         val pkg = event.packageName?.toString() ?: return
         if (pkg == packageName) return  // never block our own app
 
-        // Always block package installers / uninstall UIs — JS cannot override this.
-        val isAlwaysBlocked = ALWAYS_BLOCKED.any { blocked ->
-            pkg.equals(blocked, ignoreCase = true) || pkg.contains(blocked, ignoreCase = true)
-        }
-
-        val allowedJson = prefs.getString(PREF_ALLOWED_PKG, "[]") ?: "[]"
-        val allowedList = parseJsonArray(allowedJson)
-
-        // Block any app that is NOT in the allowed list (and not our own package).
-        // Empty allowed list = maximum strictness: block everything.
-        val isBlocked = isAlwaysBlocked || !allowedList.any { allowed ->
-            pkg.equals(allowed, ignoreCase = true) || pkg.contains(allowed, ignoreCase = true)
-        }
+        val isBlocked = isPackageBlocked(pkg, focusActive, saActive)
 
         if (isBlocked && pkg != lastBlockedPkg) {
             lastBlockedPkg = pkg
@@ -111,7 +122,41 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         lastBlockedPkg = null
     }
 
-    // ─── Private helpers ─────────────────────────────────────────────────────
+    // ─── Block determination ──────────────────────────────────────────────────
+
+    private fun isPackageBlocked(pkg: String, focusActive: Boolean, saActive: Boolean): Boolean {
+        // 1. Always-blocked installers (only enforced during task focus)
+        if (focusActive) {
+            val alwaysBlocked = ALWAYS_BLOCKED.any { b ->
+                pkg.equals(b, ignoreCase = true) || pkg.contains(b, ignoreCase = true)
+            }
+            if (alwaysBlocked) return true
+        }
+
+        // 2. Task-based block: block any app NOT in the allowed list
+        if (focusActive) {
+            val allowedJson = prefs.getString(PREF_ALLOWED_PKG, "[]") ?: "[]"
+            val allowedList = parseJsonArray(allowedJson)
+            val isAllowed = allowedList.any { a ->
+                pkg.equals(a, ignoreCase = true) || pkg.contains(a, ignoreCase = true)
+            }
+            if (!isAllowed) return true
+        }
+
+        // 3. Standalone block: block any app explicitly listed
+        if (saActive) {
+            val saJson = prefs.getString(PREF_SA_PKGS, "[]") ?: "[]"
+            val saList = parseJsonArray(saJson)
+            val inSaList = saList.any { b ->
+                pkg.equals(b, ignoreCase = true) || pkg.contains(b, ignoreCase = true)
+            }
+            if (inSaList) return true
+        }
+
+        return false
+    }
+
+    // ─── Enforcement ─────────────────────────────────────────────────────────
 
     private fun handleBlockedApp(blockedPackage: String) {
         // 1. Notify JS via broadcast → FocusDayBridgeModule → "APP_BLOCKED" event
@@ -121,29 +166,23 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         }
         sendBroadcast(broadcast)
 
-        // 2. Bring FocusDay to the front immediately
-        val pm = packageManager
-        val launchIntent = pm.getLaunchIntentForPackage(packageName)?.apply {
+        // 2. Bring FocusFlow to the front immediately
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
             addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK or
                 Intent.FLAG_ACTIVITY_SINGLE_TOP or
                 Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
             )
-            // Pass the blocked package so MainActivity can show a "blocked" message
             putExtra("blocked_app", blockedPackage)
         }
         launchIntent?.let { startActivity(it) }
 
-        // 3. Press Back to ensure the blocked app is pushed off the stack.
-        //    The Back press combined with launching FocusDay keeps the stack clean.
+        // 3. Press Back to push the blocked app off the stack
         performGlobalAction(GLOBAL_ACTION_BACK)
     }
 
-    /**
-     * Parse a JSON array string using org.json.JSONArray.
-     * Handles all valid JSON including escaped characters; returns an empty
-     * list on any parse failure so enforcement degrades gracefully.
-     */
+    // ─── JSON helper ──────────────────────────────────────────────────────────
+
     private fun parseJsonArray(json: String): List<String> {
         return try {
             val arr = org.json.JSONArray(json)

@@ -10,16 +10,19 @@ import android.os.Build
  * BootReceiver
  *
  * Listens for BOOT_COMPLETED and QUICKBOOT_POWERON (some OEMs) broadcasts.
- * If focus mode was active when the phone shut down, restarts the foreground service
- * so the countdown and notification survive a reboot.
  *
- * SharedPreferences key used:
- *   "focus_active"   → "true" to restart, "false" to skip
- *   "task_name"      → last task name
- *   "task_end_ms"    → last task end epoch ms (as a long stored as string)
- *   "next_task_name" → next task name (may be empty)
+ * Behaviour:
+ *   1. If a focus session was active when the phone shut down → restart service in ACTIVE mode
+ *      (restores countdown notification and app blocking).
+ *   2. If no focus session was active → start service in IDLE mode so the persistent
+ *      notification is always present and the process is kept alive by Android.
  *
- * Requires AndroidManifest permission: RECEIVE_BOOT_COMPLETED
+ * SharedPreferences keys:
+ *   "focus_active"          Boolean — true if a task focus was running at shutdown
+ *   "task_name"             String  — last task name
+ *   "task_end_ms"           Long    — last task end epoch ms
+ *   "next_task_name"        String? — next task name (may be null)
+ *   "standalone_block_active" Boolean — standalone (no-task) blocking active
  */
 class BootReceiver : BroadcastReceiver() {
 
@@ -33,28 +36,36 @@ class BootReceiver : BroadcastReceiver() {
         )
 
         val focusActive = prefs.getBoolean("focus_active", false)
-        if (!focusActive) return
+        val endTimeMs   = prefs.getLong("task_end_ms", 0L)
 
-        val taskName  = prefs.getString("task_name", "Focus Task") ?: "Focus Task"
-        val endTimeMs = prefs.getLong("task_end_ms", 0L)
-        val nextName  = prefs.getString("next_task_name", null)
+        if (focusActive && endTimeMs > 0L && endTimeMs > System.currentTimeMillis()) {
+            // ── Restart in ACTIVE focus mode ──────────────────────────────────
+            val taskName = prefs.getString("task_name", "Focus Task") ?: "Focus Task"
+            val nextName = prefs.getString("next_task_name", null)
 
-        // Don't bother restarting if the task already ended while the phone was off
-        if (endTimeMs > 0L && endTimeMs < System.currentTimeMillis()) {
-            prefs.edit().putBoolean("focus_active", false).apply()
-            return
-        }
-
-        val serviceIntent = Intent(context, ForegroundTaskService::class.java).apply {
-            putExtra(ForegroundTaskService.EXTRA_TASK_NAME, taskName)
-            putExtra(ForegroundTaskService.EXTRA_END_MS, endTimeMs)
-            nextName?.let { putExtra(ForegroundTaskService.EXTRA_NEXT_NAME, it) }
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.startForegroundService(serviceIntent)
+            val serviceIntent = Intent(context, ForegroundTaskService::class.java).apply {
+                putExtra(ForegroundTaskService.EXTRA_TASK_NAME, taskName)
+                putExtra(ForegroundTaskService.EXTRA_END_MS, endTimeMs)
+                nextName?.let { putExtra(ForegroundTaskService.EXTRA_NEXT_NAME, it) }
+            }
+            startService(context, serviceIntent)
         } else {
-            context.startService(serviceIntent)
+            // ── Clear any stale focus flag, then start IDLE to keep process alive ──
+            if (focusActive) {
+                prefs.edit().putBoolean("focus_active", false).apply()
+            }
+            val idleIntent = Intent(context, ForegroundTaskService::class.java).apply {
+                action = ForegroundTaskService.ACTION_SET_IDLE
+            }
+            startService(context, idleIntent)
+        }
+    }
+
+    private fun startService(context: Context, intent: Intent) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.startForegroundService(intent)
+        } else {
+            context.startService(intent)
         }
     }
 }

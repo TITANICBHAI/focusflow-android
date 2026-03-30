@@ -4,6 +4,75 @@
 
 pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
 
+---
+
+## FocusFlow — Android Productivity App
+
+`artifacts/focusflow` — Expo (React Native) Android app combining intelligent task scheduling with OS-level app blocking via custom Kotlin native services.
+
+### Architecture
+
+- **JS layer (control plane)** — writes config to SharedPreferences, displays UI, manages app state (AppContext).
+- **Kotlin layer (execution plane)** — owns timing, enforcement, and recovery. Never relies on JS being alive.
+
+### Native Services
+
+| Service | Purpose |
+|---|---|
+| `ForegroundTaskService.kt` | Always-running foreground service. IDLE mode: quiet persistent notification. ACTIVE mode: task countdown + blocking. Never stopped — goes IDLE instead. |
+| `AppBlockerAccessibilityService.kt` | Intercepts every window-change event. Enforces both task-based AND standalone block lists independently. Self-heals stale SharedPrefs flags when timestamps pass. |
+| `BootReceiver.kt` | Restarts `ForegroundTaskService` on reboot — in ACTIVE mode if a task session was running, IDLE mode otherwise (always-on). |
+
+### SharedPreferences Schema (`focusday_prefs`)
+
+| Key | Type | Purpose |
+|---|---|---|
+| `focus_active` | Boolean | Task focus session is active |
+| `task_name` | String | Current task display name |
+| `task_end_ms` | Long | Task session end epoch ms |
+| `next_task_name` | String? | Next task name for notification sub-text |
+| `allowed_packages` | String (JSON array) | Apps allowed during task focus (NOT StringSet — reference bug) |
+| `standalone_block_active` | Boolean | Standalone (no-task) block is enabled |
+| `standalone_blocked_packages` | String (JSON array) | Apps always blocked until expiry |
+| `standalone_block_until_ms` | Long | Standalone block expiry epoch ms |
+
+### Blocking Logic (Collision Handling)
+
+When both task-based focus and standalone block are active simultaneously, enforcement is **additive (union)**:
+- Task focus: blocks every app NOT in `allowed_packages`
+- Standalone block: blocks every app IN `standalone_blocked_packages`
+- Both are checked independently — the more restrictive rule wins for each app
+
+### Key JS Files
+
+| File | Purpose |
+|---|---|
+| `src/context/AppContext.tsx` | Global state, `setStandaloneBlock()`, starts idle service on init |
+| `src/services/focusService.ts` | Starts/stops task focus. Calls `goHome()` after activation. |
+| `src/components/AllowedAppsModal.tsx` | Picker for allowed apps (task focus) |
+| `src/components/StandaloneBlockModal.tsx` | Picker for blocked apps + date/time expiry (standalone) |
+| `app/(tabs)/settings.tsx` | Settings screen including Block Schedule section |
+
+### Deferred Feature: Full-screen Lock Overlay
+
+**Idea:** When "Activate Focus" is tapped, instead of just going to the home screen, a full-screen lock UI appears over the home screen showing the active task name and a live countdown timer. The overlay is non-dismissable during the focus session (Back is intercepted) and auto-dismisses when the session ends.
+
+**Implementation plan (NOT yet implemented):**
+
+1. **New `FocusLockActivity`** — a dedicated Kotlin `Activity` with `Theme.Black.NoTitleBar.Fullscreen`. It reads task name + end time from SharedPreferences and shows a live countdown. Back button is intercepted and no-ops.
+
+2. **Launch mechanism** — two options:
+   - `USE_FULL_SCREEN_INTENT` permission on the `ForegroundTaskService` notification (no SYSTEM_ALERT_WINDOW needed, works on API < 34 without user grant). The notification's `setFullScreenIntent()` launches `FocusLockActivity`.
+   - OR: `SYSTEM_ALERT_WINDOW` (Draw over other apps) — a `WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY` view. More powerful but requires explicit user grant on API ≥ 23.
+
+3. **Manifest registration** — add `FocusLockActivity` to `withFocusDayAndroid.js` config plugin (careful: this file is delicate, test after any touch). Add `USE_FULL_SCREEN_INTENT` permission if using option A.
+
+4. **Dismiss trigger** — `ForegroundTaskService` fires a local broadcast (e.g. `com.tbtechs.focusflow.FOCUS_ENDED`) that `FocusLockActivity` listens for and uses to `finish()` itself.
+
+5. **JS stub already exists** — `ForegroundLaunchModule.showOverlay(message)` is a placeholder that currently calls `bringToFront()`. Wire it to launch `FocusLockActivity` instead.
+
+---
+
 ## Stack
 
 - **Monorepo tool**: pnpm workspaces

@@ -11,24 +11,45 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import dayjs from 'dayjs';
 import { useApp } from '@/context/AppContext';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { cancelAllReminders, requestPermissions } from '@/services/notificationService';
 import { UsageStatsModule } from '@/native-modules/UsageStatsModule';
 import { formatDuration } from '@/services/taskService';
 import { AllowedAppsModal } from '@/components/AllowedAppsModal';
+import { StandaloneBlockModal } from '@/components/StandaloneBlockModal';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 
 const DURATION_OPTIONS = [30, 45, 60, 90, 120];
 
 export default function SettingsScreen() {
-  const { state, updateSettings, refreshTasks } = useApp();
+  const { state, updateSettings, setStandaloneBlock, refreshTasks } = useApp();
   const { settings } = state;
   const [appsModalVisible, setAppsModalVisible] = useState(false);
+  const [blockModalVisible, setBlockModalVisible] = useState(false);
 
   const update = async (partial: Partial<typeof settings>) => {
     await updateSettings({ ...settings, ...partial });
   };
+
+  // ── Standalone block status ───────────────────────────────────────────────
+
+  const standaloneActive = (() => {
+    if (!settings.standaloneBlockUntil) return false;
+    if ((settings.standaloneBlockPackages ?? []).length === 0) return false;
+    return new Date(settings.standaloneBlockUntil).getTime() > Date.now();
+  })();
+
+  const blockUntilLabel = standaloneActive && settings.standaloneBlockUntil
+    ? dayjs(settings.standaloneBlockUntil).format('MMM D [at] h:mm A')
+    : null;
+
+  const handleSaveStandaloneBlock = async (packages: string[], untilMs: number | null) => {
+    await setStandaloneBlock(packages, untilMs);
+  };
+
+  // ── Other handlers ────────────────────────────────────────────────────────
 
   const handleRequestNotifications = async () => {
     const granted = await requestPermissions();
@@ -48,7 +69,7 @@ export default function SettingsScreen() {
     }
     Alert.alert(
       'Usage Access Required',
-      'To detect apps during Focus Mode, FocusDay needs Usage Access. This opens your device settings.',
+      'To detect apps during Focus Mode, FocusFlow needs Usage Access. This opens your device settings.',
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Open Settings', onPress: () => UsageStatsModule.openUsageAccessSettings() },
@@ -153,6 +174,34 @@ export default function SettingsScreen() {
           />
         </Section>
 
+        {/* ── Block Schedule ── */}
+        <Section title="Block Schedule">
+          {standaloneActive ? (
+            <View style={styles.blockActiveCard}>
+              <View style={styles.blockActiveRow}>
+                <View style={styles.blockDot} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.blockActiveTitle}>Block active</Text>
+                  <Text style={styles.blockActiveDesc}>
+                    {(settings.standaloneBlockPackages ?? []).length} app{(settings.standaloneBlockPackages ?? []).length !== 1 ? 's' : ''} blocked until {blockUntilLabel}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.blockInactiveCard}>
+              <Ionicons name="shield-outline" size={18} color={COLORS.muted} />
+              <Text style={styles.blockInactiveText}>No scheduled block active</Text>
+            </View>
+          )}
+          <SettingButton
+            icon="ban-outline"
+            label={standaloneActive ? 'Edit Block Schedule' : 'Set Block Schedule'}
+            description="Block specific apps until a date and time — regardless of tasks"
+            onPress={() => setBlockModalVisible(true)}
+          />
+        </Section>
+
         {/* ── Pomodoro ── */}
         <Section title="Pomodoro Mode">
           <SettingRow label="Enable Pomodoro" description="Auto-cycle work and break sessions">
@@ -191,9 +240,8 @@ export default function SettingsScreen() {
           />
         </Section>
 
-        {/* App info */}
         <View style={styles.footer}>
-          <Text style={styles.footerText}>FocusDay v1.0.0</Text>
+          <Text style={styles.footerText}>FocusFlow v1.0.0</Text>
           <Text style={styles.footerText}>All data stored locally on device</Text>
         </View>
       </ScrollView>
@@ -203,6 +251,14 @@ export default function SettingsScreen() {
         allowedPackages={settings.allowedInFocus}
         onSave={handleSaveAllowedApps}
         onClose={() => setAppsModalVisible(false)}
+      />
+
+      <StandaloneBlockModal
+        visible={blockModalVisible}
+        blockedPackages={settings.standaloneBlockPackages ?? []}
+        blockUntil={settings.standaloneBlockUntil}
+        onSave={handleSaveStandaloneBlock}
+        onClose={() => setBlockModalVisible(false)}
       />
     </SafeAreaView>
   );
@@ -324,6 +380,44 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   chipText: { fontSize: FONT.sm, color: COLORS.text },
   chipTextActive: { color: '#fff', fontWeight: '700' },
+  blockActiveCard: {
+    padding: SPACING.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
+  },
+  blockActiveRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  blockDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: COLORS.red,
+  },
+  blockActiveTitle: {
+    fontSize: FONT.sm,
+    fontWeight: '700',
+    color: COLORS.red,
+  },
+  blockActiveDesc: {
+    fontSize: FONT.xs,
+    color: COLORS.muted,
+    marginTop: 2,
+  },
+  blockInactiveCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    padding: SPACING.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
+  },
+  blockInactiveText: {
+    fontSize: FONT.sm,
+    color: COLORS.muted,
+  },
   footer: { alignItems: 'center', paddingTop: SPACING.xl, gap: SPACING.xs },
   footerText: { fontSize: FONT.xs, color: COLORS.border },
 });
