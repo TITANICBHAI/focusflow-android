@@ -4,7 +4,6 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { Task } from '@/data/types';
@@ -22,8 +21,6 @@ interface Props {
   onStartFocus?: (taskId: string) => void;
 }
 
-const EXTEND_OPTIONS = [15, 30, 45, 60];
-
 export default function TaskCard({
   task,
   isActive = false,
@@ -36,14 +33,7 @@ export default function TaskCard({
   const timer = useTaskTimer(task.startTime, task.endTime);
 
   const handleExtend = useCallback(() => {
-    Alert.alert(
-      'Extend Task',
-      'How much more time do you need?',
-      EXTEND_OPTIONS.map((m) => ({
-        text: `+${m} min`,
-        onPress: () => onExtend?.(task.id),
-      })).concat([{ text: 'Cancel', style: 'cancel' }] as never[]),
-    );
+    onExtend?.(task.id);
   }, [task.id, onExtend]);
 
   const priorityColor = {

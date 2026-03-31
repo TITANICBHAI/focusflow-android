@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   View,
   Text,
@@ -25,6 +26,7 @@ import { formatTime } from '@/services/taskService';
 type ViewMode = 'list' | 'timeline';
 
 export default function ScheduleScreen() {
+  const insets = useSafeAreaInsets();
   const { state, todayTasks, activeTask, addTask, updateTask, deleteTask, completeTask, skipTask, extendTaskTime, startFocusMode, refreshTasks } = useApp();
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -187,7 +189,7 @@ export default function ScheduleScreen() {
       )}
 
       {/* FAB */}
-      <TouchableOpacity style={styles.fab} onPress={() => setShowAddModal(true)}>
+      <TouchableOpacity style={[styles.fab, { bottom: 16 + insets.bottom }]} onPress={() => setShowAddModal(true)}>
         <Ionicons name="add" size={28} color="#fff" />
       </TouchableOpacity>
 

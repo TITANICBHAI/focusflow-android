@@ -62,11 +62,13 @@ export async function scheduleTaskReminders(task: Task): Promise<void> {
   const endMs   = new Date(task.endTime).getTime();
 
   // Pre-start reminders
+  const endLabel = formatTime(task.endTime);
+  const durLabel = formatDuration(task.durationMinutes);
   const preStart: Array<{ offsetMs: number; body: string; isStart?: boolean }> = [
-    { offsetMs: -10 * 60_000, body: `Starting in 10 minutes` },
-    { offsetMs: -5  * 60_000, body: `Starting in 5 minutes` },
-    { offsetMs: -1  * 60_000, body: `Starting in 1 minute — get ready!` },
-    { offsetMs: 0,            body: `Time to start! (${formatDuration(task.durationMinutes)})`, isStart: true },
+    { offsetMs: -10 * 60_000, body: `Starting in 10 min · ends at ${endLabel} · ${durLabel} total` },
+    { offsetMs: -5  * 60_000, body: `Starting in 5 min · ends at ${endLabel}` },
+    { offsetMs: -1  * 60_000, body: `Starting in 1 min — get ready! Ends at ${endLabel}` },
+    { offsetMs: 0,            body: `${durLabel} session · ends at ${endLabel} — tap to open`, isStart: true },
   ];
 
   for (const r of preStart) {

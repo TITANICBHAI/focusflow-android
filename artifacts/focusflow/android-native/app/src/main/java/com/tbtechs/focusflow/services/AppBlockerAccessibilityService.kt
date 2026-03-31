@@ -135,17 +135,30 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             }
         }
 
-        // If neither system is active, nothing to enforce.
-        if (!focusActive && !saActive) {
-            lastBlockedPkg = null
-            return
-        }
-
         val pkg = event.packageName?.toString() ?: return
 
         // Never block our own app or any always-allowed system package.
         if (pkg == packageName) return
         if (ALWAYS_ALLOWED.any { pkg.equals(it, ignoreCase = true) }) return
+
+        // Package installer is permanently blocked regardless of any session state.
+        // Check this before the early-exit below so it is always enforced.
+        if (ALWAYS_BLOCKED.any { pkg.equals(it, ignoreCase = true) }) {
+            val samePackage = pkg == lastBlockedPkg
+            val cooldownExpired = (now - lastBlockedAtMs) > 2_000L
+            if (!samePackage || cooldownExpired) {
+                lastBlockedPkg = pkg
+                lastBlockedAtMs = now
+                handleBlockedApp(pkg)
+            }
+            return
+        }
+
+        // If neither session is active, nothing further to enforce.
+        if (!focusActive && !saActive) {
+            lastBlockedPkg = null
+            return
+        }
 
         val isBlocked = isPackageBlocked(pkg, focusActive, saActive)
 
@@ -172,8 +185,10 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     // ─── Block determination ──────────────────────────────────────────────────
 
     private fun isPackageBlocked(pkg: String, focusActive: Boolean, saActive: Boolean): Boolean {
-        // 1. Always-blocked installers (only enforced during task focus)
-        if (focusActive && ALWAYS_BLOCKED.any { pkg.equals(it, ignoreCase = true) }) {
+        // 1. Always-blocked installers — permanently blocked regardless of focus/standalone state.
+        // This prevents users from installing/uninstalling apps while any block is active,
+        // and also permanently prevents bypassing the block by uninstalling the app.
+        if (ALWAYS_BLOCKED.any { pkg.equals(it, ignoreCase = true) }) {
             return true
         }
 

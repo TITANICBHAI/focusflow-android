@@ -23,6 +23,7 @@ interface Props {
   visible: boolean;
   blockedPackages: string[];
   blockUntil: string | null;
+  locked?: boolean;
   onSave: (packages: string[], untilMs: number | null) => void | Promise<void>;
   onClose: () => void;
 }
@@ -41,6 +42,7 @@ export function StandaloneBlockModal({
   visible,
   blockedPackages,
   blockUntil,
+  locked = false,
   onSave,
   onClose,
 }: Props) {
@@ -106,7 +108,10 @@ export function StandaloneBlockModal({
     );
   }, [apps, search]);
 
+  const lockedSet = useMemo(() => new Set(blockedPackages), [blockedPackages]);
+
   const toggle = (packageName: string) => {
+    if (locked && lockedSet.has(packageName)) return;
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(packageName)) {
@@ -253,23 +258,45 @@ export function StandaloneBlockModal({
           <TouchableOpacity onPress={onClose} style={styles.headerBtn}>
             <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>Block Schedule</Text>
+          <Text style={styles.title}>{locked ? '🔒 Block Active' : 'Block Schedule'}</Text>
           <TouchableOpacity onPress={handleSave} style={styles.headerBtn} disabled={saving}>
             <Text style={[styles.saveText, saving && { opacity: 0.5 }]}>Save</Text>
           </TouchableOpacity>
         </View>
 
+        {/* Locked banner */}
+        {locked && (
+          <View style={styles.lockedBanner}>
+            <Ionicons name="lock-closed" size={14} color={COLORS.orange} />
+            <Text style={styles.lockedBannerText}>
+              Block is active — you can add more apps but cannot remove any until it expires.
+            </Text>
+          </View>
+        )}
+
         {/* Expiry date/time pickers */}
-        <View style={styles.expirySection}>
+        <View style={[styles.expirySection, locked && styles.expirySectionLocked]}>
           <Text style={styles.expirySectionLabel}>Block until</Text>
           <View style={styles.expiryRow}>
-            <TouchableOpacity style={styles.expiryBtn} onPress={() => setShowDatePicker(true)}>
-              <Ionicons name="calendar-outline" size={16} color={COLORS.primary} />
-              <Text style={styles.expiryBtnText}>{dayjs(untilDate).format('MMM D, YYYY')}</Text>
+            <TouchableOpacity
+              style={[styles.expiryBtn, locked && styles.expiryBtnLocked]}
+              onPress={() => !locked && setShowDatePicker(true)}
+              activeOpacity={locked ? 1 : 0.7}
+            >
+              <Ionicons name="calendar-outline" size={16} color={locked ? COLORS.muted : COLORS.primary} />
+              <Text style={[styles.expiryBtnText, locked && { color: COLORS.muted }]}>
+                {dayjs(untilDate).format('MMM D, YYYY')}
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.expiryBtn} onPress={() => setShowTimePicker(true)}>
-              <Ionicons name="time-outline" size={16} color={COLORS.primary} />
-              <Text style={styles.expiryBtnText}>{dayjs(untilDate).format('h:mm A')}</Text>
+            <TouchableOpacity
+              style={[styles.expiryBtn, locked && styles.expiryBtnLocked]}
+              onPress={() => !locked && setShowTimePicker(true)}
+              activeOpacity={locked ? 1 : 0.7}
+            >
+              <Ionicons name="time-outline" size={16} color={locked ? COLORS.muted : COLORS.primary} />
+              <Text style={[styles.expiryBtnText, locked && { color: COLORS.muted }]}>
+                {dayjs(untilDate).format('h:mm A')}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -453,6 +480,28 @@ const styles = StyleSheet.create({
     fontSize: FONT.sm,
     fontWeight: '600',
     color: COLORS.primary,
+  },
+  expirySectionLocked: {
+    opacity: 0.5,
+  },
+  expiryBtnLocked: {
+    backgroundColor: COLORS.border,
+  },
+  lockedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.orange + '18',
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.orange,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+  },
+  lockedBannerText: {
+    flex: 1,
+    fontSize: FONT.xs,
+    color: COLORS.orange,
+    lineHeight: 16,
   },
   list: {
     paddingHorizontal: SPACING.lg,

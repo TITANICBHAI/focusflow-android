@@ -334,7 +334,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (t.id !== extended.id) await dbUpdateTask(t);
       }
 
-      const finalTasks = updatedSchedule.map((t) => (t.id === extended.id ? extended : t));
+      const updatedById = new Map(updatedSchedule.map((t) => [t.id, t]));
+      const finalTasks = state.tasks.map((t) => {
+        if (t.id === extended.id) return extended;
+        return updatedById.get(t.id) ?? t;
+      });
       dispatch({ type: 'SET_TASKS', payload: finalTasks });
 
       await cancelTaskReminders(taskId);

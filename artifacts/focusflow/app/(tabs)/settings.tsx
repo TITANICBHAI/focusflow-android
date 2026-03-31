@@ -181,9 +181,9 @@ export default function SettingsScreen() {
             </View>
           )}
           <SettingButton
-            icon="ban-outline"
-            label={standaloneActive ? 'Edit Block Schedule' : 'Set Block Schedule'}
-            description="Block specific apps until a date and time — regardless of tasks"
+            icon={standaloneActive ? 'lock-closed-outline' : 'ban-outline'}
+            label={standaloneActive ? 'Add More Apps to Block' : 'Set Block Schedule'}
+            description={standaloneActive ? 'Block is locked — you can add apps but not remove any until it expires' : 'Block specific apps until a date and time — regardless of tasks'}
             onPress={() => setBlockModalVisible(true)}
           />
         </Section>
@@ -248,6 +248,7 @@ export default function SettingsScreen() {
         visible={blockModalVisible}
         blockedPackages={settings.standaloneBlockPackages ?? []}
         blockUntil={settings.standaloneBlockUntil}
+        locked={standaloneActive}
         onSave={handleSaveStandaloneBlock}
         onClose={() => setBlockModalVisible(false)}
       />
