@@ -24,7 +24,7 @@ const DURATION_OPTIONS = [30, 45, 60, 90, 120];
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { state, updateSettings, setStandaloneBlock, refreshTasks } = useApp();
+  const { state, updateSettings, setStandaloneBlock, refreshTasks, deleteTask } = useApp();
   const { settings } = state;
   const [appsModalVisible, setAppsModalVisible] = useState(false);
   const [blockModalVisible, setBlockModalVisible] = useState(false);
@@ -82,6 +82,9 @@ export default function SettingsScreen() {
         style: 'destructive',
         onPress: async () => {
           await cancelAllReminders();
+          for (const task of state.tasks) {
+            await deleteTask(task.id);
+          }
           await refreshTasks();
           Alert.alert('Done', 'All tasks cleared.');
         },

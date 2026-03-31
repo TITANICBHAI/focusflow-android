@@ -9,6 +9,8 @@ import {
   Linking,
   Platform,
   AppState,
+  ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +26,8 @@ import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 
 export default function FocusScreen() {
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const ringSize = Math.min(Math.floor(windowWidth * 0.65), 260);
   const { state, activeTask, startFocusMode, stopFocusMode, completeTask, extendTaskTime, setStandaloneBlock } = useApp();
   const isFocusing = state.focusSession !== null && state.focusSession.isActive;
   const [hasAccessibilityPermission, setHasAccessibilityPermission] = useState<boolean | null>(null);
@@ -134,9 +138,12 @@ export default function FocusScreen() {
     );
   }
 
+  const innerSize = Math.round(ringSize * 0.846);
+  const coreSize = Math.round(ringSize * 0.731);
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: task.color + '18' }]}>
-      {/* Accessibility permission warning banner */}
+      {/* Accessibility permission warning banner — pinned above scroll */}
       {hasAccessibilityPermission === false && (
         <TouchableOpacity
           style={styles.permissionBanner}
@@ -164,25 +171,57 @@ export default function FocusScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Focus status */}
-      <View style={styles.statusRow}>
-        <View style={[styles.statusDot, { backgroundColor: isFocusing ? COLORS.green : COLORS.muted }]} />
-        <Text style={styles.statusText}>
-          {isFocusing ? 'Focus Mode Active' : 'Task In Progress'}
-        </Text>
-      </View>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Focus status */}
+        <View style={styles.statusRow}>
+          <View style={[styles.statusDot, { backgroundColor: isFocusing ? COLORS.green : COLORS.muted }]} />
+          <Text style={styles.statusText}>
+            {isFocusing ? 'Focus Mode Active' : 'Task In Progress'}
+          </Text>
+        </View>
 
       {/* Central ring + timer */}
       <View style={styles.centerContent}>
         <Animated.View
           style={[
             styles.ringOuter,
-            { borderColor: task.color + '33', transform: [{ scale: pulseAnim }] },
+            {
+              width: ringSize,
+              height: ringSize,
+              borderRadius: ringSize / 2,
+              borderColor: task.color + '33',
+              transform: [{ scale: pulseAnim }],
+            },
           ]}
         >
-          <View style={[styles.ringInner, { borderColor: task.color + '88' }]}>
-            <View style={[styles.ringCore, { backgroundColor: task.color }]}>
-              <TimerDisplay startTime={task.startTime} endTime={task.endTime} color={task.color} />
+          <View
+            style={[
+              styles.ringInner,
+              {
+                width: innerSize,
+                height: innerSize,
+                borderRadius: innerSize / 2,
+                borderColor: task.color + '88',
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.ringCore,
+                {
+                  width: coreSize,
+                  height: coreSize,
+                  borderRadius: coreSize / 2,
+                  backgroundColor: task.color,
+                },
+              ]}
+            >
+              <TimerDisplay startTime={task.startTime} endTime={task.endTime} color={task.color} ringSize={ringSize} />
             </View>
           </View>
         </Animated.View>
@@ -335,6 +374,9 @@ export default function FocusScreen() {
         <Ionicons name="chevron-forward" size={16} color={COLORS.border} />
       </TouchableOpacity>
 
+        <View style={{ height: 80 }} />
+      </ScrollView>
+
       <StandaloneBlockModal
         visible={blockModalVisible}
         blockedPackages={settings.standaloneBlockPackages ?? []}
@@ -354,7 +396,6 @@ export default function FocusScreen() {
           }}
         />
       )}
-      <View style={{ height: 80 }} />
     </SafeAreaView>
   );
 }
@@ -363,18 +404,21 @@ function TimerDisplay({
   startTime,
   endTime,
   color,
+  ringSize,
 }: {
   startTime: string;
   endTime: string;
   color: string;
+  ringSize: number;
 }) {
   const timer = useTaskTimer(startTime, endTime);
   const mins = Math.floor(timer.remaining / 60);
   const secs = timer.remaining % 60;
+  const timeFontSize = Math.round(ringSize * 0.138);
 
   return (
     <View style={timerStyles.container}>
-      <Text style={timerStyles.time}>
+      <Text style={[timerStyles.time, { fontSize: timeFontSize }]}>
         {timer.isOverdue ? `+${Math.floor(-timer.remaining / 60)}m` : `${mins}:${secs.toString().padStart(2, '0')}`}
       </Text>
       <Text style={timerStyles.label}>{timer.isOverdue ? 'overdue' : 'remaining'}</Text>
@@ -442,27 +486,19 @@ const styles = StyleSheet.create({
   },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   statusText: { fontSize: FONT.sm, fontWeight: '600', color: COLORS.textSecondary },
-  centerContent: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.md },
+  scrollContent: { flexGrow: 1 },
+  centerContent: { alignItems: 'center', justifyContent: 'center', gap: SPACING.md, paddingVertical: SPACING.xl },
   ringOuter: {
-    width: 260,
-    height: 260,
-    borderRadius: 130,
     borderWidth: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   ringInner: {
-    width: 220,
-    height: 220,
-    borderRadius: 110,
     borderWidth: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
   ringCore: {
-    width: 190,
-    height: 190,
-    borderRadius: 95,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -552,7 +588,7 @@ const styles = StyleSheet.create({
 
 const timerStyles = StyleSheet.create({
   container: { alignItems: 'center' },
-  time: { fontSize: 36, fontWeight: '800', color: '#fff' },
+  time: { fontWeight: '800', color: '#fff' },
   label: { fontSize: FONT.xs, color: 'rgba(255,255,255,0.7)', fontWeight: '600' },
   progress: { fontSize: FONT.sm, color: 'rgba(255,255,255,0.9)', fontWeight: '700', marginTop: 2 },
 });

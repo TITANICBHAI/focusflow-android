@@ -307,7 +307,7 @@ const styles = StyleSheet.create({
   },
   violationText: { color: '#fff', fontSize: FONT.sm, fontWeight: '600' },
   list: { flex: 1, marginTop: SPACING.md },
-  listContent: { paddingHorizontal: SPACING.lg, paddingBottom: 100 },
+  listContent: { paddingHorizontal: SPACING.lg },
   emptyState: { alignItems: 'center', paddingTop: 80, gap: SPACING.sm },
   emptyText: { fontSize: FONT.lg, fontWeight: '600', color: COLORS.muted },
   emptySubtext: { fontSize: FONT.sm, color: COLORS.border },

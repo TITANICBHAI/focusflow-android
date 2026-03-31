@@ -116,7 +116,7 @@ export default function QuickAddModal({ visible, onClose, onSave, initialStartTi
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <View style={styles.container}>
           {/* Header */}
