@@ -202,14 +202,26 @@ export default function FocusScreen() {
       </View>
 
       {/* Violation alert */}
-      {state.focusViolationApp && (
-        <View style={styles.violationCard}>
-          <Ionicons name="ban" size={20} color={COLORS.red} />
-          <Text style={styles.violationText}>
-            Blocked: {state.focusViolationApp}
-          </Text>
-        </View>
-      )}
+      {state.focusViolationApp && (() => {
+        const isInstaller = state.focusViolationApp.toLowerCase().includes('packageinstaller');
+        return (
+          <View style={styles.violationCard}>
+            <Ionicons name="ban" size={20} color={COLORS.red} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.violationText}>
+                {isInstaller
+                  ? 'Package Installer blocked (Android app installer/uninstaller)'
+                  : `Blocked: ${state.focusViolationApp}`}
+              </Text>
+              {isInstaller && (
+                <Text style={[styles.violationText, { fontSize: 11, opacity: 0.75, marginTop: 2 }]}>
+                  You can uninstall FocusFlow after your block period ends.
+                </Text>
+              )}
+            </View>
+          </View>
+        );
+      })()}
 
       {/* Action buttons */}
       <View style={styles.actions}>

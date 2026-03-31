@@ -24,7 +24,8 @@ export type NativeEventType =
   | 'SERVICE_RESTART'   // foreground service restarted after being killed
   | 'BOOT_COMPLETED'    // device rebooted, schedule needs restoring
   | 'PERMISSION_RESULT' // user responded to a permission prompt
-  | 'BATTERY_LOW';      // battery optimization is blocking the service
+  | 'BATTERY_LOW'       // battery optimization is blocking the service
+  | 'NOTIF_ACTION';     // user tapped an action button on the foreground notification
 
 export interface NativeEvent {
   type: NativeEventType;
@@ -33,6 +34,8 @@ export interface NativeEvent {
   remainingSeconds?: number;
   blockedApp?: string;
   granted?: boolean;
+  notifAction?: 'COMPLETE' | 'EXTEND' | 'SKIP';
+  minutes?: number;
 }
 
 type EventHandler = (event: NativeEvent) => void;
