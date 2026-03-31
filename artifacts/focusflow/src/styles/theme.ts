@@ -1,3 +1,5 @@
+import { moderateScale, scale, verticalScale } from 'react-native-size-matters';
+
 export const COLORS = {
   primary: '#6366f1',
   primaryLight: '#e0e7ff',
@@ -28,30 +30,43 @@ export const COLORS = {
   darkBorder: '#374151',
 };
 
+/**
+ * Font sizes — moderateScale with factor 0.3 so text grows gently on larger
+ * screens without blowing up on 10" tablets.
+ */
 export const FONT = {
-  xs: 11,
-  sm: 13,
-  md: 15,
-  lg: 18,
-  xl: 22,
-  xxl: 28,
+  xs: moderateScale(11, 0.3),
+  sm: moderateScale(13, 0.3),
+  md: moderateScale(15, 0.3),
+  lg: moderateScale(18, 0.3),
+  xl: moderateScale(22, 0.3),
+  xxl: moderateScale(28, 0.3),
 };
 
+/**
+ * Border radii — very gentle scaling so corners don't look overly round on
+ * large phones/tablets.
+ */
 export const RADIUS = {
-  sm: 6,
-  md: 10,
-  lg: 16,
-  xl: 24,
+  sm: moderateScale(6, 0.25),
+  md: moderateScale(10, 0.25),
+  lg: moderateScale(16, 0.25),
+  xl: moderateScale(24, 0.25),
   full: 999,
 };
 
+/**
+ * Spacing (padding / margin / gap) — scale() for horizontal, verticalScale()
+ * for vertical. Where a value is used for both axes moderateScale is a safe
+ * middle ground.
+ */
 export const SPACING = {
-  xs: 4,
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 24,
-  xxl: 32,
+  xs: moderateScale(4),
+  sm: moderateScale(8),
+  md: moderateScale(12),
+  lg: moderateScale(16),
+  xl: moderateScale(24),
+  xxl: moderateScale(32),
 };
 
 export const SHADOW = {
