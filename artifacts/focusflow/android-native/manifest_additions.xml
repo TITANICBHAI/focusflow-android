@@ -58,6 +58,18 @@
         </intent-filter>
     </receiver>
 
+    <!-- Home screen widget -->
+    <receiver
+        android:name="com.tbtechs.focusflow.widget.FocusFlowWidget"
+        android:exported="true">
+        <intent-filter>
+            <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+        </intent-filter>
+        <meta-data
+            android:name="android.appwidget.provider"
+            android:resource="@xml/widget_info" />
+    </receiver>
+
   3. Add the accessibility description string.
      Open (or create): android/app/src/main/res/values/strings.xml
      Add inside <resources>:

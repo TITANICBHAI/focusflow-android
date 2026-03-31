@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="@drawable/widget_background"
+    android:gravity="center_vertical">
+
+    <!-- Header row: label + app name -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="6dp">
+
+        <TextView
+            android:id="@+id/widget_header_label"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="FOCUS MODE"
+            android:textSize="10sp"
+            android:textColor="#6366f1"
+            android:textStyle="bold"
+            android:letterSpacing="0.12" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="FocusFlow"
+            android:textSize="10sp"
+            android:textColor="#9ca3af"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Task name -->
+    <TextView
+        android:id="@+id/widget_task_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="No active session"
+        android:textSize="15sp"
+        android:textColor="#1e1b4b"
+        android:textStyle="bold"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:layout_marginBottom="8dp" />
+
+    <!-- Time remaining -->
+    <TextView
+        android:id="@+id/widget_time_remaining"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Tap to open FocusFlow"
+        android:textSize="13sp"
+        android:textColor="#6366f1"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp" />
+
+    <!-- Progress bar -->
+    <ProgressBar
+        android:id="@+id/widget_progress"
+        style="@android:style/Widget.ProgressBar.Horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:max="100"
+        android:progress="0"
+        android:progressTint="#6366f1"
+        android:progressBackgroundTint="#e0e7ff" />
+
+</LinearLayout>

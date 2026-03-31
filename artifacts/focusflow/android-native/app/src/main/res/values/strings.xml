@@ -24,6 +24,8 @@
           - Does NOT transmit any data off the device.
           - Does NOT run when no focus session or block schedule is active.
     -->
+    <string name="widget_description">Shows your active focus session and time remaining on the home screen.</string>
+
     <string name="accessibility_service_description">
         FocusFlow uses this service to enforce your focus sessions by detecting
         which app you open. When you start a focus session, any app not on your
