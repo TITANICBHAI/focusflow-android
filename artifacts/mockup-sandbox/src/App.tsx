@@ -93,7 +93,7 @@ function getBasePath(): string {
 
 function getPreviewExamplePath(): string {
   const basePath = getBasePath();
-  return `${basePath}/preview/ComponentName`;
+  return `${basePath}/preview/FocusFlowPromo`;
 }
 
 function Gallery() {

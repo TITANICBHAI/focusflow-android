@@ -1,0 +1,19 @@
+uploads = []
+
+[[generated]]
+id = "ySQFLWyEIUvVXdV__-do0"
+uri = "file://artifacts/mockup-sandbox/public/images/blocked-phone.png"
+type = "image"
+title = "Phone with Blocked overlay"
+
+[[generated]]
+id = "ncbs0oEZqJIVuziObtHMm"
+uri = "file://artifacts/mockup-sandbox/public/images/kinetic-texture.png"
+type = "image"
+title = "Abstract kinetic energy texture"
+
+[[outputs]]
+id = "tgalAfT1-750LJk0Yh4R6"
+uri = "file://artifacts/focusflow/store-assets/STORE_LISTING.md"
+type = "text"
+title = "FocusFlow — Complete Store Listing (Aptoide, Uptodown & Google Play)"
