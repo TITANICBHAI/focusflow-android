@@ -19,6 +19,7 @@ import { formatTime } from '@/services/taskService';
 import { dbLogFocusOverride } from '@/data/database';
 import { UsageStatsModule } from '@/native-modules/UsageStatsModule';
 import { StandaloneBlockModal } from '@/components/StandaloneBlockModal';
+import ExtendModal from '@/components/ExtendModal';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 
 export default function FocusScreen() {
@@ -26,6 +27,7 @@ export default function FocusScreen() {
   const isFocusing = state.focusSession !== null && state.focusSession.isActive;
   const [hasAccessibilityPermission, setHasAccessibilityPermission] = useState<boolean | null>(null);
   const [blockModalVisible, setBlockModalVisible] = useState(false);
+  const [showExtendModal, setShowExtendModal] = useState(false);
 
   const { settings } = state;
   const standaloneActive = (() => {
@@ -264,14 +266,7 @@ export default function FocusScreen() {
             icon="alarm-outline"
             label="Extend"
             color={COLORS.orange}
-            onPress={() => {
-              Alert.alert('Extend Task', 'How much extra time?', [
-                { text: '15m', onPress: () => extendTaskTime(task.id, 15) },
-                { text: '30m', onPress: () => extendTaskTime(task.id, 30) },
-                { text: '60m', onPress: () => extendTaskTime(task.id, 60) },
-                { text: 'Cancel', style: 'cancel' },
-              ]);
-            }}
+            onPress={() => setShowExtendModal(true)}
           />
         </View>
 
@@ -345,6 +340,18 @@ export default function FocusScreen() {
         onSave={async (packages, untilMs) => { await setStandaloneBlock(packages, untilMs); }}
         onClose={() => setBlockModalVisible(false)}
       />
+
+      {task && (
+        <ExtendModal
+          visible={showExtendModal}
+          taskId={task.id}
+          onClose={() => setShowExtendModal(false)}
+          onExtend={async (id, mins) => {
+            await extendTaskTime(id, mins);
+            setShowExtendModal(false);
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }

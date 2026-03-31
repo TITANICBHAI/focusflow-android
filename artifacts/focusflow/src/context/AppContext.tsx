@@ -249,6 +249,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, [state.isDbReady]);
 
+  // ── Auto-start focus mode when active task has focusMode: true ───────────────
+  // Runs when the active task changes. If the task was created with focusMode
+  // enabled and no focus session is running yet, activate silently (no goHome).
+
+  useEffect(() => {
+    const active = getActiveTask(stateRef.current.tasks);
+    if (active && active.focusMode && stateRef.current.focusSession === null && !isFocusActive()) {
+      void _startFocusMode(
+        active,
+        stateRef.current.settings.allowedInFocus,
+        (app) => {
+          dispatch({ type: 'SET_FOCUS_VIOLATION', payload: app });
+          setTimeout(() => dispatch({ type: 'SET_FOCUS_VIOLATION', payload: null }), 4000);
+        },
+        { skipGoHome: true },
+      ).then(() => {
+        const session: FocusSession = {
+          taskId: active.id,
+          startedAt: new Date().toISOString(),
+          isActive: true,
+          allowedPackages: stateRef.current.settings.allowedInFocus,
+        };
+        dispatch({ type: 'SET_FOCUS_SESSION', payload: session });
+      }).catch(() => {});
+    }
+  // Re-run when the active task identity changes (new task or task cleared)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.tasks]);
+
   // ── Native event subscriptions ───────────────────────────────────────────────
 
   useEffect(() => {
@@ -316,75 +345,92 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'DELETE_TASK', payload: taskId });
   }, []);
 
+  // Guard against concurrent extend calls — prevents stale-state double-writes.
+  const extendingRef = useRef(false);
+
   const completeTask = useCallback(
     async (taskId: string) => {
-      const task = state.tasks.find((t) => t.id === taskId);
+      const tasks = stateRef.current.tasks;
+      const task = tasks.find((t) => t.id === taskId);
       if (!task) return;
       const updated = updateTaskStatus(task, 'completed');
       await dbUpdateTask(updated);
       await cancelTaskReminders(taskId);
       dispatch({ type: 'UPDATE_TASK', payload: updated });
-      if (state.focusSession?.taskId === taskId) {
+      if (stateRef.current.focusSession?.taskId === taskId) {
         await stopFocusMode();
       }
     },
-    [state.tasks, state.focusSession],
+    // stateRef is a stable ref — no deps needed
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
   );
 
   const skipTask = useCallback(
     async (taskId: string) => {
-      const task = state.tasks.find((t) => t.id === taskId);
+      const tasks = stateRef.current.tasks;
+      const task = tasks.find((t) => t.id === taskId);
       if (!task) return;
       const updated = updateTaskStatus(task, 'skipped');
       await dbUpdateTask(updated);
       await cancelTaskReminders(taskId);
       dispatch({ type: 'UPDATE_TASK', payload: updated });
     },
-    [state.tasks],
+    [],
   );
 
   const extendTaskTime = useCallback(
     async (taskId: string, extraMinutes: number) => {
-      const task = state.tasks.find((t) => t.id === taskId);
-      if (!task) return;
+      // Prevent concurrent extend calls — second tap is silently ignored.
+      if (extendingRef.current) return;
+      extendingRef.current = true;
+      try {
+        // Always read from the ref so we get the latest tasks even if the
+        // closure was captured before a previous extend dispatch resolved.
+        const tasks = stateRef.current.tasks;
+        const task = tasks.find((t) => t.id === taskId);
+        if (!task) return;
 
-      const extended = extendTask(task, extraMinutes);
+        const extended = extendTask(task, extraMinutes);
 
-      const { updatedSchedule, needsUserConfirm, skipped } = rebalanceAfterOverrun(extended, extraMinutes, state.tasks);
+        const { updatedSchedule, needsUserConfirm, skipped } = rebalanceAfterOverrun(extended, extraMinutes, tasks);
 
-      await dbUpdateTask(extended);
-      for (const t of updatedSchedule) {
-        if (t.id !== extended.id) await dbUpdateTask(t);
-      }
+        await dbUpdateTask(extended);
+        for (const t of updatedSchedule) {
+          if (t.id !== extended.id) await dbUpdateTask(t);
+        }
 
-      const updatedById = new Map(updatedSchedule.map((t) => [t.id, t]));
-      const finalTasks = state.tasks.map((t) => {
-        if (t.id === extended.id) return extended;
-        return updatedById.get(t.id) ?? t;
-      });
-      dispatch({ type: 'SET_TASKS', payload: finalTasks });
+        const updatedById = new Map(updatedSchedule.map((t) => [t.id, t]));
+        const finalTasks = tasks.map((t) => {
+          if (t.id === extended.id) return extended;
+          return updatedById.get(t.id) ?? t;
+        });
+        dispatch({ type: 'SET_TASKS', payload: finalTasks });
 
-      await cancelTaskReminders(taskId);
-      await scheduleTaskReminders(extended);
+        await cancelTaskReminders(taskId);
+        await scheduleTaskReminders(extended);
 
-      if (needsUserConfirm.length > 0) {
-        const names = needsUserConfirm.map((t) => `• ${t.title}`).join('\n');
-        Alert.alert(
-          '⚠️ Critical Tasks Affected',
-          `These high-priority tasks overlap with your extension and need your attention:\n\n${names}\n\nPlease review and reschedule them manually.`,
-          [{ text: 'OK' }],
-        );
-      }
-      if (skipped.length > 0) {
-        const names = skipped.map((t) => `• ${t.title}`).join('\n');
-        Alert.alert(
-          'Tasks Auto-Skipped',
-          `These lower-priority tasks were skipped to protect your schedule:\n\n${names}`,
-          [{ text: 'OK' }],
-        );
+        if (needsUserConfirm.length > 0) {
+          const names = needsUserConfirm.map((t) => `• ${t.title}`).join('\n');
+          Alert.alert(
+            '⚠️ Critical Tasks Affected',
+            `These high-priority tasks overlap with your extension and need your attention:\n\n${names}\n\nPlease review and reschedule them manually.`,
+            [{ text: 'OK' }],
+          );
+        }
+        if (skipped.length > 0) {
+          const names = skipped.map((t) => `• ${t.title}`).join('\n');
+          Alert.alert(
+            'Tasks Auto-Skipped',
+            `These lower-priority tasks were skipped to protect your schedule:\n\n${names}`,
+            [{ text: 'OK' }],
+          );
+        }
+      } finally {
+        extendingRef.current = false;
       }
     },
-    [state.tasks],
+    [],
   );
 
   // ── Focus Mode ──────────────────────────────────────────────────────────────

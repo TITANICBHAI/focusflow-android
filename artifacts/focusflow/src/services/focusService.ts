@@ -33,6 +33,7 @@ export async function startFocusMode(
   task: Task,
   allowedExtras: string[] = [],
   onViolation?: (appName: string) => void,
+  options: { skipGoHome?: boolean } = {},
 ): Promise<void> {
   // Always clean up any existing subscription unconditionally before re-entering
   // (fixes NEW-019: subscription leaks when stopFocusMode short-circuits)
@@ -60,9 +61,11 @@ export async function startFocusMode(
   await ForegroundServiceModule.startService(task.id, task.title, endMs, nextTask?.title ?? null);
   await ForegroundServiceModule.requestBatteryOptimizationExemption();
 
-  // Send the user to the home screen so focus mode starts with a clean slate.
-  // The service + AccessibilityService continue enforcing in the background.
-  await ForegroundLaunchModule.goHome();
+  // Send the user to the home screen so focus mode starts with a clean slate,
+  // unless the caller opted out (e.g. auto-start when app is already open).
+  if (!options.skipGoHome) {
+    await ForegroundLaunchModule.goHome();
+  }
 
   // Write state to SharedPreferences so:
   //   • AppBlockerAccessibilityService knows focus is on and which apps to block
