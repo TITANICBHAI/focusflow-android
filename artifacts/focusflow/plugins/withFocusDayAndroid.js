@@ -241,6 +241,28 @@ function withFocusDayManifest(config) {
       });
     }
 
+    // ── Notification Action Receiver ──────────────────────────────────────────
+    // NotificationActionReceiver is a static BroadcastReceiver that handles taps
+    // on the foreground notification action buttons (Done / +15m / +30m / Skip).
+    // Static receivers MUST be declared in the manifest — without this entry,
+    // PendingIntent.getBroadcast() sends the broadcast but Android silently drops
+    // it because no manifest-registered class exists to handle it.
+    // android:exported="false" is correct: all intents are sent with `package` set,
+    // making them explicit intra-app broadcasts only.
+    const notifActionExists = (app.receiver || []).some(
+      (r) => r.$['android:name'] === 'com.tbtechs.focusflow.services.NotificationActionReceiver'
+    );
+    if (!notifActionExists) {
+      if (!app.receiver) app.receiver = [];
+      app.receiver.push({
+        $: {
+          'android:name':     'com.tbtechs.focusflow.services.NotificationActionReceiver',
+          'android:enabled':  'true',
+          'android:exported': 'false',
+        },
+      });
+    }
+
     // ── <queries> block for Android 11+ package visibility ────────────────────
     // Without this, PackageManager.getInstalledPackages() returns an empty list
     // on API 30+ for user-installed apps (package visibility restrictions).

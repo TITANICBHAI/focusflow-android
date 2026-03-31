@@ -138,8 +138,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         if (pkg == packageName) return
         if (ALWAYS_ALLOWED.any { pkg.equals(it, ignoreCase = true) }) return
 
-        // Package installer is permanently blocked regardless of any session state.
-        // Check this before the early-exit below so it is always enforced.
+        // ALWAYS_BLOCKED is now empty — this block is a no-op but kept for safety.
+        // Previously used to permanently block package installers; user now controls this.
         if (ALWAYS_BLOCKED.any { pkg.equals(it, ignoreCase = true) }) {
             val samePackage = pkg == lastBlockedPkg
             val cooldownExpired = (now - lastBlockedAtMs) > 2_000L
@@ -182,9 +182,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     // ─── Block determination ──────────────────────────────────────────────────
 
     private fun isPackageBlocked(pkg: String, focusActive: Boolean, saActive: Boolean): Boolean {
-        // 1. Always-blocked installers — permanently blocked regardless of focus/standalone state.
-        // This prevents users from installing/uninstalling apps while any block is active,
-        // and also permanently prevents bypassing the block by uninstalling the app.
+        // 1. ALWAYS_BLOCKED is empty — this is a no-op. Previously blocked package installers
+        // permanently; now users control this via allowed apps / block schedule.
         if (ALWAYS_BLOCKED.any { pkg.equals(it, ignoreCase = true) }) {
             return true
         }
