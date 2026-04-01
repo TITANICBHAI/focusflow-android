@@ -15,7 +15,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
-import type { Task, TaskPriority } from '@/data/types';
+import type { Task, TaskPriority, AllowedAppPreset } from '@/data/types';
+import { AppPickerSheet } from './AppPickerSheet';
+import { useApp } from '@/context/AppContext';
 
 interface Props {
   task: Task;
@@ -38,6 +40,9 @@ const COLORS_OPTIONS = [
 ];
 
 export default function EditTaskModal({ task, visible, onClose, onSave, onDelete }: Props) {
+  const { state, updateSettings } = useApp();
+  const presets: AllowedAppPreset[] = state.settings.allowedAppPresets ?? [];
+
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? '');
   const [startDate, setStartDate] = useState<Date>(new Date(task.startTime));
@@ -47,7 +52,26 @@ export default function EditTaskModal({ task, visible, onClose, onSave, onDelete
   const [tags, setTags] = useState(task.tags.join(', '));
   const [color, setColor] = useState(task.color);
   const [focusMode, setFocusMode] = useState(task.focusMode);
+  const [focusAllowedPackages, setFocusAllowedPackages] = useState<string[]>(
+    task.focusAllowedPackages ?? [],
+  );
+  const [showAppPicker, setShowAppPicker] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const allowedAppsLabel =
+    focusAllowedPackages.length === 0
+      ? 'All apps allowed'
+      : `${focusAllowedPackages.length} app${focusAllowedPackages.length !== 1 ? 's' : ''} allowed`;
+
+  const handleSavePreset = async (preset: AllowedAppPreset) => {
+    const newPresets = [...presets, preset];
+    await updateSettings({ ...state.settings, allowedAppPresets: newPresets });
+  };
+
+  const handleDeletePreset = async (id: string) => {
+    const newPresets = presets.filter((p) => p.id !== id);
+    await updateSettings({ ...state.settings, allowedAppPresets: newPresets });
+  };
 
   const handleSave = async () => {
     if (!title.trim()) {
@@ -76,6 +100,7 @@ export default function EditTaskModal({ task, visible, onClose, onSave, onDelete
       tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
       color,
       focusMode,
+      focusAllowedPackages: focusMode ? focusAllowedPackages : undefined,
       updatedAt: new Date().toISOString(),
     };
 
@@ -109,6 +134,7 @@ export default function EditTaskModal({ task, visible, onClose, onSave, onDelete
   };
 
   return (
+    <>
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={styles.safe}>
         {/* Header */}
@@ -254,6 +280,24 @@ export default function EditTaskModal({ task, visible, onClose, onSave, onDelete
                 <View style={[styles.toggleThumb, focusMode && styles.toggleThumbOn]} />
               </View>
             </TouchableOpacity>
+
+            {/* Allowed apps picker — shown only when focus mode is on */}
+            {focusMode && (
+              <TouchableOpacity
+                style={styles.allowedAppsRow}
+                onPress={() => setShowAppPicker(true)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.allowedAppsIcon}>
+                  <Ionicons name="shield-checkmark-outline" size={20} color={COLORS.primary} />
+                </View>
+                <View style={styles.allowedAppsInfo}>
+                  <Text style={styles.allowedAppsLabel}>Allowed Apps</Text>
+                  <Text style={styles.allowedAppsValue}>{allowedAppsLabel}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={COLORS.muted} />
+              </TouchableOpacity>
+            )}
           </View>
         </ScrollView>
 
@@ -264,6 +308,19 @@ export default function EditTaskModal({ task, visible, onClose, onSave, onDelete
         </TouchableOpacity>
       </SafeAreaView>
     </Modal>
+
+    {/* Nested app picker sheet — rendered outside the main Modal to avoid z-index issues */}
+    <AppPickerSheet
+      visible={showAppPicker}
+      title="Allowed Apps for This Task"
+      initialSelected={focusAllowedPackages}
+      presets={presets}
+      onSave={setFocusAllowedPackages}
+      onSavePreset={(preset) => { void handleSavePreset(preset); }}
+      onDeletePreset={(id) => { void handleDeletePreset(id); }}
+      onClose={() => setShowAppPicker(false)}
+    />
+    </>
   );
 }
 
@@ -339,4 +396,26 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.red + '08',
   },
   deleteBtnText: { color: COLORS.red, fontSize: FONT.md, fontWeight: '600' },
+  allowedAppsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.card,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginTop: SPACING.sm,
+    borderWidth: 1.5,
+    borderColor: COLORS.primary + '44',
+    gap: SPACING.sm,
+  },
+  allowedAppsIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  allowedAppsInfo: { flex: 1 },
+  allowedAppsLabel: { fontSize: FONT.md, fontWeight: '600', color: COLORS.text },
+  allowedAppsValue: { fontSize: FONT.sm, color: COLORS.primary, marginTop: 2 },
 });
