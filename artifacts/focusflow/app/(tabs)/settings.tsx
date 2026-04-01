@@ -159,7 +159,7 @@ export default function SettingsScreen() {
           <SettingButton
             icon="apps-outline"
             label="Manage Allowed Apps"
-            description={`${settings.allowedInFocus.length} app${settings.allowedInFocus.length !== 1 ? 's' : ''} won't be blocked during Focus Mode`}
+            description={settings.allowedInFocus.length === 0 ? 'All apps will be blocked during Focus Mode' : `${settings.allowedInFocus.length} app${settings.allowedInFocus.length !== 1 ? 's' : ''} allowed during Focus Mode`}
             onPress={() => setAppsModalVisible(true)}
           />
         </Section>

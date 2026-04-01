@@ -158,6 +158,18 @@ else
   echo "   ✓ FocusDayDeviceAdminReceiver already registered"
 fi
 
+# ── NotificationActionReceiver ────────────────────────────────────────────────
+# Handles taps on ✓ Done / +15m / +30m / Skip action buttons in the foreground
+# notification. All PendingIntents are package-restricted (setPackage = ours),
+# so exported=false is correct and prevents external apps from triggering actions.
+
+if ! grep -q "NotificationActionReceiver" "$MANIFEST"; then
+  sed -i 's|</application>|        <receiver\n            android:name="com.tbtechs.focusflow.services.NotificationActionReceiver"\n            android:exported="false">\n            <intent-filter>\n                <action android:name="com.tbtechs.focusflow.notif.COMPLETE" />\n                <action android:name="com.tbtechs.focusflow.notif.EXTEND" />\n                <action android:name="com.tbtechs.focusflow.notif.SKIP" />\n            </intent-filter>\n        </receiver>\n    </application>|' "$MANIFEST"
+  echo "   ✓ NotificationActionReceiver registered"
+else
+  echo "   ✓ NotificationActionReceiver already registered"
+fi
+
 echo ""
 echo "✅  All native files installed and manifest patched."
 echo ""

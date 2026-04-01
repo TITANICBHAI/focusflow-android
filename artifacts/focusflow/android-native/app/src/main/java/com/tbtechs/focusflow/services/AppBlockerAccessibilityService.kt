@@ -193,6 +193,14 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             return
         }
 
+        // Google Play Store — uninstall dialogs are always allowed through,
+        // even when the Play Store itself is blocked. The user must be able to
+        // uninstall apps at any time. Install confirmations and general browsing
+        // are NOT exempt and continue through the normal blocking logic below.
+        if (pkg == "com.android.vending" && (focusActive || saActive) && isUninstallDialog(event)) {
+            return
+        }
+
         // ALWAYS_BLOCKED is now empty — this block is a no-op but kept for safety.
         // Previously used to permanently block package installers; user now controls this.
         if (ALWAYS_BLOCKED.any { pkg.equals(it, ignoreCase = true) }) {
