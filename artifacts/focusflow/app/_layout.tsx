@@ -130,18 +130,36 @@ function AppSplashOverlay() {
   const { state } = useApp();
   const opacity = useRef(new Animated.Value(1)).current;
   const pulse = useRef(new Animated.Value(1)).current;
+  const logoScale = useRef(new Animated.Value(0.6)).current;
+  const logoOpacity = useRef(new Animated.Value(0)).current;
+  const textTranslate = useRef(new Animated.Value(20)).current;
+  const textOpacity = useRef(new Animated.Value(0)).current;
   const [visible, setVisible] = React.useState(true);
+
+  // Entrance animation: logo springs in, then text fades up
+  useEffect(() => {
+    Animated.sequence([
+      Animated.parallel([
+        Animated.spring(logoScale, { toValue: 1, useNativeDriver: true, tension: 60, friction: 8 }),
+        Animated.timing(logoOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+      ]),
+      Animated.parallel([
+        Animated.timing(textOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
+        Animated.timing(textTranslate, { toValue: 0, duration: 350, useNativeDriver: true }),
+      ]),
+    ]).start();
+  }, [logoScale, logoOpacity, textOpacity, textTranslate]);
 
   // Pulsing logo animation while loading
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1.08, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1.1, duration: 900, useNativeDriver: true }),
         Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
       ])
     );
-    loop.start();
-    return () => loop.stop();
+    const timeout = setTimeout(() => loop.start(), 500);
+    return () => { clearTimeout(timeout); loop.stop(); };
   }, [pulse]);
 
   // Fade out when DB is ready
@@ -149,7 +167,7 @@ function AppSplashOverlay() {
     if (state.isDbReady) {
       Animated.timing(opacity, {
         toValue: 0,
-        duration: 350,
+        duration: 400,
         useNativeDriver: true,
       }).start(() => setVisible(false));
     }
@@ -159,13 +177,15 @@ function AppSplashOverlay() {
 
   return (
     <Animated.View style={[splashStyles.overlay, { opacity }]} pointerEvents="none">
-      <Animated.View style={{ transform: [{ scale: pulse }] }}>
+      <Animated.View style={{ transform: [{ scale: Animated.multiply(logoScale, pulse) }], opacity: logoOpacity }}>
         <View style={splashStyles.logoCircle}>
-          <Ionicons name="shield-checkmark" size={48} color="#fff" />
+          <Ionicons name="shield-checkmark" size={52} color="#fff" />
         </View>
       </Animated.View>
-      <Text style={splashStyles.name}>FocusFlow</Text>
-      <Text style={splashStyles.tagline}>Your discipline operating system</Text>
+      <Animated.View style={{ opacity: textOpacity, transform: [{ translateY: textTranslate }], alignItems: 'center', gap: 6 }}>
+        <Text style={splashStyles.name}>FocusFlow</Text>
+        <Text style={splashStyles.tagline}>Your discipline operating system</Text>
+      </Animated.View>
     </Animated.View>
   );
 }
@@ -176,20 +196,20 @@ const splashStyles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: SPACING.sm,
+    gap: SPACING.md,
     zIndex: 999,
   },
   logoCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     backgroundColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.xs,
   },
   name: {
-    fontSize: FONT.xxl + 4,
+    fontSize: FONT.xxl + 6,
     fontWeight: '900',
     color: '#fff',
     letterSpacing: -1,
@@ -197,6 +217,7 @@ const splashStyles = StyleSheet.create({
   tagline: {
     fontSize: FONT.sm,
     color: 'rgba(255,255,255,0.7)',
+    letterSpacing: 0.3,
   },
 });
 
