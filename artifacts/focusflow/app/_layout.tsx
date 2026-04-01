@@ -14,14 +14,16 @@
 // ─── 1. Register all background tasks with the OS ────────────────────────────
 import '@/tasks/backgroundTasks';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Notifications from 'expo-notifications';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View, Text, Animated } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { COLORS, FONT, SPACING } from '@/styles/theme';
 
 import { AppProvider, useApp } from '@/context/AppContext';
 import { EventBridge } from '@/services/eventBridge';
@@ -120,6 +122,84 @@ async function setupNotificationCategories() {
   ]);
 }
 
+// ─── Animated in-app splash overlay ──────────────────────────────────────────
+// Shows a branded loading screen while the SQLite DB is initialising.
+// Fades out the moment isDbReady becomes true so there is no blank flash.
+
+function AppSplashOverlay() {
+  const { state } = useApp();
+  const opacity = useRef(new Animated.Value(1)).current;
+  const pulse = useRef(new Animated.Value(1)).current;
+  const [visible, setVisible] = React.useState(true);
+
+  // Pulsing logo animation while loading
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1.08, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+
+  // Fade out when DB is ready
+  useEffect(() => {
+    if (state.isDbReady) {
+      Animated.timing(opacity, {
+        toValue: 0,
+        duration: 350,
+        useNativeDriver: true,
+      }).start(() => setVisible(false));
+    }
+  }, [state.isDbReady, opacity]);
+
+  if (!visible) return null;
+
+  return (
+    <Animated.View style={[splashStyles.overlay, { opacity }]} pointerEvents="none">
+      <Animated.View style={{ transform: [{ scale: pulse }] }}>
+        <View style={splashStyles.logoCircle}>
+          <Ionicons name="shield-checkmark" size={48} color="#fff" />
+        </View>
+      </Animated.View>
+      <Text style={splashStyles.name}>FocusFlow</Text>
+      <Text style={splashStyles.tagline}>Your discipline operating system</Text>
+    </Animated.View>
+  );
+}
+
+const splashStyles = StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    zIndex: 999,
+  },
+  logoCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.sm,
+  },
+  name: {
+    fontSize: FONT.xxl + 4,
+    fontWeight: '900',
+    color: '#fff',
+    letterSpacing: -1,
+  },
+  tagline: {
+    fontSize: FONT.sm,
+    color: 'rgba(255,255,255,0.7)',
+  },
+});
+
 // ─── Onboarding guard ─────────────────────────────────────────────────────────
 // Runs inside AppProvider so it has access to context.
 // Once the DB is ready, redirects to /onboarding on first install.
@@ -165,6 +245,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
         <AppProvider>
+          <AppSplashOverlay />
           <OnboardingGuard />
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

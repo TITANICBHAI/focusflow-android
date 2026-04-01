@@ -1,16 +1,16 @@
 /**
  * OnboardingScreen
  *
- * Shown only on first launch. Walks the user through granting:
- *   1. Notification permission (Android 13+)
- *   2. Battery optimization exemption (Android)
- *   3. Usage Access (manual Settings step)
- *   4. Accessibility Service (manual Settings step)
+ * Shown on first launch as a full-screen modal over the tabs.
+ * Rich expandable permission cards matching the detail level of
+ * the manage-permissions screen.
  *
- * Once complete, sets settings.onboardingComplete = true → tabs appear.
+ * - Auto-checks all permission statuses on mount and on every app-resume.
+ * - Button is always enabled; if permissions are missing a tip points the
+ *   user to Settings → Permissions instead of blocking entry.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -32,165 +32,171 @@ import { ForegroundServiceModule } from '@/native-modules/ForegroundServiceModul
 import { UsageStatsModule } from '@/native-modules/UsageStatsModule';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 
-type StepStatus = 'pending' | 'granted' | 'skipped' | 'manual';
+type PermStatus = 'granted' | 'denied' | 'unknown';
 
-interface Step {
+interface PermItem {
   id: string;
   icon: keyof typeof Ionicons.glyphMap;
   title: string;
   description: string;
-  action: 'auto' | 'manual';
-  status: StepStatus;
-  intentAction?: string;
+  whyNeeded: string;
+  brokenWithout: string[];
+  deepLinkLabel: string;
+  grantAction: 'auto' | 'manual';
 }
 
-const INITIAL_STEPS: Step[] = [
+const PERMISSIONS: PermItem[] = [
   {
     id: 'notifications',
     icon: 'notifications-outline',
     title: 'Notifications',
-    description: 'Get reminders before tasks start and alerts when time is up.',
-    action: 'auto',
-    status: 'pending',
+    description: 'Task reminders and live focus session alerts.',
+    whyNeeded:
+      'Required for all alerts, task reminders, and keeping the foreground service visible to Android.',
+    brokenWithout: [
+      'No task start or end reminders',
+      'The focus session notification disappears',
+      'Android may kill the blocking service without the persistent notification',
+    ],
+    deepLinkLabel: 'Allow Notifications',
+    grantAction: 'auto',
   },
   {
     id: 'battery',
     icon: 'battery-charging-outline',
     title: 'Battery Optimization',
-    description: 'Keep FocusFlow running in the background so your focus sessions never get cut short. Required on Samsung, Xiaomi, and Realme devices.',
-    action: 'auto',
-    status: 'pending',
+    description: 'Keeps FocusFlow alive in the background on all OEM ROMs.',
+    whyNeeded:
+      'Samsung, Xiaomi, Realme, and OnePlus phones aggressively kill background services — this exemption stops that.',
+    brokenWithout: [
+      'Blocking service gets killed within minutes on most phones',
+      'Focus sessions stop enforcing after the screen turns off',
+      'Especially severe on Samsung One UI, MIUI, and ColorOS',
+    ],
+    deepLinkLabel: 'Request Exemption',
+    grantAction: 'auto',
   },
   {
     id: 'usage',
-    icon: 'shield-outline',
+    icon: 'analytics-outline',
     title: 'Usage Access',
-    description:
-      'Shows FocusFlow which app you opened, so it can block distractions during a focus session. Your usage data never leaves your device.\n\nTap → Settings → Special app access → Usage access → FocusFlow → Enable.',
-    action: 'manual',
-    status: 'pending',
-    intentAction: 'android.settings.USAGE_ACCESS_SETTINGS',
+    description: 'Lets FocusFlow see which app is in the foreground.',
+    whyNeeded:
+      'Without this, FocusFlow is blind — it cannot detect which app you switched to.',
+    brokenWithout: [
+      'FocusFlow cannot detect which app you opened',
+      'App blocking will silently fail',
+      'Stats and focus session tracking will be inaccurate',
+    ],
+    deepLinkLabel: 'Open Usage Access Settings',
+    grantAction: 'manual',
   },
   {
     id: 'accessibility',
-    icon: 'accessibility-outline',
+    icon: 'eye-outline',
     title: 'Accessibility Service',
-    description:
-      'Lets FocusFlow redirect you away from blocked apps the moment you open them.\n\nThis service reads only the app name — it cannot see your messages, passwords, or screen content. Nothing leaves your device.\n\nTap → Accessibility → Installed apps → FocusFlow → Enable.',
-    action: 'manual',
-    status: 'pending',
-    intentAction: 'android.settings.ACCESSIBILITY_SETTINGS',
+    description: 'Redirects you away from blocked apps the instant you open them.',
+    whyNeeded:
+      'This is how FocusFlow instantly redirects you the moment you open a blocked app during a focus session.',
+    brokenWithout: [
+      'App blocking will not work at all',
+      'Blocked apps will open freely during focus sessions',
+      'You can bypass all blocks with no consequence',
+    ],
+    deepLinkLabel: 'Open Accessibility Settings',
+    grantAction: 'manual',
   },
 ];
 
+async function checkStatus(id: string): Promise<PermStatus> {
+  try {
+    switch (id) {
+      case 'notifications': {
+        const { status } = await Notifications.getPermissionsAsync();
+        return status === 'granted' ? 'granted' : 'denied';
+      }
+      case 'battery': {
+        const ok = await UsageStatsModule.isIgnoringBatteryOptimizations();
+        return ok ? 'granted' : 'denied';
+      }
+      case 'usage': {
+        const ok = await UsageStatsModule.hasPermission();
+        return ok ? 'granted' : 'denied';
+      }
+      case 'accessibility': {
+        const ok = await UsageStatsModule.hasAccessibilityPermission();
+        return ok ? 'granted' : 'denied';
+      }
+      default:
+        return 'unknown';
+    }
+  } catch {
+    return 'unknown';
+  }
+}
+
 export default function OnboardingScreen() {
   const { state, updateSettings } = useApp();
-  const [steps, setSteps] = useState<Step[]>(INITIAL_STEPS);
-  const [loading, setLoading] = useState<string | null>(null);
+  const [statuses, setStatuses] = useState<Record<string, PermStatus>>({});
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const appStateRef = useRef(AppState.currentState);
 
-  const setStepStatus = (id: string, status: StepStatus) => {
-    setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, status } : s)));
-  };
-
-  // When the user returns from Settings, re-check all permission statuses automatically
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', async (nextState) => {
-      if (appStateRef.current.match(/inactive|background/) && nextState === 'active') {
-        // Notifications
-        try {
-          const { status } = await Notifications.getPermissionsAsync();
-          if (status === 'granted') setStepStatus('notifications', 'granted');
-        } catch { /* native not available */ }
-
-        // Battery optimization
-        try {
-          const ignoring = await UsageStatsModule.isIgnoringBatteryOptimizations();
-          if (ignoring) setStepStatus('battery', 'granted');
-        } catch { /* native not available */ }
-
-        // Usage access
-        try {
-          const hasUsage = await UsageStatsModule.hasPermission();
-          if (hasUsage) setStepStatus('usage', 'granted');
-        } catch { /* native not available */ }
-
-        // Accessibility — checked via native module
-        try {
-          const hasA11y = await UsageStatsModule.hasAccessibilityPermission();
-          if (hasA11y) setStepStatus('accessibility', 'granted');
-        } catch { /* native not available */ }
-      }
-      appStateRef.current = nextState;
-    });
-    return () => subscription.remove();
+  const checkAll = useCallback(async () => {
+    const result: Record<string, PermStatus> = {};
+    await Promise.all(
+      PERMISSIONS.map(async (p) => {
+        result[p.id] = await checkStatus(p.id);
+      })
+    );
+    setStatuses(result);
   }, []);
 
-  const handleStep = async (step: Step) => {
-    if (step.status === 'granted') return;
+  useEffect(() => {
+    void checkAll();
+  }, [checkAll]);
 
-    if (step.action === 'manual') {
-      if (step.status === 'manual') {
-        // User has returned from Settings — try to verify via native module first
-        if (step.id === 'usage') {
-          setLoading(step.id);
-          try {
-            const hasUsage = await UsageStatsModule.hasPermission();
-            setStepStatus(step.id, hasUsage ? 'granted' : 'pending');
-          } catch {
-            // Native module not available — let user confirm manually
-            setStepStatus(step.id, 'granted');
-          } finally {
-            setLoading(null);
-          }
-          return;
-        }
-        // For accessibility and other manual steps without a native check,
-        // accept the user's tap as confirmation they granted the permission.
-        setStepStatus(step.id, 'granted');
-        return;
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', async (next) => {
+      if (appStateRef.current.match(/inactive|background/) && next === 'active') {
+        await checkAll();
       }
-      setStepStatus(step.id, 'manual');
-      // Open the correct Android settings screen
-      if (Platform.OS === 'android') {
-        try {
-          if (step.id === 'accessibility') {
-            // Use native module with OEM fallback chain instead of Linking.sendIntent
-            await UsageStatsModule.openAccessibilitySettings();
-          } else if (step.intentAction) {
-            await Linking.sendIntent(step.intentAction);
-          }
-        } catch {
-          // Fallback to app settings if intent not available
-          try {
-            await Linking.openSettings();
-          } catch {
-            // ignore
-          }
-        }
-      }
-      return;
-    }
+      appStateRef.current = next;
+    });
+    return () => sub.remove();
+  }, [checkAll]);
 
-    setLoading(step.id);
+  const handleGrant = async (perm: PermItem) => {
+    if (statuses[perm.id] === 'granted') return;
+    setActionLoading(perm.id);
     try {
-      if (step.id === 'notifications') {
+      if (perm.id === 'notifications') {
         const granted = await requestPermissions();
-        setStepStatus(step.id, granted ? 'granted' : 'skipped');
-      } else if (step.id === 'battery') {
+        setStatuses((prev) => ({ ...prev, notifications: granted ? 'granted' : 'denied' }));
+      } else if (perm.id === 'battery') {
         await ForegroundServiceModule.requestBatteryOptimizationExemption();
-        setStepStatus(step.id, 'granted');
+        setTimeout(async () => {
+          const s = await checkStatus('battery');
+          setStatuses((prev) => ({ ...prev, battery: s }));
+        }, 800);
+      } else if (perm.id === 'usage') {
+        if (Platform.OS === 'android') {
+          await Linking.sendIntent('android.settings.USAGE_ACCESS_SETTINGS');
+        }
+      } else if (perm.id === 'accessibility') {
+        await UsageStatsModule.openAccessibilitySettings();
       }
     } catch {
-      setStepStatus(step.id, 'skipped');
+      try {
+        await Linking.openSettings();
+      } catch { /* ignore */ }
     } finally {
-      setLoading(null);
+      setActionLoading(null);
     }
   };
 
-  const allActionableGranted = steps
-    .filter((s) => s.action === 'auto')
-    .every((s) => s.status === 'granted' || s.status === 'skipped');
+  const grantedCount = PERMISSIONS.filter((p) => statuses[p.id] === 'granted').length;
+  const allGranted = grantedCount === PERMISSIONS.length;
 
   const handleFinish = async () => {
     await updateSettings({ ...state.settings, onboardingComplete: true });
@@ -199,125 +205,409 @@ export default function OnboardingScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.logoCircle}>
-            <Ionicons name="shield-checkmark" size={36} color="#fff" />
+            <Ionicons name="shield-checkmark" size={38} color="#fff" />
           </View>
           <Text style={styles.appName}>FocusFlow</Text>
           <Text style={styles.tagline}>Your discipline operating system</Text>
         </View>
 
-        <Text style={styles.sectionLabel}>GRANT PERMISSIONS</Text>
+        {/* Why banner */}
+        <View style={styles.tutorialBanner}>
+          <View style={styles.tutorialIconWrap}>
+            <Ionicons name="shield-checkmark" size={24} color={COLORS.primary} />
+          </View>
+          <View style={styles.tutorialTextWrap}>
+            <Text style={styles.tutorialTitle}>Why these permissions?</Text>
+            <Text style={styles.tutorialBody}>
+              FocusFlow enforces focus at the system level — not just reminders.
+              To actually block apps and keep your session running, Android requires
+              special access that regular apps don't need.
+            </Text>
+          </View>
+        </View>
 
-        {steps.map((step) => (
-          <TouchableOpacity
-            key={step.id}
-            style={[
-              styles.stepCard,
-              step.status === 'granted' && styles.stepGranted,
-              step.status === 'manual' && styles.stepManual,
-            ]}
-            onPress={() => handleStep(step)}
-            activeOpacity={step.status === 'granted' ? 1 : 0.75}
-          >
-            <View style={[styles.stepIconWrap, step.status === 'granted' && styles.stepIconGranted]}>
-              {step.status === 'granted' ? (
-                <Ionicons name="checkmark" size={20} color="#fff" />
-              ) : loading === step.id ? (
-                <ActivityIndicator size="small" color={COLORS.primary} />
-              ) : (
-                <Ionicons name={step.icon} size={20} color={COLORS.primary} />
+        {/* Progress bar */}
+        <View style={styles.progressSection}>
+          <View style={styles.progressLabelRow}>
+            <Text style={styles.progressLabel}>Permissions granted</Text>
+            <Text style={[styles.progressCount, allGranted && styles.progressCountDone]}>
+              {grantedCount} / {PERMISSIONS.length}
+            </Text>
+          </View>
+          <View style={styles.progressBar}>
+            <View
+              style={[
+                styles.progressFill,
+                {
+                  width: `${(grantedCount / PERMISSIONS.length) * 100}%` as any,
+                  backgroundColor: allGranted ? COLORS.green : COLORS.primary,
+                },
+              ]}
+            />
+          </View>
+          {allGranted && (
+            <Text style={styles.allSetText}>
+              All permissions granted — blocking is fully active.
+            </Text>
+          )}
+        </View>
+
+        {/* Section label */}
+        <Text style={styles.sectionLabel}>TAP A CARD TO SEE DETAILS</Text>
+
+        {/* Permission cards */}
+        {PERMISSIONS.map((perm) => {
+          const status = statuses[perm.id] ?? 'unknown';
+          const isExpanded = expandedId === perm.id;
+          const isLoading = actionLoading === perm.id;
+
+          return (
+            <View
+              key={perm.id}
+              style={[styles.card, status === 'granted' && styles.cardGranted]}
+            >
+              <TouchableOpacity
+                style={styles.cardMain}
+                onPress={() => setExpandedId(isExpanded ? null : perm.id)}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.iconWrap, { backgroundColor: statusColor(status) + '22' }]}>
+                  <Ionicons name={perm.icon} size={22} color={statusColor(status)} />
+                </View>
+
+                <View style={styles.cardBody}>
+                  <View style={styles.cardTitleRow}>
+                    <Text style={styles.cardTitle}>{perm.title}</Text>
+                    <StatusBadge status={status} />
+                  </View>
+                  <Text style={styles.cardDesc} numberOfLines={isExpanded ? undefined : 2}>
+                    {perm.description}
+                  </Text>
+                </View>
+
+                <Ionicons
+                  name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={16}
+                  color={COLORS.muted}
+                />
+              </TouchableOpacity>
+
+              {isExpanded && (
+                <View style={styles.expandedSection}>
+                  {/* Why needed */}
+                  <View style={styles.whyBox}>
+                    <Ionicons name="bulb-outline" size={14} color={COLORS.orange} />
+                    <Text style={styles.whyText}>{perm.whyNeeded}</Text>
+                  </View>
+
+                  {/* What breaks without it */}
+                  {status !== 'granted' && (
+                    <View style={styles.brokenSection}>
+                      <Text style={styles.brokenTitle}>Without this permission:</Text>
+                      {perm.brokenWithout.map((item, i) => (
+                        <View key={i} style={styles.brokenRow}>
+                          <Ionicons name="close-circle" size={14} color={COLORS.red} />
+                          <Text style={styles.brokenText}>{item}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  {/* Grant button */}
+                  {status !== 'granted' && (
+                    <TouchableOpacity
+                      style={styles.grantBtn}
+                      onPress={() => handleGrant(perm)}
+                      disabled={isLoading}
+                    >
+                      {isLoading ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <>
+                          <Ionicons name="open-outline" size={14} color="#fff" />
+                          <Text style={styles.grantBtnText}>{perm.deepLinkLabel}</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </View>
               )}
             </View>
+          );
+        })}
 
-            <View style={styles.stepText}>
-              <Text style={styles.stepTitle}>{step.title}</Text>
-              <Text style={styles.stepDesc}>{step.description}</Text>
-              {step.status === 'manual' && (
-                <Text style={styles.manualNote}>
-                  Settings opened — grant the permission, then tap here to confirm.
-                </Text>
-              )}
-            </View>
+        {/* Missing perms tip — points to manage perms instead of blocking */}
+        {!allGranted && (
+          <View style={styles.manageTip}>
+            <Ionicons name="information-circle-outline" size={18} color={COLORS.primary} />
+            <Text style={styles.manageTipText}>
+              Missing permissions can be fixed anytime in{' '}
+              <Text style={styles.manageTipHighlight}>Settings → Permissions</Text>
+              {' '}where you'll also find troubleshooting help.
+            </Text>
+          </View>
+        )}
 
-            {step.status !== 'granted' && step.action === 'auto' && (
-              <Ionicons name="chevron-forward" size={18} color={COLORS.muted} />
-            )}
-            {step.status !== 'granted' && step.action === 'manual' && (
-              <Ionicons name="open-outline" size={18} color={COLORS.muted} />
-            )}
-          </TouchableOpacity>
-        ))}
-
-        {/* Done button */}
+        {/* Enter button — always enabled */}
         <TouchableOpacity
-          style={[styles.doneBtn, !allActionableGranted && styles.doneBtnDim]}
+          style={[styles.enterBtn, allGranted && styles.enterBtnReady]}
           onPress={handleFinish}
+          activeOpacity={0.85}
         >
-          <Text style={styles.doneBtnText}>
-            {allActionableGranted ? 'Get Started →' : 'Skip & Continue →'}
+          <Text style={styles.enterBtnText}>
+            {allGranted ? 'Get Started →' : 'Enter FocusFlow →'}
           </Text>
         </TouchableOpacity>
 
         <Text style={styles.footerNote}>
-          You can adjust all permissions later in Settings.
+          All permissions can be managed in Settings at any time.
         </Text>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
+function statusColor(status: PermStatus): string {
+  if (status === 'granted') return COLORS.green;
+  if (status === 'denied') return COLORS.red;
+  return COLORS.muted;
+}
+
+function StatusBadge({ status }: { status: PermStatus }) {
+  const label =
+    status === 'granted' ? 'Granted' : status === 'denied' ? 'Missing' : 'Checking…';
+  const color = statusColor(status);
+  return (
+    <View style={[badge.wrap, { backgroundColor: color + '22', borderColor: color + '44' }]}>
+      <Text style={[badge.text, { color }]}>{label}</Text>
+    </View>
+  );
+}
+
+const badge = StyleSheet.create({
+  wrap: {
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 2,
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
+  },
+  text: { fontSize: FONT.xs, fontWeight: '700' },
+});
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.background },
-  scroll: { padding: SPACING.lg, paddingBottom: 48, gap: SPACING.md },
-  header: { alignItems: 'center', paddingVertical: SPACING.xl, gap: SPACING.sm },
+  scroll: { padding: SPACING.lg, paddingBottom: 56, gap: SPACING.md },
+
+  // Header
+  header: {
+    alignItems: 'center',
+    paddingVertical: SPACING.xl,
+    gap: SPACING.sm,
+  },
   logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 84,
+    height: 84,
+    borderRadius: 42,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    elevation: 6,
   },
-  appName: { fontSize: FONT.xxl + 4, fontWeight: '900', color: COLORS.text, letterSpacing: -1 },
+  appName: {
+    fontSize: FONT.xxl + 4,
+    fontWeight: '900',
+    color: COLORS.text,
+    letterSpacing: -1,
+  },
   tagline: { fontSize: FONT.sm, color: COLORS.muted, textAlign: 'center' },
-  sectionLabel: { fontSize: FONT.xs, fontWeight: '700', color: COLORS.muted, letterSpacing: 1 },
-  stepCard: {
+
+  // Tutorial banner
+  tutorialBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: COLORS.card,
+    backgroundColor: COLORS.primaryLight,
     borderRadius: RADIUS.lg,
     padding: SPACING.md,
     gap: SPACING.md,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
+    borderWidth: 1,
+    borderColor: COLORS.primary + '33',
   },
-  stepGranted: { borderColor: COLORS.green + '66', backgroundColor: COLORS.green + '08' },
-  stepManual: { borderColor: COLORS.orange + '66', backgroundColor: COLORS.orange + '08' },
-  stepIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.primaryLight,
+  tutorialIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primary + '18',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
-  stepIconGranted: { backgroundColor: COLORS.green },
-  stepText: { flex: 1, gap: 4 },
-  stepTitle: { fontSize: FONT.md, fontWeight: '700', color: COLORS.text },
-  stepDesc: { fontSize: FONT.sm, color: COLORS.textSecondary, lineHeight: 18 },
-  manualNote: { fontSize: FONT.xs, color: COLORS.orange, fontWeight: '600', marginTop: 4 },
-  doneBtn: {
+  tutorialTextWrap: { flex: 1, gap: 4 },
+  tutorialTitle: {
+    fontSize: FONT.sm,
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
+  tutorialBody: {
+    fontSize: FONT.xs,
+    color: COLORS.primary + 'cc',
+    lineHeight: 17,
+  },
+
+  // Progress
+  progressSection: { gap: SPACING.xs },
+  progressLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  progressLabel: { fontSize: FONT.xs, color: COLORS.muted, fontWeight: '600' },
+  progressCount: { fontSize: FONT.xs, fontWeight: '800', color: COLORS.primary },
+  progressCountDone: { color: COLORS.green },
+  progressBar: {
+    height: 6,
+    backgroundColor: COLORS.border,
+    borderRadius: RADIUS.full,
+    overflow: 'hidden',
+  },
+  progressFill: { height: 6, borderRadius: RADIUS.full },
+  allSetText: {
+    fontSize: FONT.xs,
+    color: COLORS.green,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: 2,
+  },
+
+  sectionLabel: {
+    fontSize: FONT.xs,
+    fontWeight: '700',
+    color: COLORS.muted,
+    letterSpacing: 1,
+  },
+
+  // Cards
+  card: {
+    backgroundColor: COLORS.card,
+    borderRadius: RADIUS.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.border,
+    overflow: 'hidden',
+  },
+  cardGranted: { borderColor: COLORS.green + '55' },
+  cardMain: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: SPACING.md,
+    gap: SPACING.md,
+  },
+  iconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    marginTop: 2,
+  },
+  cardBody: { flex: 1, gap: 4 },
+  cardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    flexWrap: 'wrap',
+  },
+  cardTitle: { fontSize: FONT.md, fontWeight: '700', color: COLORS.text },
+  cardDesc: { fontSize: FONT.xs, color: COLORS.muted, lineHeight: 17 },
+
+  // Expanded
+  expandedSection: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.border,
+    padding: SPACING.md,
+    gap: SPACING.sm,
+    backgroundColor: COLORS.surface,
+  },
+  whyBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    backgroundColor: COLORS.orangeLight,
+    borderRadius: RADIUS.md,
+    padding: SPACING.sm,
+  },
+  whyText: {
+    flex: 1,
+    fontSize: FONT.xs,
+    color: COLORS.orange,
+    lineHeight: 17,
+    fontWeight: '600',
+  },
+  brokenSection: { gap: 6 },
+  brokenTitle: {
+    fontSize: FONT.xs,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 2,
+  },
+  brokenRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+  brokenText: {
+    flex: 1,
+    fontSize: FONT.xs,
+    color: COLORS.textSecondary,
+    lineHeight: 17,
+  },
+  grantBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.md,
+    padding: SPACING.sm,
+  },
+  grantBtnText: { fontSize: FONT.xs, fontWeight: '700', color: '#fff' },
+
+  // Manage permissions tip
+  manageTip: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.primaryLight,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.primary + '33',
+  },
+  manageTipText: {
+    flex: 1,
+    fontSize: FONT.xs,
+    color: COLORS.textSecondary,
+    lineHeight: 17,
+  },
+  manageTipHighlight: {
+    color: COLORS.primary,
+    fontWeight: '700',
+  },
+
+  // Enter button
+  enterBtn: {
+    backgroundColor: COLORS.primaryLight,
     borderRadius: RADIUS.lg,
     padding: SPACING.md,
     alignItems: 'center',
-    marginTop: SPACING.sm,
+    marginTop: SPACING.xs,
   },
-  doneBtnDim: { backgroundColor: COLORS.primaryLight },
-  doneBtnText: { fontSize: FONT.md, fontWeight: '800', color: '#fff' },
-  footerNote: { fontSize: FONT.xs, color: COLORS.muted, textAlign: 'center' },
+  enterBtnReady: { backgroundColor: COLORS.primary },
+  enterBtnText: { fontSize: FONT.md, fontWeight: '800', color: '#fff' },
+
+  footerNote: {
+    fontSize: FONT.xs,
+    color: COLORS.muted,
+    textAlign: 'center',
+  },
 });
