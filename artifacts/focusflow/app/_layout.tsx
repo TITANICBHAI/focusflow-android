@@ -15,7 +15,7 @@
 import '@/tasks/backgroundTasks';
 
 import React, { useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -23,7 +23,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import * as Notifications from 'expo-notifications';
 import { StyleSheet } from 'react-native';
 
-import { AppProvider } from '@/context/AppContext';
+import { AppProvider, useApp } from '@/context/AppContext';
 import { EventBridge } from '@/services/eventBridge';
 import { navigateToTask, consumePendingTaskNavigation } from '@/navigation/navigationRef';
 import { registerBackgroundFetch, registerOverrunCheckTask } from '@/tasks/backgroundTasks';
@@ -120,6 +120,24 @@ async function setupNotificationCategories() {
   ]);
 }
 
+// ─── Onboarding guard ─────────────────────────────────────────────────────────
+// Runs inside AppProvider so it has access to context.
+// Once the DB is ready, redirects to /onboarding on first install.
+// On every subsequent open onboardingComplete is true so nothing happens.
+
+function OnboardingGuard() {
+  const { state } = useApp();
+
+  useEffect(() => {
+    if (!state.isDbReady) return;
+    if (!state.settings.onboardingComplete) {
+      router.replace('/onboarding');
+    }
+  }, [state.isDbReady, state.settings.onboardingComplete]);
+
+  return null;
+}
+
 // ─── React component ──────────────────────────────────────────────────────────
 
 export default function RootLayout() {
@@ -147,6 +165,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
         <AppProvider>
+          <OnboardingGuard />
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="onboarding" options={{ headerShown: false }} />
