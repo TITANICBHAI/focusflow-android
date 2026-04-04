@@ -415,6 +415,7 @@ export default function PermissionsScreen() {
           Statuses refresh automatically when you return to this screen.
         </Text>
       </ScrollView>
+      )}
 
       {/* Troubleshoot Modal */}
       {troubleshootPerm && (
