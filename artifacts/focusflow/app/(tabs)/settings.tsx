@@ -19,17 +19,19 @@ import { cancelAllReminders, requestPermissions } from '@/services/notificationS
 import { formatDuration } from '@/services/taskService';
 import { AllowedAppsModal } from '@/components/AllowedAppsModal';
 import { StandaloneBlockModal } from '@/components/StandaloneBlockModal';
+import { DailyAllowanceModal } from '@/components/DailyAllowanceModal';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 
 const DURATION_OPTIONS = [30, 45, 60, 90, 120];
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { state, updateSettings, setStandaloneBlock, refreshTasks, deleteTask } = useApp();
+  const { state, updateSettings, setStandaloneBlock, setDailyAllowancePackages, refreshTasks, deleteTask } = useApp();
   const { settings } = state;
   const { theme } = useTheme();
   const [appsModalVisible, setAppsModalVisible] = useState(false);
   const [blockModalVisible, setBlockModalVisible] = useState(false);
+  const [dailyModalVisible, setDailyModalVisible] = useState(false);
 
   if (!state.isDbReady) {
     return (
@@ -166,6 +168,20 @@ export default function SettingsScreen() {
           />
         </Section>
 
+        {/* ── Daily App Allowance ── */}
+        <Section title="Daily App Allowance">
+          <SettingButton
+            icon="sunny-outline"
+            label="Manage Daily Allowance Apps"
+            description={
+              (settings.dailyAllowancePackages ?? []).length === 0
+                ? 'No apps configured — each app can get its own once-per-day bypass'
+                : `${(settings.dailyAllowancePackages ?? []).length} app${(settings.dailyAllowancePackages ?? []).length !== 1 ? 's' : ''} allowed once per day — each resets at midnight`
+            }
+            onPress={() => setDailyModalVisible(true)}
+          />
+        </Section>
+
         {/* ── Block Schedule ── */}
         <Section title="Block Schedule">
           {standaloneActive ? (
@@ -255,8 +271,17 @@ export default function SettingsScreen() {
         blockedPackages={settings.standaloneBlockPackages ?? []}
         blockUntil={settings.standaloneBlockUntil}
         locked={standaloneActive}
+        dailyAllowancePackages={settings.dailyAllowancePackages ?? []}
         onSave={handleSaveStandaloneBlock}
+        onSaveDailyAllowance={async (packages) => { await setDailyAllowancePackages(packages); }}
         onClose={() => setBlockModalVisible(false)}
+      />
+
+      <DailyAllowanceModal
+        visible={dailyModalVisible}
+        selectedPackages={settings.dailyAllowancePackages ?? []}
+        onSave={async (packages) => { await setDailyAllowancePackages(packages); }}
+        onClose={() => setDailyModalVisible(false)}
       />
     </SafeAreaView>
   );

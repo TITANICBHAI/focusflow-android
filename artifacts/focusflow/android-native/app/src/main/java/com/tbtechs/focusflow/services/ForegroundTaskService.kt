@@ -118,18 +118,27 @@ class ForegroundTaskService : Service() {
                 val next  = intent?.getStringExtra(EXTRA_NEXT_NAME)
 
                 if (name != null && endMs > 0L) {
-                    taskId       = id ?: ""
-                    taskName     = name
-                    endTimeMs    = endMs
-                    startTimeMs  = System.currentTimeMillis()
-                    nextName     = next
-                    isActiveMode = true
+                    taskId    = id ?: ""
+                    taskName  = name
+                    endTimeMs = endMs
+                    nextName  = next
 
-                    // Persist start time so the widget can compute progress correctly
-                    getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                        .edit()
-                        .putLong("task_start_ms", startTimeMs)
-                        .apply()
+                    // Only reset the start time on the first launch of a session.
+                    // If isActiveMode is already true this is an update call (e.g. after
+                    // a +15m / +30m extend) — preserve the original startTimeMs so the
+                    // notification progress bar continues from where it was, not from 0%.
+                    if (!isActiveMode) {
+                        startTimeMs  = System.currentTimeMillis()
+                        isActiveMode = true
+                        // Persist start time so the widget can compute progress correctly
+                        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                            .edit()
+                            .putLong("task_start_ms", startTimeMs)
+                            .apply()
+                    } else {
+                        // Update persisted end time so the widget reflects the extension
+                        isActiveMode = true
+                    }
 
                     val notification = buildActiveNotification(endMs - System.currentTimeMillis())
                     startForeground(NOTIFICATION_ID, notification)
