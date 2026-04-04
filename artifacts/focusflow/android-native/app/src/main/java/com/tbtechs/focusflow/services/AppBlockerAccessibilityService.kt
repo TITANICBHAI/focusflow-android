@@ -61,6 +61,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         const val PREF_DAILY_ALLOWANCE_PKGS  = "daily_allowance_packages"
         const val PREF_DAILY_ALLOWANCE_USED  = "daily_allowance_used"
 
+        const val PREF_BLOCKED_WORDS = "blocked_words"
+
         /**
          * Packages that are NEVER blocked regardless of focus or standalone settings.
          *
@@ -222,6 +224,17 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // Google Play Store — uninstall dialogs are always allowed through.
         if (pkg == "com.android.vending" && (focusActive || saActive) && isUninstallDialog(event)) {
             return
+        }
+
+        // ── Word blocking ─────────────────────────────────────────────────────
+        // During any active blocking session, if the current window content contains
+        // a user-defined blocked word, redirect to home immediately.
+        if (focusActive || saActive) {
+            val blockedWords = getBlockedWords()
+            if (blockedWords.isNotEmpty() && containsBlockedWord(event, blockedWords)) {
+                performGlobalAction(GLOBAL_ACTION_HOME)
+                return
+            }
         }
 
         // ALWAYS_BLOCKED is now empty — kept for safety.
@@ -617,6 +630,29 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         } else {
             performGlobalAction(GLOBAL_ACTION_HOME)
         }
+    }
+
+    // ─── Word blocking helpers ────────────────────────────────────────────────
+
+    private fun getBlockedWords(): List<String> {
+        val json = prefs.getString(PREF_BLOCKED_WORDS, "[]") ?: "[]"
+        return parseJsonArray(json).map { it.trim() }.filter { it.isNotBlank() }
+    }
+
+    /**
+     * Returns true if any blocked word appears in the event's text, content description,
+     * or class name. Matching is case-insensitive and uses simple substring search.
+     * We deliberately avoid deep node traversal here to keep this check fast (~0 ms),
+     * since it runs on every TYPE_WINDOW_STATE_CHANGED event.
+     */
+    private fun containsBlockedWord(event: AccessibilityEvent, words: List<String>): Boolean {
+        val corpus = buildString {
+            event.text?.forEach { t -> t?.let { append(it); append(' ') } }
+            event.contentDescription?.let { append(it); append(' ') }
+            event.className?.let { append(it); append(' ') }
+        }.lowercase()
+        if (corpus.isBlank()) return false
+        return words.any { word -> corpus.contains(word.lowercase()) }
     }
 
     // ─── Node text collector ──────────────────────────────────────────────────

@@ -47,4 +47,9 @@ export const SharedPrefsModule = {
     if (!SharedPrefs) return;
     return SharedPrefs.resetDailyAllowanceUsage(packageName ?? null);
   },
+
+  async setBlockedWords(words: string[]): Promise<void> {
+    if (!SharedPrefs) return;
+    return SharedPrefs.setBlockedWords(words);
+  },
 };

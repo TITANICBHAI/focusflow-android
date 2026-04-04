@@ -114,7 +114,64 @@ class FocusDayBridgeModule(private val reactContext: ReactApplicationContext) :
 
     // ─── Lifecycle ────────────────────────────────────────────────────────────
 
-    override fun onHostResume() {}
+    /**
+     * On every resume, replay any pending notification action that was stored in
+     * SharedPrefs by NotificationActionReceiver when React was not alive at tap time.
+     * The entry is cleared immediately to avoid replaying the same action twice.
+     * Actions older than 5 minutes are discarded silently.
+     */
+    override fun onHostResume() {
+        val prefs = reactContext.getSharedPreferences(
+            com.tbtechs.focusflow.services.AppBlockerAccessibilityService.PREFS_NAME,
+            android.content.Context.MODE_PRIVATE
+        )
+        val pendingAction = prefs.getString(
+            com.tbtechs.focusflow.services.NotificationActionReceiver.PREF_PENDING_ACTION, null
+        ) ?: return
+        val taskId = prefs.getString(
+            com.tbtechs.focusflow.services.NotificationActionReceiver.PREF_PENDING_TASK_ID, null
+        ) ?: run {
+            prefs.edit()
+                .remove(com.tbtechs.focusflow.services.NotificationActionReceiver.PREF_PENDING_ACTION)
+                .apply()
+            return
+        }
+        val actionTimestampMs = prefs.getLong(
+            com.tbtechs.focusflow.services.NotificationActionReceiver.PREF_PENDING_TIME_MS, 0L
+        )
+        val minutes = prefs.getInt(
+            com.tbtechs.focusflow.services.NotificationActionReceiver.PREF_PENDING_MINUTES, 15
+        )
+
+        prefs.edit()
+            .remove(com.tbtechs.focusflow.services.NotificationActionReceiver.PREF_PENDING_ACTION)
+            .remove(com.tbtechs.focusflow.services.NotificationActionReceiver.PREF_PENDING_TASK_ID)
+            .remove(com.tbtechs.focusflow.services.NotificationActionReceiver.PREF_PENDING_MINUTES)
+            .remove(com.tbtechs.focusflow.services.NotificationActionReceiver.PREF_PENDING_TIME_MS)
+            .apply()
+
+        if (System.currentTimeMillis() - actionTimestampMs > 5 * 60 * 1000L) return
+
+        val notifAction = when (pendingAction) {
+            com.tbtechs.focusflow.services.NotificationActionReceiver.ACTION_COMPLETE -> "COMPLETE"
+            com.tbtechs.focusflow.services.NotificationActionReceiver.ACTION_EXTEND   -> "EXTEND"
+            com.tbtechs.focusflow.services.NotificationActionReceiver.ACTION_SKIP     -> "SKIP"
+            else -> return
+        }
+
+        if (!reactContext.hasActiveReactInstance()) return
+        val params = Arguments.createMap().apply {
+            putString("type",        "NOTIF_ACTION")
+            putString("notifAction", notifAction)
+            putString("taskId",      taskId)
+            putInt("minutes",        minutes)
+            putNull("blockedApp")
+        }
+        reactContext
+            .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+            .emit(JS_EVENT_NAME, params)
+    }
+
     override fun onHostPause() {}
     override fun onHostDestroy() {}
 

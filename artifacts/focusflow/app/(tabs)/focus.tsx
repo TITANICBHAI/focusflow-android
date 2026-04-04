@@ -97,9 +97,9 @@ export default function FocusScreen() {
     return (
       <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]}>
         <View style={styles.emptyContainer}>
-          <Ionicons name="moon-outline" size={64} color={COLORS.border} />
-          <Text style={styles.emptyTitle}>No Active Task</Text>
-          <Text style={styles.emptySubtitle}>
+          <Ionicons name="moon-outline" size={64} color={theme.border} />
+          <Text style={[styles.emptyTitle, { color: theme.muted }]}>No Active Task</Text>
+          <Text style={[styles.emptySubtitle, { color: theme.muted }]}>
             Start a task from the Schedule tab to activate Focus Mode
           </Text>
 
@@ -186,7 +186,7 @@ export default function FocusScreen() {
         {/* Focus status */}
         <View style={styles.statusRow}>
           <View style={[styles.statusDot, { backgroundColor: isFocusing ? COLORS.green : COLORS.muted }]} />
-          <Text style={styles.statusText}>
+          <Text style={[styles.statusText, { color: theme.textSecondary }]}>
             {isFocusing ? 'Focus Mode Active' : 'Task In Progress'}
           </Text>
         </View>
@@ -233,8 +233,8 @@ export default function FocusScreen() {
         </Animated.View>
 
         {/* Task title */}
-        <Text style={styles.taskTitle} numberOfLines={2}>{task.title}</Text>
-        <Text style={styles.taskTime}>
+        <Text style={[styles.taskTitle, { color: theme.text }]} numberOfLines={2}>{task.title}</Text>
+        <Text style={[styles.taskTime, { color: theme.textSecondary }]}>
           {formatTime(task.startTime)} – {formatTime(task.endTime)}
         </Text>
 
@@ -348,8 +348,8 @@ export default function FocusScreen() {
       {/* Allowed apps list */}
       {isFocusing && (
         <View style={styles.allowedRow}>
-          <Text style={styles.allowedLabel}>Allowed: </Text>
-          <Text style={styles.allowedApps}>
+          <Text style={[styles.allowedLabel, { color: theme.textSecondary }]}>Allowed: </Text>
+          <Text style={[styles.allowedApps, { color: theme.muted }]}>
             {state.settings.allowedInFocus.join(', ')}
           </Text>
         </View>
@@ -357,7 +357,7 @@ export default function FocusScreen() {
 
       {/* Block Schedule card */}
       <TouchableOpacity
-        style={[styles.blockScheduleBtn, standaloneActive && styles.blockScheduleBtnActive, { marginHorizontal: SPACING.lg, marginBottom: SPACING.md }]}
+        style={[styles.blockScheduleBtn, { backgroundColor: theme.card, borderColor: theme.border }, standaloneActive && styles.blockScheduleBtnActive, { marginHorizontal: SPACING.lg, marginBottom: SPACING.md }]}
         onPress={() => setBlockModalVisible(true)}
         activeOpacity={0.8}
       >
@@ -367,17 +367,17 @@ export default function FocusScreen() {
           color={standaloneActive ? COLORS.red : COLORS.primary}
         />
         <View style={{ flex: 1 }}>
-          <Text style={[styles.blockScheduleBtnText, standaloneActive && { color: COLORS.red }]}>
+          <Text style={[styles.blockScheduleBtnText, { color: theme.text }, standaloneActive && { color: COLORS.red }]}>
             {standaloneActive ? 'Block Schedule Active' : 'Set Block Schedule'}
           </Text>
           {standaloneActive && settings.standaloneBlockUntil && (
-            <Text style={styles.blockScheduleBtnDesc}>
+            <Text style={[styles.blockScheduleBtnDesc, { color: theme.textSecondary }]}>
               {(settings.standaloneBlockPackages ?? []).length} apps blocked until{' '}
               {dayjs(settings.standaloneBlockUntil).format('MMM D [at] h:mm A')}
             </Text>
           )}
         </View>
-        <Ionicons name="chevron-forward" size={16} color={COLORS.border} />
+        <Ionicons name="chevron-forward" size={16} color={theme.border} />
       </TouchableOpacity>
 
         <View style={{ height: 60 + insets.bottom + 20 }} />

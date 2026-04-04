@@ -5,6 +5,7 @@ import {
   ScrollView,
   Switch,
   TouchableOpacity,
+  TextInput,
   StyleSheet,
   Alert,
 } from 'react-native';
@@ -26,12 +27,13 @@ const DURATION_OPTIONS = [30, 45, 60, 90, 120];
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { state, updateSettings, setStandaloneBlock, setDailyAllowancePackages, refreshTasks, deleteTask } = useApp();
+  const { state, updateSettings, setStandaloneBlock, setDailyAllowancePackages, setBlockedWords, refreshTasks, deleteTask } = useApp();
   const { settings } = state;
   const { theme } = useTheme();
   const [appsModalVisible, setAppsModalVisible] = useState(false);
   const [blockModalVisible, setBlockModalVisible] = useState(false);
   const [dailyModalVisible, setDailyModalVisible] = useState(false);
+  const [wordInput, setWordInput] = useState('');
 
   if (!state.isDbReady) {
     return (
@@ -101,6 +103,23 @@ export default function SettingsScreen() {
     if (state.focusSession?.isActive) {
       await SharedPrefsModule.setAllowedPackages(packages);
     }
+  };
+
+  const handleAddWord = async () => {
+    const trimmed = wordInput.trim().toLowerCase();
+    if (!trimmed) return;
+    const existing = settings.blockedWords ?? [];
+    if (existing.some((w) => w.toLowerCase() === trimmed)) {
+      Alert.alert('Duplicate', `"${trimmed}" is already in the blocked words list.`);
+      return;
+    }
+    await setBlockedWords([...existing, trimmed]);
+    setWordInput('');
+  };
+
+  const handleRemoveWord = async (word: string) => {
+    const existing = settings.blockedWords ?? [];
+    await setBlockedWords(existing.filter((w) => w !== word));
   };
 
   return (
@@ -182,6 +201,52 @@ export default function SettingsScreen() {
           />
         </Section>
 
+        {/* ── Word Blocking ── */}
+        <Section title="Word Blocking">
+          <View style={[styles.row, { borderBottomColor: theme.border }]}>
+            <View style={styles.rowText}>
+              <Text style={[styles.rowLabel, { color: theme.text }]}>Block by Keyword</Text>
+              <Text style={[styles.rowDesc, { color: theme.muted }]}>
+                If these words appear on screen during any active block, you are redirected home.
+              </Text>
+            </View>
+          </View>
+          <View style={[styles.wordInputRow, { borderBottomColor: theme.border }]}>
+            <TextInput
+              style={[styles.wordInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface }]}
+              placeholder="e.g. youtube, tiktok"
+              placeholderTextColor={theme.muted}
+              value={wordInput}
+              onChangeText={setWordInput}
+              onSubmitEditing={handleAddWord}
+              returnKeyType="done"
+              autoCapitalize="none"
+            />
+            <TouchableOpacity
+              style={[styles.wordAddBtn, { backgroundColor: COLORS.primary }]}
+              onPress={handleAddWord}
+            >
+              <Ionicons name="add" size={20} color="#fff" />
+            </TouchableOpacity>
+          </View>
+          {(settings.blockedWords ?? []).length === 0 ? (
+            <View style={styles.wordEmptyRow}>
+              <Text style={[styles.rowDesc, { color: theme.muted }]}>No blocked words yet</Text>
+            </View>
+          ) : (
+            <View style={styles.wordList}>
+              {(settings.blockedWords ?? []).map((word) => (
+                <View key={word} style={[styles.wordChip, { backgroundColor: COLORS.red + '15', borderColor: COLORS.red + '44' }]}>
+                  <Text style={[styles.wordChipText, { color: COLORS.red }]}>{word}</Text>
+                  <TouchableOpacity onPress={() => handleRemoveWord(word)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="close-circle" size={16} color={COLORS.red} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+        </Section>
+
         {/* ── Block Schedule ── */}
         <Section title="Block Schedule">
           {standaloneActive ? (
@@ -198,8 +263,8 @@ export default function SettingsScreen() {
             </View>
           ) : (
             <View style={styles.blockInactiveCard}>
-              <Ionicons name="shield-outline" size={18} color={COLORS.muted} />
-              <Text style={styles.blockInactiveText}>No scheduled block active</Text>
+              <Ionicons name="shield-outline" size={18} color={theme.muted} />
+              <Text style={[styles.blockInactiveText, { color: theme.muted }]}>No scheduled block active</Text>
             </View>
           )}
           <SettingButton
@@ -254,8 +319,8 @@ export default function SettingsScreen() {
         </Section>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>FocusFlow v1.0.0</Text>
-          <Text style={styles.footerText}>All data stored locally on device</Text>
+          <Text style={[styles.footerText, { color: theme.muted }]}>FocusFlow v1.0.0</Text>
+          <Text style={[styles.footerText, { color: theme.muted }]}>All data stored locally on device</Text>
         </View>
       </ScrollView>
 
@@ -448,4 +513,49 @@ const styles = StyleSheet.create({
   footerText: { fontSize: FONT.xs, color: COLORS.border },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   loadingText: { fontSize: FONT.md, color: COLORS.muted },
+  wordInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    padding: SPACING.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
+  },
+  wordInput: {
+    flex: 1,
+    height: 40,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.sm,
+    fontSize: FONT.sm,
+  },
+  wordAddBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: RADIUS.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  wordEmptyRow: {
+    padding: SPACING.md,
+  },
+  wordList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.xs,
+    padding: SPACING.md,
+  },
+  wordChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 4,
+  },
+  wordChipText: {
+    fontSize: FONT.sm,
+    fontWeight: '600',
+  },
 });

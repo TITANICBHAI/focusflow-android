@@ -107,6 +107,7 @@ const defaultSettings: AppSettings = {
   standaloneBlockPackages: [],
   standaloneBlockUntil: null,
   dailyAllowancePackages: [],
+  blockedWords: [],
 };
 
 const initialState: AppState = {
@@ -138,6 +139,7 @@ interface AppContextValue {
   updateSettings: (settings: AppSettings) => Promise<void>;
   setStandaloneBlock: (packages: string[], untilMs: number | null) => Promise<void>;
   setDailyAllowancePackages: (packages: string[]) => Promise<void>;
+  setBlockedWords: (words: string[]) => Promise<void>;
   refreshTasks: () => Promise<void>;
 }
 
@@ -176,6 +178,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await _syncStandaloneBlock(settings);
       // Re-apply daily allowance list on startup.
       await _syncDailyAllowance(settings);
+      // Re-apply blocked words list on startup.
+      await _syncBlockedWords(settings);
 
       await refreshTasks();
 
@@ -206,6 +210,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   async function _syncDailyAllowance(settings: AppSettings): Promise<void> {
     const packages = settings.dailyAllowancePackages ?? [];
     await SharedPrefsModule.setDailyAllowancePackages(packages);
+  }
+
+  /**
+   * Syncs the blocked words list into SharedPreferences so the
+   * AccessibilityService can read it without the JS bundle being running.
+   */
+  async function _syncBlockedWords(settings: AppSettings): Promise<void> {
+    const words = settings.blockedWords ?? [];
+    await SharedPrefsModule.setBlockedWords(words);
   }
 
   /**
@@ -530,6 +543,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await SharedPrefsModule.setDailyAllowancePackages(packages);
   }, [state.settings]);
 
+  const setBlockedWords = useCallback(async (words: string[]) => {
+    const newSettings: AppSettings = {
+      ...state.settings,
+      blockedWords: words,
+    };
+    await dbSaveSettings(newSettings);
+    dispatch({ type: 'SET_SETTINGS', payload: newSettings });
+    await SharedPrefsModule.setBlockedWords(words);
+  }, [state.settings]);
+
   const setStandaloneBlock = useCallback(async (packages: string[], untilMs: number | null) => {
     const untilIso = untilMs ? new Date(untilMs).toISOString() : null;
     const newSettings: AppSettings = {
@@ -563,6 +586,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     updateSettings,
     setStandaloneBlock,
     setDailyAllowancePackages,
+    setBlockedWords,
     refreshTasks,
   };
 

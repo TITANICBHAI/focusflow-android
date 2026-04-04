@@ -60,4 +60,7 @@ export interface AppSettings {
   // any blocking session (task focus or standalone block). After the first open, they are
   // blocked for the rest of the day. The counter resets at midnight.
   dailyAllowancePackages: string[];
+  // Word blocking: if any of these words appear on screen during an active blocking session
+  // (task focus or standalone block), the user is immediately redirected to home.
+  blockedWords: string[];
 }

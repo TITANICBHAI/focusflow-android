@@ -35,6 +35,13 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 | `standalone_block_active` | Boolean | Standalone (no-task) block is enabled |
 | `standalone_blocked_packages` | String (JSON array) | Apps always blocked until expiry |
 | `standalone_block_until_ms` | Long | Standalone block expiry epoch ms |
+| `daily_allowance_packages` | String (JSON array) | Apps with once-per-day bypass |
+| `daily_allowance_used` | String (JSON object) | Tracks daily allowance usage dates |
+| `blocked_words` | String (JSON array) | Words that trigger home redirect when detected on screen |
+| `pending_notif_action` | String | Notification button action pending replay on app resume |
+| `pending_notif_task_id` | String | Task ID for pending notification action |
+| `pending_notif_minutes` | Int | Minutes value for pending extend action |
+| `pending_notif_time_ms` | Long | Timestamp when the pending action was created |
 
 ### Blocking Logic (Collision Handling)
 

@@ -131,7 +131,7 @@ export default function StatsScreen() {
             <StatCard icon="calendar-outline" label="Scheduled" value={fmtMins(stats.totalMinutesScheduled)} color={COLORS.blue} />
             <StatCard icon="checkmark-done-outline" label="Completed" value={fmtMins(stats.totalMinutesCompleted)} color={COLORS.green} />
           </View>
-          <View style={styles.progressTrack}>
+          <View style={[styles.progressTrack, { backgroundColor: theme.border }]}>
             <View style={[styles.progressFill, {
               width: stats.totalMinutesScheduled > 0
                 ? `${Math.min(100, (stats.totalMinutesCompleted / stats.totalMinutesScheduled) * 100)}%` : '0%',
@@ -168,8 +168,8 @@ export default function StatsScreen() {
           ].map((p) => (
             <View key={p.label} style={styles.priorityRow}>
               <View style={[styles.priorityDot, { backgroundColor: p.color }]} />
-              <Text style={styles.priorityLabel}>{p.label}</Text>
-              <View style={styles.priorityBar}>
+              <Text style={[styles.priorityLabel, { color: theme.text }]}>{p.label}</Text>
+              <View style={[styles.priorityBar, { backgroundColor: theme.border }]}>
                 <View style={[styles.priorityBarFill, {
                   backgroundColor: p.color,
                   width: stats.total > 0 ? `${Math.round((p.value / stats.total) * 100)}%` : '0%',
@@ -199,9 +199,9 @@ export default function StatsScreen() {
 
         {stats.total === 0 && (
           <View style={styles.emptyState}>
-            <Ionicons name="bar-chart-outline" size={48} color={COLORS.border} />
-            <Text style={styles.emptyText}>No tasks today yet</Text>
-            <Text style={styles.emptySubtext}>Add tasks to see your stats</Text>
+            <Ionicons name="bar-chart-outline" size={48} color={theme.border} />
+            <Text style={[styles.emptyText, { color: theme.muted }]}>No tasks today yet</Text>
+            <Text style={[styles.emptySubtext, { color: theme.muted }]}>Add tasks to see your stats</Text>
           </View>
         )}
       </ScrollView>
@@ -217,21 +217,23 @@ function fmtMins(minutes: number): string {
 }
 
 function StatItem({ icon, color, label, value }: { icon: keyof typeof Ionicons.glyphMap; color: string; label: string; value: number }) {
+  const { theme } = useTheme();
   return (
     <View style={styles.statItem}>
       <Ionicons name={icon} size={16} color={color} />
-      <Text style={styles.statItemLabel}>{label}</Text>
+      <Text style={[styles.statItemLabel, { color: theme.textSecondary }]}>{label}</Text>
       <Text style={[styles.statItemValue, { color }]}>{value}</Text>
     </View>
   );
 }
 
 function StatCard({ icon, label, value, color }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string; color: string }) {
+  const { theme } = useTheme();
   return (
     <View style={[styles.statCard, { borderColor: color + '33' }]}>
       <Ionicons name={icon} size={22} color={color} />
       <Text style={[styles.statCardValue, { color }]}>{value}</Text>
-      <Text style={styles.statCardLabel}>{label}</Text>
+      <Text style={[styles.statCardLabel, { color: theme.muted }]}>{label}</Text>
     </View>
   );
 }

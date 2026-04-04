@@ -463,7 +463,7 @@ export function StandaloneBlockModal({
             ) : null
           }
           ListFooterComponent={
-            selected.size > 0 ? (
+            selected.size > 0 && !locked ? (
               <TouchableOpacity style={styles.clearBtn} onPress={handleClear}>
                 <Ionicons name="trash-outline" size={16} color={COLORS.red} />
                 <Text style={styles.clearBtnText}>Clear Block</Text>

@@ -121,6 +121,26 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
     }
 
     /**
+     * Writes the list of blocked words to SharedPreferences.
+     * During any active blocking session (task focus or standalone block),
+     * if any of these words appear in the window content on screen,
+     * AppBlockerAccessibilityService redirects the user to home.
+     *
+     * Pass an empty array to disable word blocking entirely.
+     *
+     * @param words  ReadableArray of plain-text words (case-insensitive substring match)
+     */
+    @ReactMethod
+    fun setBlockedWords(words: ReadableArray, promise: Promise) {
+        val list = (0 until words.size()).map { "\"${words.getString(it)}\"" }
+        val json = "[${list.joinToString(",")}]"
+        prefs().edit()
+            .putString(AppBlockerAccessibilityService.PREF_BLOCKED_WORDS, json)
+            .apply()
+        promise.resolve(null)
+    }
+
+    /**
      * Resets the daily allowance usage tracking for all packages (or a specific one).
      * Call with null to reset all packages, or a specific package name to reset just that one.
      *
