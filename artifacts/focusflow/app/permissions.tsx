@@ -611,7 +611,59 @@ const styles = StyleSheet.create({
     marginTop: SPACING.sm,
   },
 
-  // Focus-active locked banner
+  // Full-screen lock (replaces scroll content entirely during focus)
+  lockedScreen: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: SPACING.xl,
+  },
+  lockedCard: {
+    width: '100%',
+    borderRadius: RADIUS.xl,
+    borderWidth: 2,
+    padding: SPACING.xl,
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  lockedIconRing: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: COLORS.orange + '1A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.orange + '55',
+    marginBottom: SPACING.xs,
+  },
+  lockedHeading: {
+    fontSize: FONT.xxl ?? 24,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  lockedBody: {
+    fontSize: FONT.sm,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  lockedBackBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: COLORS.orange,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    marginTop: SPACING.sm,
+  },
+  lockedBackText: {
+    fontSize: FONT.sm,
+    fontWeight: '700',
+    color: '#fff',
+  },
+
+  // Legacy banner styles (kept for safety)
   focusLockedBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',

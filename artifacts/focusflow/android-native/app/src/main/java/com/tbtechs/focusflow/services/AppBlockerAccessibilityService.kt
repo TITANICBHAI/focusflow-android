@@ -180,9 +180,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                     performGlobalAction(GLOBAL_ACTION_BACK)
                     return
                 }
-                // During active focus, block the accessibility settings page to prevent
-                // the user from disabling this service mid-session.
-                if (focusActive && isAccessibilitySettingsPage(event)) {
+                // Block accessibility settings to prevent disabling this service mid-session.
+                if (isAccessibilitySettingsPage(event)) {
                     performGlobalAction(GLOBAL_ACTION_BACK)
                     return
                 }
@@ -191,8 +190,23 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                     performGlobalAction(GLOBAL_ACTION_BACK)
                     return
                 }
-                // Block date/time settings during focus to prevent clock manipulation.
-                if (focusActive && isDateTimeSettingsPage(event)) {
+                // Block date/time settings to prevent clock manipulation.
+                if (isDateTimeSettingsPage(event)) {
+                    performGlobalAction(GLOBAL_ACTION_BACK)
+                    return
+                }
+                // Block Usage Access settings to prevent revoking usage permission.
+                if (isUsageAccessSettingsPage(event)) {
+                    performGlobalAction(GLOBAL_ACTION_BACK)
+                    return
+                }
+                // Block Battery Optimization settings to prevent killing the blocking service.
+                if (isBatteryOptimizationSettingsPage(event)) {
+                    performGlobalAction(GLOBAL_ACTION_BACK)
+                    return
+                }
+                // Block Device Admin settings to prevent deactivating admin rights.
+                if (isDeviceAdminSettingsPage(event)) {
                     performGlobalAction(GLOBAL_ACTION_BACK)
                     return
                 }
@@ -349,8 +363,92 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         val eventText = buildString {
             event.text.forEach { append(it); append(' ') }
         }.lowercase()
-        // "Set date" / "Set time" / "Date & time" headings
         val keywords = listOf("set date", "set time", "date & time", "date and time", "automatic date")
+        return keywords.any { it in eventText }
+    }
+
+    /**
+     * Returns true when the user navigated to the Usage Access (Usage Stats) settings page.
+     * Blocks this page to prevent the user from revoking FocusFlow's usage access permission.
+     */
+    private fun isUsageAccessSettingsPage(event: AccessibilityEvent): Boolean {
+        val className = event.className?.toString()?.lowercase() ?: ""
+        val classKeywords = listOf(
+            "usageaccesssettings",
+            "usagestatssettings",
+            "usagestats",
+            "appopsdetail"
+        )
+        if (classKeywords.any { it in className }) return true
+
+        val eventText = buildString {
+            event.text.forEach { append(it); append(' ') }
+        }.lowercase()
+        val keywords = listOf(
+            "usage access",
+            "usage stats",
+            "permitted usage access",
+            "apps with usage access"
+        )
+        return keywords.any { it in eventText }
+    }
+
+    /**
+     * Returns true when the user navigated to Battery Optimization settings.
+     * Blocks this page to prevent the user from removing FocusFlow's battery exemption,
+     * which would allow the OS to kill the blocking service.
+     */
+    private fun isBatteryOptimizationSettingsPage(event: AccessibilityEvent): Boolean {
+        val className = event.className?.toString()?.lowercase() ?: ""
+        val classKeywords = listOf(
+            "batteryoptimization",
+            "highpowerapps",
+            "powersavingdetail",
+            "batterysaver",
+            "ignoreoptimizationsettings"
+        )
+        if (classKeywords.any { it in className }) return true
+
+        val eventText = buildString {
+            event.text.forEach { append(it); append(' ') }
+        }.lowercase()
+        val keywords = listOf(
+            "battery optimization",
+            "optimizing battery",
+            "unrestricted",
+            "don't optimize",
+            "not optimized",
+            "optimize battery usage",
+            "background activity"
+        )
+        return keywords.any { it in eventText }
+    }
+
+    /**
+     * Returns true when the user navigated to Device Admin settings.
+     * Blocks this page to prevent the user from deactivating FocusFlow's Device Admin rights,
+     * which would allow them to force-stop or uninstall the app.
+     */
+    private fun isDeviceAdminSettingsPage(event: AccessibilityEvent): Boolean {
+        val className = event.className?.toString()?.lowercase() ?: ""
+        val classKeywords = listOf(
+            "deviceadminsettings",
+            "deviceadmininfo",
+            "deviceadmin",
+            "devicepolicysettings"
+        )
+        if (classKeywords.any { it in className }) return true
+
+        val eventText = buildString {
+            event.text.forEach { append(it); append(' ') }
+        }.lowercase()
+        val keywords = listOf(
+            "device admin",
+            "device administrator",
+            "deactivate device admin",
+            "remove device admin",
+            "active device admin"
+        )
         return keywords.any { it in eventText }
     }
 
