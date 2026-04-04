@@ -236,25 +236,7 @@ export default function PermissionsScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
-      {/* Focus-active locked banner — settings access is blocked by the AccessibilityService
-          when a focus session is running; this banner explains why and provides a clear CTA. */}
-      {isFocusing && (
-        <View style={styles.focusLockedBanner}>
-          <Ionicons name="lock-closed" size={16} color={COLORS.orange} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.focusLockedTitle}>Focus Session Active — Locked</Text>
-            <Text style={styles.focusLockedDesc}>
-              Permission changes are blocked during a focus session to prevent bypassing app blocking.
-              Stop focus mode first to make changes.
-            </Text>
-          </View>
-          <TouchableOpacity onPress={() => router.back()} style={styles.focusLockedBack}>
-            <Text style={styles.focusLockedBackText}>Go Back</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Header */}
+      {/* Header always visible so back navigation still works */}
       <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color={COLORS.primary} />
@@ -269,6 +251,28 @@ export default function PermissionsScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* ── Full-screen lock when a focus session is running ──────────────────
+           No touch events reach the permission list — users cannot open any
+           system settings page that could be used to bypass blocking. */}
+      {isFocusing ? (
+        <View style={[styles.lockedScreen, { backgroundColor: theme.background }]}>
+          <View style={[styles.lockedCard, { backgroundColor: theme.card, borderColor: COLORS.orange + '55' }]}>
+            <View style={styles.lockedIconRing}>
+              <Ionicons name="lock-closed" size={32} color={COLORS.orange} />
+            </View>
+            <Text style={[styles.lockedHeading, { color: theme.text }]}>Settings Locked</Text>
+            <Text style={[styles.lockedBody, { color: theme.textSecondary }]}>
+              Permission settings are disabled while a focus session is running.
+              {'\n\n'}
+              Granting or revoking permissions during focus could bypass app blocking — stop your session first to make changes.
+            </Text>
+            <TouchableOpacity style={styles.lockedBackBtn} onPress={() => router.back()} activeOpacity={0.8}>
+              <Ionicons name="chevron-back" size={16} color="#fff" />
+              <Text style={styles.lockedBackText}>Go Back</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : (
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
 
         {/* Tutorial Banner */}
