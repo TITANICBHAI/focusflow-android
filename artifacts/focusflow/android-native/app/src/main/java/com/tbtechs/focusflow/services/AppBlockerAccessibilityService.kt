@@ -383,9 +383,34 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     /**
      * Returns true when the event represents Android's Accessibility Settings page.
      * Covers AOSP, Samsung One UI, MIUI, OPPO/ColorOS, and Vivo class name variants.
+     *
+     * CARVE-OUT: The per-service detail/toggle page is allowed through if it is
+     * specifically for FocusFlow, so the user can always enable or re-enable our
+     * own accessibility service even during an active block session.
      */
     private fun isAccessibilitySettingsPage(event: AccessibilityEvent): Boolean {
         val className = event.className?.toString()?.lowercase() ?: ""
+
+        // If this looks like a per-service detail page, check whether it is
+        // specifically the FocusFlow service page and allow it through if so.
+        if ("toggleaccessibilityservicepreferencefragment" in className ||
+            "accessibilityservicesettings" in className) {
+            val combined = buildString {
+                event.text.forEach { append(it); append(' ') }
+                event.contentDescription?.let { append(it); append(' ') }
+            }.lowercase()
+            if ("focusflow" in combined || "com.tbtechs.focusflow" in combined) return false
+            val root = event.source
+            if (root != null) {
+                val nodeText = try {
+                    collectNodeText(root).lowercase()
+                } finally {
+                    root.recycle()
+                }
+                if ("focusflow" in nodeText || "com.tbtechs.focusflow" in nodeText) return false
+            }
+        }
+
         val classKeywords = listOf(
             // AOSP / Pixel
             "accessibilitysettings",
