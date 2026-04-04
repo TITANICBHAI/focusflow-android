@@ -305,7 +305,18 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 lastBlockedPkg = null
                 return // Allowed — within allowance
             }
-            // Allowance exhausted — fall through to normal block logic
+            // Allowance exhausted — always block during any active session.
+            // This makes daily allowance act as a true "N opens then blocked" limit
+            // regardless of whether the app is also in the explicit standalone block list.
+            val samePackage = pkg == lastBlockedPkg
+            val cooldownExpired = (now - lastBlockedAtMs) > 2_000L
+            if (!samePackage || cooldownExpired) {
+                lastBlockedPkg = pkg
+                lastBlockedAtMs = now
+                handleBlockedApp(pkg)
+                scheduleRetryCheck(pkg, 1, focusActive, saActive)
+            }
+            return
         }
 
         val isBlocked = isPackageBlocked(pkg, focusActive, saActive)

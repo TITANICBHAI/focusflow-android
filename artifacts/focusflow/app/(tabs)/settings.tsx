@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import dayjs from 'dayjs';
 import { useApp } from '@/context/AppContext';
+import type { DailyAllowanceEntry } from '@/data/types';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { cancelAllReminders, requestPermissions } from '@/services/notificationService';
@@ -27,7 +28,7 @@ const DURATION_OPTIONS = [30, 45, 60, 90, 120];
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { state, updateSettings, setStandaloneBlock, setDailyAllowanceEntries, setBlockedWords, refreshTasks, deleteTask } = useApp();
+  const { state, updateSettings, setStandaloneBlockAndAllowance, setDailyAllowanceEntries, setBlockedWords, refreshTasks, deleteTask } = useApp();
   const { settings } = state;
   const { theme } = useTheme();
   const [appsModalVisible, setAppsModalVisible] = useState(false);
@@ -64,8 +65,8 @@ export default function SettingsScreen() {
     ? dayjs(settings.standaloneBlockUntil).format('MMM D [at] h:mm A')
     : null;
 
-  const handleSaveStandaloneBlock = async (packages: string[], untilMs: number | null) => {
-    await setStandaloneBlock(packages, untilMs);
+  const handleSaveStandaloneBlock = async (packages: string[], untilMs: number | null, allowanceEntries: DailyAllowanceEntry[]) => {
+    await setStandaloneBlockAndAllowance(packages, untilMs, allowanceEntries);
   };
 
   // ── Other handlers ────────────────────────────────────────────────────────
@@ -289,7 +290,6 @@ export default function SettingsScreen() {
         locked={standaloneActive}
         dailyAllowanceEntries={settings.dailyAllowanceEntries ?? []}
         onSave={handleSaveStandaloneBlock}
-        onSaveDailyAllowance={async (entries) => { await setDailyAllowanceEntries(entries); }}
         onClose={() => setBlockModalVisible(false)}
       />
 

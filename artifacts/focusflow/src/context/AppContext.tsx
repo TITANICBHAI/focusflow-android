@@ -138,6 +138,7 @@ interface AppContextValue {
 
   updateSettings: (settings: AppSettings) => Promise<void>;
   setStandaloneBlock: (packages: string[], untilMs: number | null) => Promise<void>;
+  setStandaloneBlockAndAllowance: (packages: string[], untilMs: number | null, allowanceEntries: DailyAllowanceEntry[]) => Promise<void>;
   setDailyAllowanceEntries: (entries: DailyAllowanceEntry[]) => Promise<void>;
   setBlockedWords: (words: string[]) => Promise<void>;
   refreshTasks: () => Promise<void>;
@@ -567,6 +568,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await SharedPrefsModule.setStandaloneBlock(active, packages, untilMs ?? 0);
   }, [state.settings]);
 
+  /**
+   * Atomically saves standalone block settings AND daily allowance entries
+   * in a single DB write and single state dispatch.
+   *
+   * This prevents the stale-closure bug that occurs when setStandaloneBlock
+   * and setDailyAllowanceEntries are called back-to-back from the block
+   * schedule modal — where the second call would overwrite the first with
+   * stale state.settings, erasing the newly saved standalone block.
+   */
+  const setStandaloneBlockAndAllowance = useCallback(async (
+    packages: string[],
+    untilMs: number | null,
+    allowanceEntries: DailyAllowanceEntry[],
+  ) => {
+    const untilIso = untilMs ? new Date(untilMs).toISOString() : null;
+    const newSettings: AppSettings = {
+      ...state.settings,
+      standaloneBlockPackages: packages,
+      standaloneBlockUntil: untilIso,
+      dailyAllowanceEntries: allowanceEntries,
+    };
+    await dbSaveSettings(newSettings);
+    dispatch({ type: 'SET_SETTINGS', payload: newSettings });
+    const active = packages.length > 0 && untilMs !== null && untilMs > Date.now();
+    await SharedPrefsModule.setStandaloneBlock(active, packages, untilMs ?? 0);
+    await SharedPrefsModule.setDailyAllowanceConfig(allowanceEntries);
+  }, [state.settings]);
+
   // ── Derived ──────────────────────────────────────────────────────────────────
 
   const todayTasks = getTodayTasks(state.tasks);
@@ -586,6 +615,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     stopFocusMode,
     updateSettings,
     setStandaloneBlock,
+    setStandaloneBlockAndAllowance,
     setDailyAllowanceEntries,
     setBlockedWords,
     refreshTasks,

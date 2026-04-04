@@ -27,8 +27,7 @@ interface Props {
   blockUntil: string | null;
   locked?: boolean;
   dailyAllowanceEntries?: DailyAllowanceEntry[];
-  onSave: (packages: string[], untilMs: number | null) => void | Promise<void>;
-  onSaveDailyAllowance?: (entries: DailyAllowanceEntry[]) => void | Promise<void>;
+  onSave: (packages: string[], untilMs: number | null, allowanceEntries: DailyAllowanceEntry[]) => void | Promise<void>;
   onClose: () => void;
 }
 
@@ -49,7 +48,6 @@ export function StandaloneBlockModal({
   locked = false,
   dailyAllowanceEntries = [],
   onSave,
-  onSaveDailyAllowance,
   onClose,
 }: Props) {
   const { theme } = useTheme();
@@ -195,10 +193,9 @@ export function StandaloneBlockModal({
     }
     setSaving(true);
     try {
-      await onSave(Array.from(selected), untilDate.getTime());
-      if (onSaveDailyAllowance) {
-        await onSaveDailyAllowance(Array.from(dailyEntriesMap.values()));
-      }
+      // Pass both block packages and daily allowance entries together so the
+      // parent can save them atomically in a single state + DB update.
+      await onSave(Array.from(selected), untilDate.getTime(), Array.from(dailyEntriesMap.values()));
       onClose();
     } catch (e) {
       console.error('[StandaloneBlockModal] Failed to save', e);
@@ -218,7 +215,7 @@ export function StandaloneBlockModal({
           style: 'destructive',
           onPress: async () => {
             try {
-              await onSave([], null);
+              await onSave([], null, Array.from(dailyEntriesMap.values()));
               onClose();
             } catch (e) {
               console.error('[StandaloneBlockModal] Failed to clear', e);
