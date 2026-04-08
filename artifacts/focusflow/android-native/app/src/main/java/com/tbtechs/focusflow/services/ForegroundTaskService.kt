@@ -11,6 +11,7 @@ import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import com.tbtechs.focusflow.R
 import com.tbtechs.focusflow.MainActivity
+import com.tbtechs.focusflow.services.NetworkBlockerVpnService
 import com.tbtechs.focusflow.services.WakeLockManager
 import com.tbtechs.focusflow.widget.FocusFlowWidget
 import java.util.Calendar
@@ -218,10 +219,30 @@ class ForegroundTaskService : Service() {
         handler.removeCallbacks(tickRunnable)
         // Release the wake lock — CPU throttling is fine again when no session is active
         WakeLockManager.release()
+        // Stop network blocking and restore connectivity if the restore flag is set
+        stopNetworkBlock()
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         nm.notify(NOTIFICATION_ID, buildIdleNotification())
         // Update widget to idle state
         FocusFlowWidget.pushWidgetUpdate(applicationContext)
+    }
+
+    /**
+     * Stops the VPN network blocker when a session ends.
+     * Only acts if net_block_enabled is true so sessions without network blocking
+     * are not affected. The JS layer's net_block_restore flag is respected:
+     * if false the VPN is stopped but WiFi/data are not explicitly re-enabled
+     * (though they were never disabled by this service directly).
+     */
+    private fun stopNetworkBlock() {
+        val prefs = getSharedPreferences(AppBlockerAccessibilityService.PREFS_NAME, Context.MODE_PRIVATE)
+        if (!prefs.getBoolean("net_block_enabled", false)) return
+        try {
+            val intent = Intent(this, NetworkBlockerVpnService::class.java).apply {
+                action = NetworkBlockerVpnService.ACTION_STOP
+            }
+            startService(intent)
+        } catch (_: Exception) { /* service not running — nothing to stop */ }
     }
 
     // ─── Notification builders ─────────────────────────────────────────────────

@@ -40,6 +40,11 @@
     BIND_ACCESSIBILITY_SERVICE
     WAKE_LOCK
     REQUEST_DELETE_PACKAGES
+    CHANGE_WIFI_STATE
+    ACCESS_WIFI_STATE
+    CHANGE_NETWORK_STATE
+    INTERNET                    (for VpnService tunnel interface)
+    BIND_VPN_SERVICE
 
   AndroidManifest.xml components (patched automatically):
 
@@ -104,6 +109,21 @@
         android:launchMode="singleTask"
         android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
         android:exported="false" />
+
+    <!--
+      NetworkBlockerVpnService — null-routing VPN tunnel that drops all packets
+      for blocked apps. The BIND_VPN_SERVICE permission is required for all VPN
+      services; android:permission ensures only the system can bind to it.
+      Declared in the <application> block (NOT inside <queries>).
+    -->
+    <service
+        android:name="...services.NetworkBlockerVpnService"
+        android:permission="android.permission.BIND_VPN_SERVICE"
+        android:exported="false">
+        <intent-filter>
+            <action android:name="android.net.VpnService" />
+        </intent-filter>
+    </service>
 
   ══════════════════════════════════════════════════════════════════════════════
   ONE MANUAL STEP (cannot be scripted safely — edit the file directly)

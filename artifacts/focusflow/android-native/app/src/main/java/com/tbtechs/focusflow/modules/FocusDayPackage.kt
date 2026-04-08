@@ -29,6 +29,7 @@ import com.facebook.react.uimanager.ViewManager
  *   InstalledApps     — list of installed packages for whitelist / block selection
  *   BlockOverlay      — configure full-screen overlay quotes and wallpaper
  *   NuclearMode       — request system uninstall dialogs for distracting apps
+ *   NetworkBlock      — VPN tunnel + WiFi/data disable when a blocked app opens
  */
 class FocusDayPackage : ReactPackage {
 
@@ -42,6 +43,7 @@ class FocusDayPackage : ReactPackage {
             InstalledAppsModule(reactContext),
             BlockOverlayModule(reactContext),
             NuclearModeModule(reactContext),
+            NetworkBlockModule(reactContext),
         )
 
     override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> =

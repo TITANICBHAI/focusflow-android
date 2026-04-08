@@ -3,12 +3,15 @@ package com.tbtechs.focusflow.services
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.content.SharedPreferences
+import android.net.VpnService
 import android.os.Handler
 import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.tbtechs.focusflow.modules.FocusDayBridgeModule
 import com.tbtechs.focusflow.services.BlockOverlayActivity
+import com.tbtechs.focusflow.services.NetworkBlockerVpnService
+import org.json.JSONArray
 
 /**
  * AppBlockerAccessibilityService
@@ -930,16 +933,59 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         }
         sendBroadcast(broadcast)
 
-        // Launch the full-screen overlay first. This takes the foreground before the
-        // blocked app finishes rendering, so on most devices the user never even sees
-        // the blocked content. The overlay handles its own re-raise on slow phones via
-        // its onPause() logic, letting this service back off instead of hammering HOME.
+        // 1. Kill the network first — before the overlay even appears, the blocked
+        //    app's pending requests are already cut. On a slow phone the user may
+        //    briefly see the app, but it will be loading a blank screen.
+        triggerNetworkBlock(blockedPackage)
+
+        // 2. Launch the full-screen overlay. This takes the foreground before the
+        //    blocked app finishes rendering on most devices. The overlay handles its
+        //    own re-raise on slow phones via onPause(), so this service can back off.
         launchBlockOverlay(blockedPackage)
 
-        // Belt-and-suspenders: also press HOME / BACK so that on extremely slow
-        // devices where the overlay takes >1 frame to appear, the blocked app is
-        // already dismissed when the overlay arrives.
+        // 3. Belt-and-suspenders: press HOME / BACK for extremely slow devices where
+        //    the overlay takes >1 frame to arrive.
         dismissPackage(blockedPackage)
+    }
+
+    /**
+     * Activates network blocking for [blockedPackage] if the user has enabled it.
+     *
+     * Only fires if:
+     *   • net_block_enabled = true
+     *   • net_block_vpn = true
+     *   • VPN permission has already been granted by the user (prepare() == null)
+     *   • VPN is not already running
+     *
+     * WiFi and mobile data direct-disable are intentionally NOT triggered here
+     * because they require Context methods not available in an AccessibilityService.
+     * Those supplementary actions are handled by NetworkBlockModule from the JS layer
+     * when the user manually starts a session. The VPN tunnel covers both channels.
+     */
+    private fun triggerNetworkBlock(blockedPackage: String) {
+        if (!prefs.getBoolean("net_block_enabled", false)) return
+        if (!prefs.getBoolean("net_block_vpn", true)) return
+        if (NetworkBlockerVpnService.isRunning) return   // already active
+
+        // VPN permission check — prepare() returns null if permission is already held
+        try {
+            val permissionIntent = VpnService.prepare(applicationContext)
+            if (permissionIntent != null) return  // not yet granted — skip, don't crash
+        } catch (_: Exception) { return }
+
+        val global = prefs.getBoolean("net_block_global", false)
+        val mode   = if (global) NetworkBlockerVpnService.MODE_GLOBAL
+                     else        NetworkBlockerVpnService.MODE_PER_APP
+        val pkgs   = JSONArray().apply { put(blockedPackage) }.toString()
+
+        try {
+            val intent = Intent(this, NetworkBlockerVpnService::class.java).apply {
+                action = NetworkBlockerVpnService.ACTION_START
+                putExtra(NetworkBlockerVpnService.EXTRA_PACKAGES, pkgs)
+                putExtra(NetworkBlockerVpnService.EXTRA_MODE, mode)
+            }
+            startService(intent)
+        } catch (_: Exception) { /* service start failed — overlay + HOME are the fallback */ }
     }
 
     /**
