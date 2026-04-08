@@ -200,6 +200,10 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // pressing Home when the user has already switched to an allowed app.
         lastSeenPkg = pkg
 
+        // Persist current foreground package so BlockOverlayActivity can check
+        // whether the user navigated to our own app (settings) and skip re-raise.
+        prefs.edit().putString("current_foreground_pkg", pkg).apply()
+
         // ── Overlay X-button: signal when the blocked app leaves foreground ──
         // When the AccessibilityService presses HOME after blocking, the next
         // window event from a different package means the user is back at the
@@ -966,19 +970,19 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         //    briefly see the app, but it will be loading a blank screen.
         triggerNetworkBlock(blockedPackage)
 
-        // 2. Launch the full-screen overlay. This takes the foreground before the
+        // 2. Set the awaiting package BEFORE launching/dismissing so the very next
+        //    window event (launcher coming to front) is guaranteed to trigger the
+        //    X-button reveal without a race condition.
+        prefs.edit().putString("overlay_awaiting_pkg", blockedPackage).apply()
+
+        // 3. Launch the full-screen overlay. This takes the foreground before the
         //    blocked app finishes rendering on most devices. The overlay handles its
         //    own re-raise on slow phones via onPause(), so this service can back off.
         launchBlockOverlay(blockedPackage)
 
-        // 3. Belt-and-suspenders: press HOME / BACK for extremely slow devices where
+        // 4. Belt-and-suspenders: press HOME / BACK for extremely slow devices where
         //    the overlay takes >1 frame to arrive.
         dismissPackage(blockedPackage)
-
-        // 4. Tell the overlay to wait for X-button confirmation: once the next
-        //    window event shows a different package (HOME/launcher), overlay_x_ready
-        //    is set to true and the BlockOverlayActivity fades in the ✕ button.
-        prefs.edit().putString("overlay_awaiting_pkg", blockedPackage).apply()
 
         // 5. Aversive deterrents — screen dim, vibration, alert sound (each gated
         //    by its own toggle; no-op if all are disabled).

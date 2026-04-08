@@ -3,6 +3,7 @@ package com.tbtechs.focusflow.services
 import android.content.Context
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.media.Ringtone
 import android.media.RingtoneManager
 import android.os.Build
 import android.os.Handler
@@ -55,6 +56,10 @@ object AversiveActionsManager {
     private var vibrationRunnable: Runnable? = null
     private var vibrating = false
 
+    // ── Active ringtone ──────────────────────────────────────────────────────
+
+    private var activeRingtone: Ringtone? = null
+
     // ─── Public API ───────────────────────────────────────────────────────────
 
     /**
@@ -79,6 +84,7 @@ object AversiveActionsManager {
     fun stopAll(context: Context) {
         stopDimOverlay(context)
         stopVibration(context)
+        stopRingtone()
     }
 
     // ─── Screen Dimmer ────────────────────────────────────────────────────────
@@ -105,10 +111,15 @@ object AversiveActionsManager {
                             WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                     PixelFormat.TRANSLUCENT
-                )
+                ).also {
+                    // Physically reduce the backlight to near-zero — this is actual
+                    // brightness dimming, not just a dark overlay on top.
+                    // 0.0f = minimum brightness, 1.0f = full brightness.
+                    it.screenBrightness = 0.02f
+                }
 
                 val view = View(context.applicationContext).apply {
-                    setBackgroundColor(Color.argb(230, 0, 0, 0))
+                    setBackgroundColor(Color.argb(180, 0, 0, 0))
                 }
                 wm.addView(view, params)
                 dimView = view
@@ -190,9 +201,18 @@ object AversiveActionsManager {
 
     private fun playAlertSound(context: Context) {
         try {
+            stopRingtone()  // stop any previous tone still playing
             val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
             val ringtone = RingtoneManager.getRingtone(context.applicationContext, uri)
             ringtone?.play()
+            activeRingtone = ringtone
         } catch (_: Exception) { }
+    }
+
+    private fun stopRingtone() {
+        try {
+            activeRingtone?.stop()
+        } catch (_: Exception) { }
+        activeRingtone = null
     }
 }

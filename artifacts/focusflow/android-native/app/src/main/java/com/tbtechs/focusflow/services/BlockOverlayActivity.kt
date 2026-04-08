@@ -1,6 +1,7 @@
 package com.tbtechs.focusflow.services
 
 import android.app.Activity
+import android.app.WallpaperManager
 import android.content.SharedPreferences
 import android.graphics.BitmapFactory
 import android.graphics.Color
@@ -142,8 +143,17 @@ class BlockOverlayActivity : Activity() {
         val saActive    = prefs.getBoolean(AppBlockerAccessibilityService.PREF_SA_ACTIVE, false)
         if (!focusActive && !saActive) return   // block session has ended — let it go
 
+        // Do NOT re-raise the overlay if the user navigated to our own app
+        // (e.g., to change settings). This lets them turn off features even while a
+        // block session is active, without the overlay fighting them.
+        val currentFg = prefs.getString("current_foreground_pkg", "") ?: ""
+        if (currentFg == packageName) return
+
         handler.postDelayed({
             if (!isFinishing && !isDestroyed && !intentionalFinish) {
+                // Re-check: still don't re-raise if FocusFlow is in the foreground.
+                val fg = prefs.getString("current_foreground_pkg", "") ?: ""
+                if (fg == packageName) return@postDelayed
                 try {
                     val reRaise = android.content.Intent(
                         applicationContext, BlockOverlayActivity::class.java
@@ -205,8 +215,10 @@ class BlockOverlayActivity : Activity() {
             setBackgroundColor(Color.parseColor("#0A0A0F"))
         }
 
-        // Optional wallpaper at reduced opacity
+        // Background: custom wallpaper path > system wallpaper > plain dark
         val wallpaperPath = prefs.getString("block_overlay_wallpaper", "") ?: ""
+        var wallpaperAdded = false
+
         if (wallpaperPath.isNotEmpty()) {
             val file = File(wallpaperPath)
             if (file.exists()) {
@@ -220,11 +232,32 @@ class BlockOverlayActivity : Activity() {
                             )
                             setImageBitmap(bmp)
                             scaleType = ImageView.ScaleType.CENTER_CROP
-                            alpha = 0.30f
+                            alpha = 0.35f
                         })
+                        wallpaperAdded = true
                     }
                 } catch (_: Exception) { }
             }
+        }
+
+        // Fall back to the device's system wallpaper when no custom one is set
+        if (!wallpaperAdded) {
+            try {
+                val wm = WallpaperManager.getInstance(this)
+                val wallDrawable = wm.drawable
+                if (wallDrawable != null) {
+                    root.addView(ImageView(this).apply {
+                        layoutParams = FrameLayout.LayoutParams(
+                            FrameLayout.LayoutParams.MATCH_PARENT,
+                            FrameLayout.LayoutParams.MATCH_PARENT
+                        )
+                        setImageDrawable(wallDrawable)
+                        scaleType = ImageView.ScaleType.CENTER_CROP
+                        alpha = 0.30f
+                    })
+                    wallpaperAdded = true
+                }
+            } catch (_: Exception) { }
         }
 
         // Dark scrim — text always readable

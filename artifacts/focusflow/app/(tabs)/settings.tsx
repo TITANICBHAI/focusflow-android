@@ -23,8 +23,8 @@ import { StandaloneBlockModal } from '@/components/StandaloneBlockModal';
 import { DailyAllowanceModal } from '@/components/DailyAllowanceModal';
 import { BlockedWordsModal } from '@/components/BlockedWordsModal';
 import { GreyoutScheduleModal } from '@/components/GreyoutScheduleModal';
+import { WeeklyReportModal } from '@/components/WeeklyReportModal';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
-import { GreyoutModule } from '@/native-modules/GreyoutModule';
 
 const DURATION_OPTIONS = [30, 45, 60, 90, 120];
 
@@ -38,6 +38,7 @@ export default function SettingsScreen() {
   const [dailyModalVisible, setDailyModalVisible] = useState(false);
   const [wordsModalVisible, setWordsModalVisible] = useState(false);
   const [greyoutModalVisible, setGreyoutModalVisible] = useState(false);
+  const [weeklyReportVisible, setWeeklyReportVisible] = useState(false);
 
   if (!state.isDbReady) {
     return (
@@ -109,13 +110,8 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleViewReport = async () => {
-    try {
-      const summary = await GreyoutModule.getWeeklySummary();
-      Alert.alert('Weekly Temptation Report', summary || 'No blocked app attempts recorded this week.');
-    } catch {
-      Alert.alert('Weekly Temptation Report', 'Report data is not available yet. Enable the weekly report and come back after some blocking activity.');
-    }
+  const handleViewReport = () => {
+    setWeeklyReportVisible(true);
   };
 
   return (
@@ -386,6 +382,11 @@ export default function SettingsScreen() {
         windows={settings.greyoutSchedule ?? []}
         onSave={async (windows: GreyoutWindow[]) => { await update({ greyoutSchedule: windows }); }}
         onClose={() => setGreyoutModalVisible(false)}
+      />
+
+      <WeeklyReportModal
+        visible={weeklyReportVisible}
+        onClose={() => setWeeklyReportVisible(false)}
       />
     </SafeAreaView>
   );
