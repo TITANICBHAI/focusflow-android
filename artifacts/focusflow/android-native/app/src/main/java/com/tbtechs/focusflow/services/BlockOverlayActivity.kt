@@ -87,6 +87,10 @@ class BlockOverlayActivity : Activity() {
     private lateinit var xButton: TextView
     private var xButtonRevealed = false
 
+    // Double-back-to-home: track first back press timestamp
+    private var firstBackMs = 0L
+    private val DOUBLE_BACK_WINDOW_MS = 500L
+
     // ─── Polling runnable ─────────────────────────────────────────────────────
 
     private val pollRunnable = object : Runnable {
@@ -123,11 +127,29 @@ class BlockOverlayActivity : Activity() {
         intent?.getStringExtra(EXTRA_BLOCKED_NAME)?.let { if (it.isNotEmpty()) blockedName = it }
     }
 
-    // ─── Back button: swallowed entirely — overlay CANNOT be dismissed by back ─
+    // ─── Back button: double-tap within 500 ms → go home and dismiss ──────────
+    //
+    // First back:  swallowed, timestamp recorded.
+    // Second back within DOUBLE_BACK_WINDOW_MS: launch home screen + finish.
+    // Any single back press is still swallowed — overlay cannot be escaped by one tap.
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        // Intentionally do nothing — the ✕ button is the only exit
+        val now = System.currentTimeMillis()
+        if (now - firstBackMs <= DOUBLE_BACK_WINDOW_MS) {
+            // Second tap within window → go home then dismiss
+            intentionalFinish = true
+            prefs.edit().putBoolean(PREF_OVERLAY_X_READY, false).apply()
+            val homeIntent = android.content.Intent(android.content.Intent.ACTION_MAIN).apply {
+                addCategory(android.content.Intent.CATEGORY_HOME)
+                flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startActivity(homeIntent)
+            finish()
+        } else {
+            // First tap — record time, swallow press
+            firstBackMs = now
+        }
     }
 
     // ─── Slow-phone re-raise guard ────────────────────────────────────────────
