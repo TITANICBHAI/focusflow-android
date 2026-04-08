@@ -55,6 +55,7 @@ class BlockOverlayActivity : Activity() {
 
         /** Written by AccessibilityService after HOME press is confirmed. */
         const val PREF_OVERLAY_X_READY = "overlay_x_ready"
+        private const val X_POLL_INTERVAL_MS = 300L
 
 
         private val DEFAULT_QUOTES = listOf(
@@ -81,8 +82,20 @@ class BlockOverlayActivity : Activity() {
     private var blockedName: String = ""
     private var intentionalFinish = false
 
-    // The ✕ button — always visible, only exit from the overlay
+    // ✕ button — hidden until AccessibilityService confirms user is at home
     private lateinit var xButton: TextView
+    private var xButtonRevealed = false
+
+    private val pollRunnable = object : Runnable {
+        override fun run() {
+            if (isFinishing || isDestroyed || xButtonRevealed) return
+            if (prefs.getBoolean(PREF_OVERLAY_X_READY, false)) {
+                revealXButton()
+            } else {
+                handler.postDelayed(this, X_POLL_INTERVAL_MS)
+            }
+        }
+    }
 
     // ─── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -91,8 +104,14 @@ class BlockOverlayActivity : Activity() {
         prefs = getSharedPreferences(AppBlockerAccessibilityService.PREFS_NAME, MODE_PRIVATE)
         blockedName = intent?.getStringExtra(EXTRA_BLOCKED_NAME) ?: ""
 
+        // Clear any stale x_ready flag from a previous session
+        prefs.edit().putBoolean(PREF_OVERLAY_X_READY, false).apply()
+
         applyWindowFlags()
         buildUI()
+
+        // Start polling — ✕ only appears once home is confirmed
+        handler.postDelayed(pollRunnable, X_POLL_INTERVAL_MS)
     }
 
     override fun onNewIntent(intent: android.content.Intent?) {
@@ -286,10 +305,9 @@ class BlockOverlayActivity : Activity() {
     }
 
     /**
-     * Corner ✕ button — always visible and tappable.
-     * This is the ONLY way to dismiss the overlay.
-     * Back and home are ignored; the overlay re-raises itself over the home screen
-     * until the user deliberately taps ✕.
+     * Corner ✕ button — starts invisible (alpha=0, not clickable).
+     * Only revealed via [revealXButton] once the AccessibilityService confirms
+     * the user has navigated home (PREF_OVERLAY_X_READY = true).
      */
     private fun buildXButton(): TextView = TextView(this).apply {
         text = "\u2715"    // ✕
@@ -302,9 +320,9 @@ class BlockOverlayActivity : Activity() {
             setColor(Color.parseColor("#22222E"))
             setStroke(dp(1), Color.parseColor("#44445A"))
         }
-        alpha = 1f
-        isClickable = true
-        isFocusable = true
+        alpha = 0f
+        isClickable = false
+        isFocusable = false
 
         val size = dp(48)
         layoutParams = FrameLayout.LayoutParams(size, size).apply {
@@ -313,6 +331,21 @@ class BlockOverlayActivity : Activity() {
             rightMargin = dp(24)
         }
         setOnClickListener { dismissOverlay() }
+    }
+
+    // ─── X button reveal (runs after home confirmed) ──────────────────────────
+
+    private fun revealXButton() {
+        if (xButtonRevealed) return
+        xButtonRevealed = true
+        prefs.edit().putBoolean(PREF_OVERLAY_X_READY, false).apply()
+        xButton.isClickable = true
+        xButton.isFocusable = true
+        android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 400L
+            addUpdateListener { xButton.alpha = it.animatedValue as Float }
+            start()
+        }
     }
 
     // ─── Dismissal ────────────────────────────────────────────────────────────
