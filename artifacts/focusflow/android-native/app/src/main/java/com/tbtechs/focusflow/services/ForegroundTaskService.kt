@@ -73,9 +73,6 @@ class ForegroundTaskService : Service() {
 
         /** Cooldown: don't re-block the same package within this window (ms). */
         private const val FALLBACK_COOLDOWN_MS = 2_000L
-
-        /** How long to cache the accessibility-enabled result before re-checking (ms). */
-        private const val ACCESSIBILITY_CACHE_MS = 8_000L
     }
 
     private var taskId: String    = ""
@@ -89,12 +86,6 @@ class ForegroundTaskService : Service() {
     private lateinit var blockPrefs: SharedPreferences
     private var fallbackLastBlockedPkg: String? = null
     private var fallbackLastBlockedAtMs: Long   = 0L
-    private var fallbackPollerActive: Boolean   = false
-    // Last foreground package seen — skip heavy work when it hasn't changed
-    private var fallbackLastSeenPkg: String?    = null
-    // Cached accessibility state — re-checked every ACCESSIBILITY_CACHE_MS
-    private var accessibilityCached: Boolean    = false
-    private var accessibilityCacheTimeMs: Long  = 0L
 
     private val handler = Handler(Looper.getMainLooper())
     private val tickRunnable = object : Runnable {
