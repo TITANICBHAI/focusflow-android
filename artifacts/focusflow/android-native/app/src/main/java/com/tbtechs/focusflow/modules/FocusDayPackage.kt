@@ -15,10 +15,20 @@ import com.facebook.react.uimanager.ViewManager
  * causes all modules to resolve as null on old arch because the bridge routes them
  * through the TurboModule loading path, which requires New Architecture.
  *
- * All six modules use the standard ReactContextBaseJavaModule + @ReactMethod pattern.
+ * All modules use the standard ReactContextBaseJavaModule + @ReactMethod pattern.
  *
  * Wired into MainApplication.kt via the withFocusDayAndroid config plugin automatically
  * during expo prebuild / EAS build.
+ *
+ * Registered modules:
+ *   UsageStats        — usage-access / accessibility / battery / device-admin checks
+ *   ForegroundService — start / stop the focus foreground service
+ *   ForegroundLaunch  — bring app to foreground from background
+ *   FocusDayBridge    — JS↔native event bridge (app-blocked broadcasts)
+ *   SharedPrefs       — raw SharedPreferences read/write for the JS layer
+ *   InstalledApps     — list of installed packages for whitelist / block selection
+ *   BlockOverlay      — configure full-screen overlay quotes and wallpaper
+ *   NuclearMode       — request system uninstall dialogs for distracting apps
  */
 class FocusDayPackage : ReactPackage {
 
@@ -30,6 +40,8 @@ class FocusDayPackage : ReactPackage {
             FocusDayBridgeModule(reactContext),
             SharedPrefsModule(reactContext),
             InstalledAppsModule(reactContext),
+            BlockOverlayModule(reactContext),
+            NuclearModeModule(reactContext),
         )
 
     override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> =

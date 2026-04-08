@@ -11,6 +11,7 @@ import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import com.tbtechs.focusflow.R
 import com.tbtechs.focusflow.MainActivity
+import com.tbtechs.focusflow.services.WakeLockManager
 import com.tbtechs.focusflow.widget.FocusFlowWidget
 import java.util.Calendar
 
@@ -143,6 +144,11 @@ class ForegroundTaskService : Service() {
                     val notification = buildActiveNotification(endMs - System.currentTimeMillis())
                     startForeground(NOTIFICATION_ID, notification)
 
+                    // Acquire wake lock so the CPU stays alive during the session even
+                    // when the screen turns off — prevents OEM schedulers from throttling
+                    // the AccessibilityService on MIUI, ColorOS, and Samsung One UI.
+                    WakeLockManager.acquire(this)
+
                     handler.removeCallbacks(tickRunnable)
                     handler.post(tickRunnable)
 
@@ -167,6 +173,7 @@ class ForegroundTaskService : Service() {
 
                             val notification = buildActiveNotification(restoredEndMs - System.currentTimeMillis())
                             startForeground(NOTIFICATION_ID, notification)
+                            WakeLockManager.acquire(this)
                             handler.removeCallbacks(tickRunnable)
                             handler.post(tickRunnable)
                             FocusFlowWidget.pushWidgetUpdate(applicationContext)
@@ -195,6 +202,7 @@ class ForegroundTaskService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacks(tickRunnable)
+        WakeLockManager.release()
         super.onDestroy()
     }
 
@@ -208,6 +216,8 @@ class ForegroundTaskService : Service() {
         startTimeMs  = 0L
         nextName     = null
         handler.removeCallbacks(tickRunnable)
+        // Release the wake lock — CPU throttling is fine again when no session is active
+        WakeLockManager.release()
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         nm.notify(NOTIFICATION_ID, buildIdleNotification())
         // Update widget to idle state

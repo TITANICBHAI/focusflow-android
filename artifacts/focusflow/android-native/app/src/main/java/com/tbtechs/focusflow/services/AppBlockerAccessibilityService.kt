@@ -8,6 +8,7 @@ import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.tbtechs.focusflow.modules.FocusDayBridgeModule
+import com.tbtechs.focusflow.services.BlockOverlayActivity
 
 /**
  * AppBlockerAccessibilityService
@@ -928,7 +929,39 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             putExtra(FocusDayBridgeModule.EXTRA_BLOCKED_PKG, blockedPackage)
         }
         sendBroadcast(broadcast)
+
+        // Launch the full-screen overlay first. This takes the foreground before the
+        // blocked app finishes rendering, so on most devices the user never even sees
+        // the blocked content. The overlay handles its own re-raise on slow phones via
+        // its onPause() logic, letting this service back off instead of hammering HOME.
+        launchBlockOverlay(blockedPackage)
+
+        // Belt-and-suspenders: also press HOME / BACK so that on extremely slow
+        // devices where the overlay takes >1 frame to appear, the blocked app is
+        // already dismissed when the overlay arrives.
         dismissPackage(blockedPackage)
+    }
+
+    /**
+     * Launches [BlockOverlayActivity] as a new foreground task.
+     * The Activity immediately covers the entire screen including the status bar,
+     * navigation bar, and lock screen, giving no visible gap for the blocked app.
+     */
+    private fun launchBlockOverlay(blockedPackage: String) {
+        try {
+            val appName = resolveAppDisplayName(blockedPackage)
+            val intent = Intent(this, BlockOverlayActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP
+                putExtra(BlockOverlayActivity.EXTRA_BLOCKED_PKG, blockedPackage)
+                putExtra(BlockOverlayActivity.EXTRA_BLOCKED_NAME, appName)
+            }
+            startActivity(intent)
+        } catch (_: Exception) {
+            // Overlay launch failed (e.g. SYSTEM_ALERT_WINDOW not yet granted on first run).
+            // The dismissPackage() call below is the fallback in this case.
+        }
     }
 
     private fun dismissPackage(blockedPackage: String) {
@@ -936,6 +969,20 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             performGlobalAction(GLOBAL_ACTION_BACK)
         } else {
             performGlobalAction(GLOBAL_ACTION_HOME)
+        }
+    }
+
+    /**
+     * Returns the human-readable label for [packageName] via PackageManager.
+     * Falls back to the package name itself on any error.
+     */
+    private fun resolveAppDisplayName(packageName: String): String {
+        return try {
+            val pm = applicationContext.packageManager
+            val info = pm.getApplicationInfo(packageName, 0)
+            pm.getApplicationLabel(info).toString()
+        } catch (_: Exception) {
+            packageName
         }
     }
 
