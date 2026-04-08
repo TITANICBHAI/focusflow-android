@@ -1074,9 +1074,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             // fires, ensuring the app has actually left the foreground first.
             handler.postDelayed({
                 try {
-                    val am = getSystemService(android.app.ActivityManager.ACTIVITY_SERVICE)
-                            as android.app.ActivityManager
-                    am.killBackgroundProcesses(blockedPackage)
+                    val am = getSystemService(android.app.ActivityManager::class.java)
+                    am?.killBackgroundProcesses(blockedPackage)
                 } catch (_: Exception) { }
             }, 500L)
         }

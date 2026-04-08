@@ -633,8 +633,8 @@ class ForegroundTaskService : Service() {
         // take the foreground (pushing the blocked app to background).
         handler.postDelayed({
             try {
-                val am = getSystemService(ACTIVITY_SERVICE) as ActivityManager
-                am.killBackgroundProcesses(blockedPackage)
+                val am = getSystemService(ActivityManager::class.java)
+                am?.killBackgroundProcesses(blockedPackage)
             } catch (_: Exception) { }
 
             // Write overlay_x_ready so the overlay's X button appears now
