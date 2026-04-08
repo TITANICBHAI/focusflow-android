@@ -1,6 +1,5 @@
 package com.tbtechs.focusflow.services
 
-import android.animation.ValueAnimator
 import android.app.Activity
 import android.content.SharedPreferences
 import android.graphics.BitmapFactory
@@ -57,7 +56,6 @@ class BlockOverlayActivity : Activity() {
         /** Written by AccessibilityService after HOME press is confirmed. */
         const val PREF_OVERLAY_X_READY = "overlay_x_ready"
 
-        private const val X_POLL_INTERVAL_MS = 300L
 
         private val DEFAULT_QUOTES = listOf(
             "The present moment is the only time over which we have dominion.",
@@ -83,26 +81,8 @@ class BlockOverlayActivity : Activity() {
     private var blockedName: String = ""
     private var intentionalFinish = false
 
-    // The ✕ button — starts invisible, fades in when x_ready flag is set
+    // The ✕ button — always visible, only exit from the overlay
     private lateinit var xButton: TextView
-    private var xButtonRevealed = false
-
-    // Double-back-to-home: track first back press timestamp
-    private var firstBackMs = 0L
-    private val DOUBLE_BACK_WINDOW_MS = 500L
-
-    // ─── Polling runnable ─────────────────────────────────────────────────────
-
-    private val pollRunnable = object : Runnable {
-        override fun run() {
-            if (isFinishing || isDestroyed || xButtonRevealed) return
-            if (prefs.getBoolean(PREF_OVERLAY_X_READY, false)) {
-                revealXButton()
-            } else {
-                handler.postDelayed(this, X_POLL_INTERVAL_MS)
-            }
-        }
-    }
 
     // ─── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -111,14 +91,8 @@ class BlockOverlayActivity : Activity() {
         prefs = getSharedPreferences(AppBlockerAccessibilityService.PREFS_NAME, MODE_PRIVATE)
         blockedName = intent?.getStringExtra(EXTRA_BLOCKED_NAME) ?: ""
 
-        // Clear any stale x_ready flag from a previous session
-        prefs.edit().putBoolean(PREF_OVERLAY_X_READY, false).apply()
-
         applyWindowFlags()
         buildUI()
-
-        // Start polling for the x_ready signal
-        handler.postDelayed(pollRunnable, X_POLL_INTERVAL_MS)
     }
 
     override fun onNewIntent(intent: android.content.Intent?) {
@@ -127,36 +101,19 @@ class BlockOverlayActivity : Activity() {
         intent?.getStringExtra(EXTRA_BLOCKED_NAME)?.let { if (it.isNotEmpty()) blockedName = it }
     }
 
-    // ─── Back button: double-tap within 500 ms → go home and dismiss ──────────
-    //
-    // First back:  swallowed, timestamp recorded.
-    // Second back within DOUBLE_BACK_WINDOW_MS: launch home screen + finish.
-    // Any single back press is still swallowed — overlay cannot be escaped by one tap.
+    // ─── Back button: fully swallowed — only ✕ can dismiss the overlay ─────────
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        val now = System.currentTimeMillis()
-        if (now - firstBackMs <= DOUBLE_BACK_WINDOW_MS) {
-            // Second tap within window → go home then dismiss
-            intentionalFinish = true
-            prefs.edit().putBoolean(PREF_OVERLAY_X_READY, false).apply()
-            val homeIntent = android.content.Intent(android.content.Intent.ACTION_MAIN).apply {
-                addCategory(android.content.Intent.CATEGORY_HOME)
-                flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            startActivity(homeIntent)
-            finish()
-        } else {
-            // First tap — record time, swallow press
-            firstBackMs = now
-        }
+        // Intentionally do nothing — back is completely ignored
     }
 
-    // ─── Slow-phone re-raise guard ────────────────────────────────────────────
+    // ─── Re-raise guard ───────────────────────────────────────────────────────
     //
-    // If the overlay is paused (e.g. the blocked app finishes drawing on a very
-    // slow phone before the overlay could take focus), re-raise ourselves.
-    // The x_ready polling continues after we re-raise.
+    // Home / recents / any system gesture will pause this activity but the
+    // overlay must stay on screen until the user explicitly taps ✕.
+    // We bring ourselves back to front after a short delay unless the user
+    // already dismissed via ✕ (intentionalFinish = true).
 
     override fun onPause() {
         super.onPause()
@@ -164,8 +121,7 @@ class BlockOverlayActivity : Activity() {
 
         val focusActive = prefs.getBoolean(AppBlockerAccessibilityService.PREF_FOCUS_ON, false)
         val saActive    = prefs.getBoolean(AppBlockerAccessibilityService.PREF_SA_ACTIVE, false)
-        val greyActive  = prefs.getBoolean("overlay_x_ready", false)  // still in blocking context
-        if (!focusActive && !saActive && !greyActive) return
+        if (!focusActive && !saActive) return   // block session has ended — let it go
 
         handler.postDelayed({
             if (!isFinishing && !isDestroyed && !intentionalFinish) {
@@ -330,9 +286,10 @@ class BlockOverlayActivity : Activity() {
     }
 
     /**
-     * Corner ✕ button — initially invisible (alpha = 0, not clickable).
-     * Positioned in the top-right corner via FrameLayout gravity.
-     * Fades in and becomes clickable when [revealXButton] is called.
+     * Corner ✕ button — always visible and tappable.
+     * This is the ONLY way to dismiss the overlay.
+     * Back and home are ignored; the overlay re-raises itself over the home screen
+     * until the user deliberately taps ✕.
      */
     private fun buildXButton(): TextView = TextView(this).apply {
         text = "\u2715"    // ✕
@@ -345,9 +302,9 @@ class BlockOverlayActivity : Activity() {
             setColor(Color.parseColor("#22222E"))
             setStroke(dp(1), Color.parseColor("#44445A"))
         }
-        alpha = 0f
-        isClickable = false
-        isFocusable = false
+        alpha = 1f
+        isClickable = true
+        isFocusable = true
 
         val size = dp(48)
         layoutParams = FrameLayout.LayoutParams(size, size).apply {
@@ -356,25 +313,6 @@ class BlockOverlayActivity : Activity() {
             rightMargin = dp(24)
         }
         setOnClickListener { dismissOverlay() }
-    }
-
-    // ─── X button reveal ──────────────────────────────────────────────────────
-
-    private fun revealXButton() {
-        if (xButtonRevealed) return
-        xButtonRevealed = true
-
-        // Clear the flag so the next overlay doesn't skip the wait
-        prefs.edit().putBoolean(PREF_OVERLAY_X_READY, false).apply()
-
-        xButton.isClickable = true
-        xButton.isFocusable = true
-
-        ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 400L
-            addUpdateListener { xButton.alpha = it.animatedValue as Float }
-            start()
-        }
     }
 
     // ─── Dismissal ────────────────────────────────────────────────────────────
