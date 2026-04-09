@@ -291,44 +291,44 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // sub-pages (accessibility settings, clear data, date/time) during focus.
         if (ALWAYS_ALLOWED.any { pkg.equals(it, ignoreCase = true) }) {
             if (focusActive || saActive) {
-                // Block uninstall dialogs
+                // Block uninstall dialogs — show overlay so user sees why they're blocked.
                 if (isUninstallDialog(event)) {
-                    performGlobalAction(GLOBAL_ACTION_BACK)
+                    handleBlockedApp(pkg)
                     return
                 }
                 // Block accessibility settings to prevent disabling this service mid-session.
                 if (isAccessibilitySettingsPage(event)) {
-                    performGlobalAction(GLOBAL_ACTION_BACK)
+                    handleBlockedApp(pkg)
                     return
                 }
                 // Block "Clear data / Clear storage" dialogs in Settings during any block session.
                 if (isClearDataDialog(event)) {
-                    performGlobalAction(GLOBAL_ACTION_BACK)
+                    handleBlockedApp(pkg)
                     return
                 }
                 // Block date/time settings to prevent clock manipulation.
                 if (isDateTimeSettingsPage(event)) {
-                    performGlobalAction(GLOBAL_ACTION_BACK)
+                    handleBlockedApp(pkg)
                     return
                 }
                 // Block Usage Access settings to prevent revoking usage permission.
                 if (isUsageAccessSettingsPage(event)) {
-                    performGlobalAction(GLOBAL_ACTION_BACK)
+                    handleBlockedApp(pkg)
                     return
                 }
                 // Block Battery Optimization settings to prevent killing the blocking service.
                 if (isBatteryOptimizationSettingsPage(event)) {
-                    performGlobalAction(GLOBAL_ACTION_BACK)
+                    handleBlockedApp(pkg)
                     return
                 }
                 // Block Device Admin settings to prevent deactivating admin rights.
                 if (isDeviceAdminSettingsPage(event)) {
-                    performGlobalAction(GLOBAL_ACTION_BACK)
+                    handleBlockedApp(pkg)
                     return
                 }
                 // Block Developer Options to prevent ADB, "Don't keep activities", etc.
                 if (isDeveloperOptionsPage(event)) {
-                    performGlobalAction(GLOBAL_ACTION_BACK)
+                    handleBlockedApp(pkg)
                     return
                 }
             }
@@ -342,11 +342,11 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
         // ── Word blocking ─────────────────────────────────────────────────────
         // During any active blocking session, if the current window content contains
-        // a user-defined blocked word, redirect to home immediately.
+        // a user-defined blocked word, show the overlay and redirect immediately.
         if (focusActive || saActive) {
             val blockedWords = getBlockedWords()
             if (blockedWords.isNotEmpty() && containsBlockedWord(event, blockedWords)) {
-                performGlobalAction(GLOBAL_ACTION_HOME)
+                handleBlockedApp(pkg)
                 return
             }
         }
