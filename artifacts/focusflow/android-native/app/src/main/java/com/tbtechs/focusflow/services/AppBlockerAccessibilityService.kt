@@ -1032,9 +1032,15 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         //    own re-raise on slow phones via onPause(), so this service can back off.
         launchBlockOverlay(blockedPackage)
 
-        // 4. Belt-and-suspenders: press HOME / BACK for extremely slow devices where
-        //    the overlay takes >1 frame to arrive.
-        dismissPackage(blockedPackage)
+        // 4. Belt-and-suspenders: press HOME / BACK only when the WindowManager
+        //    overlay is NOT available.  When the overlay IS showing it already
+        //    covers the blocked app completely — pressing HOME/BACK on top of it
+        //    causes the "weird gap" the second time the app is opened and is
+        //    unnecessary.  Fallback path (no SYSTEM_ALERT_WINDOW) still needs the
+        //    key presses to force the launcher to the foreground.
+        if (!canUseWindowOverlay()) {
+            dismissPackage(blockedPackage)
+        }
 
         // 5. Aversive deterrents — screen dim, vibration, alert sound (each gated
         //    by its own toggle; no-op if all are disabled).

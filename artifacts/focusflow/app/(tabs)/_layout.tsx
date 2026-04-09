@@ -100,6 +100,19 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
+          name="report"
+          options={{
+            title: "Report",
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons
+                name={focused ? "trending-up" : "trending-up-outline"}
+                size={22}
+                color={color}
+              />
+            ),
+          }}
+        />
+        <Tabs.Screen
           name="settings"
           options={{
             title: "Settings",
