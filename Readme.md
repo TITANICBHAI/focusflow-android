@@ -1,3 +1,4 @@
+d[![Build Production (APK + AAB)](https://github.com/TITANICBHAI/focusflow-android/actions/workflows/build-release.yml/badge.svg)](https://github.com/TITANICBHAI/focusflow-android/actions/workflows/build-release.yml)
 # Workspace
 
 ## Overview
