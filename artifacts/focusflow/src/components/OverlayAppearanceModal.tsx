@@ -56,27 +56,26 @@ export function OverlayAppearanceModal({ visible, onClose }: Props) {
   };
 
   const handlePickImage = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.9,
+      });
+      if (!result.canceled && result.assets[0]) {
+        const uri = result.assets[0].uri;
+        const path = Platform.OS === 'android' && uri.startsWith('file://') ? uri.replace('file://', '') : uri;
+        await syncWallpaper(path);
+      }
+    } catch {
       Alert.alert(
-        'Permission Required',
-        'Please grant photo library access in Settings to pick a background image.',
+        'Could Not Pick Image',
+        'Please grant photo library access in Settings, then try again.',
         [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Open Settings', onPress: () => Linking.openSettings() },
         ],
       );
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: false,
-      quality: 0.9,
-    });
-    if (!result.canceled && result.assets[0]) {
-      const uri = result.assets[0].uri;
-      const path = Platform.OS === 'android' ? uri.replace('file://', '') : uri;
-      await syncWallpaper(path);
     }
   };
 

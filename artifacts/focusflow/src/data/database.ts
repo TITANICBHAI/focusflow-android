@@ -184,6 +184,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   pomodoroDuration: 25,
   pomodoroBreak: 5,
   notificationsEnabled: true,
+  privacyAccepted: false,
   standaloneBlockPackages: [],
   standaloneBlockUntil: null,
   dailyAllowanceEntries: [],

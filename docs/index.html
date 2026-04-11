@@ -59,6 +59,10 @@
     .nav-links { display: flex; gap: 1.5rem; }
     .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.95rem; transition: color 0.2s; }
     .nav-links a:hover { color: var(--text); }
+    @media (max-width: 720px) {
+      nav { flex-direction: column; gap: 1rem; }
+      .nav-links { flex-wrap: wrap; justify-content: center; gap: 0.9rem 1.2rem; }
+    }
 
     /* ── Hero ── */
     .hero {
@@ -253,6 +257,8 @@
     <div class="nav-links">
       <a href="#features">Features</a>
       <a href="#how">How it works</a>
+      <a href="privacy-policy/">Privacy</a>
+      <a href="terms-of-service/">Terms</a>
       <a href="https://github.com/TITANICBHAI/focusflow-android">GitHub</a>
     </div>
   </nav>
@@ -369,7 +375,7 @@
 
   <!-- Footer -->
   <footer>
-    <p>FocusFlow is open source under the MIT licence · <a href="https://github.com/TITANICBHAI/focusflow-android">GitHub</a></p>
+    <p>FocusFlow is open source under the MIT licence · <a href="privacy-policy/">Privacy Policy</a> · <a href="terms-of-service/">Terms of Service</a> · <a href="https://github.com/TITANICBHAI/focusflow-android">GitHub</a></p>
   </footer>
 
 </body>

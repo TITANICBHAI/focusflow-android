@@ -44,8 +44,10 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 | `standalone_blocked_packages` | String (JSON array) | Apps always blocked until expiry |
 | `standalone_block_until_ms` | Long | Standalone block expiry epoch ms |
 | `daily_allowance_packages` | String (JSON array) | Apps with once-per-day bypass |
+| `daily_allowance_config` | String (JSON array) | Rich per-app allowance mode config: count, time budget, interval |
 | `daily_allowance_used` | String (JSON object) | Tracks daily allowance usage dates |
 | `blocked_words` | String (JSON array) | Words that trigger home redirect when detected on screen |
+| `block_overlay_wallpaper` | String | Custom overlay wallpaper path or `content://` URI |
 | `pending_notif_action` | String | Notification button action pending replay on app resume |
 | `pending_notif_task_id` | String | Task ID for pending notification action |
 | `pending_notif_minutes` | Int | Minutes value for pending extend action |
@@ -67,6 +69,15 @@ When both task-based focus and standalone block are active simultaneously, enfor
 | `src/components/AllowedAppsModal.tsx` | Picker for allowed apps (task focus) |
 | `src/components/StandaloneBlockModal.tsx` | Picker for blocked apps + date/time expiry (standalone) |
 | `app/(tabs)/settings.tsx` | Settings screen including Block Schedule section |
+| `app/privacy-policy.tsx` | First-launch privacy notice shown before onboarding |
+
+### Current Behavior Notes
+
+- First launch shows the privacy policy before onboarding; acceptance is stored in local settings as `privacyAccepted`.
+- Onboarding includes Appear on Top permission so users can enable the preferred WindowManager overlay path early.
+- Custom block overlay wallpapers can be stored as local file paths or Android `content://` URIs; native overlays decode both.
+- Dismissing or revealing the block overlay stops active aversion effects so vibration/dim/sound do not continue after the overlay is dismissed.
+- Standalone block daily allowances support count, daily time budget, and interval modes from the block modal; native enforcement reads `daily_allowance_config`.
 
 ### Deferred Feature: Full-screen Lock Overlay
 

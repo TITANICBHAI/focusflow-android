@@ -72,6 +72,7 @@ export interface AppSettings {
   pomodoroBreak: number;    // minutes
   notificationsEnabled: boolean;
   onboardingComplete: boolean;
+  privacyAccepted: boolean;
   // Standalone app blocking — independent of any task
   standaloneBlockPackages: string[]; // packages to always block regardless of task state
   standaloneBlockUntil: string | null; // ISO timestamp when the standalone block expires

@@ -67,6 +67,7 @@ Expo Router (app/):
     (tabs)/focus.tsx          ← focus mode control UI
     (tabs)/stats.tsx          ← daily stats
     (tabs)/settings.tsx       ← app settings
+    privacy-policy.tsx        ← first-launch privacy disclosure gate
     onboarding.tsx            ← first-run onboarding
 ```
 
@@ -157,6 +158,11 @@ Expo Router (app/):
 | NEW-013 | 🟡 Medium | Native | `android-native/.../modules/InstalledAppsModule.kt` | **`InstalledAppsModule` has no JS-side wrapper.** Registered in `FocusDayPackage` but `src/native-modules/InstalledAppsModule.ts` does not exist. Any JS code calling `NativeModules.InstalledApps` will crash. Either create the `.ts` wrapper or remove from `FocusDayPackage`. ✅ Wrapper exists at `src/native-modules/InstalledAppsModule.ts`. | - [x] |
 | NEW-014 | 🟡 Medium | UX | `app/(tabs)/settings.tsx` | **`allowedInFocus` list is read-only** (BUG-013 in AUDIT.md confirmed still present). No `TextInput` to add/remove package names. Users cannot customize allowed apps without editing source code. ✅ `AllowedAppsModal` component exists at `src/components/AllowedAppsModal.tsx` with search, installed app list, and manual entry. | - [x] |
 | NEW-015 | 🟡 Medium | Dead Code | `android-native/.../services/ForegroundTaskService.kt:73-80` | **Unreachable pre-API-24 branch.** `minSdkVersion = 26` yet `onStartCommand` guards `stopForeground(STOP_FOREGROUND_REMOVE)` with `if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)` and falls back to `@Suppress("DEPRECATION") stopForeground(true)`. The `else` branch targets API < 24 which can never run on a device meeting the `minSdkVersion = 26` requirement. Remove the `else` branch and the `@Suppress` annotation. ✅ Removed the unreachable else-branch. | - [x] |
+| NEW-030 | 🟡 Medium | Onboarding / Privacy | `app/privacy-policy.tsx` · `app/_layout.tsx` · `src/data/types.ts` · `src/data/database.ts` | **First launch went directly to onboarding without a privacy disclosure gate.** Added `privacyAccepted` local setting and a first-launch privacy policy screen that appears before onboarding. | - [x] |
+| NEW-031 | 🟡 Medium | Permissions | `app/onboarding.tsx` | **Onboarding omitted Appear on Top permission.** Added the overlay permission card and status/action wiring to `ForegroundLaunchModule`. | - [x] |
+| NEW-032 | 🟡 Medium | Overlay Wallpaper | `src/components/OverlayAppearanceModal.tsx` · `BlockOverlayActivity.kt` · `AppBlockerAccessibilityService.kt` | **Android media picker could return `content://` URIs that native overlay code could not decode with `BitmapFactory.decodeFile`.** The picker no longer pre-requests legacy media access; native overlay paths now decode both `file://`/absolute paths and `content://` streams. | - [x] |
+| NEW-033 | 🟡 Medium | Aversions | `BlockOverlayActivity.kt` · `AppBlockerAccessibilityService.kt` | **Aversion effects could continue after overlay dismissal/reveal.** Overlay dismiss and reveal paths now stop all active aversion effects. | - [x] |
+| NEW-034 | 🟡 Medium | Daily Allowance | `src/components/StandaloneBlockModal.tsx` | **Standalone block modal only exposed count allowance controls.** Inline daily allowance configuration now supports count, time budget, and interval modes. Native enforcement already reads `daily_allowance_config`. | - [x] |
 
 ---
 

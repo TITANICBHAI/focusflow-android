@@ -15,7 +15,7 @@
 import '@/tasks/backgroundTasks';
 
 import React, { useEffect, useRef } from 'react';
-import { Stack, router } from 'expo-router';
+import { Stack, router, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -236,13 +236,18 @@ function ThemedStatusBar() {
 
 function OnboardingGuard() {
   const { state } = useApp();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!state.isDbReady) return;
-    if (!state.settings.onboardingComplete) {
-      router.push('/onboarding');
+    if (!state.settings.privacyAccepted) {
+      if (pathname !== '/privacy-policy') router.replace('/privacy-policy');
+      return;
     }
-  }, [state.isDbReady, state.settings.onboardingComplete]);
+    if (!state.settings.onboardingComplete) {
+      if (pathname !== '/onboarding') router.replace('/onboarding');
+    }
+  }, [pathname, state.isDbReady, state.settings.onboardingComplete, state.settings.privacyAccepted]);
 
   return null;
 }
@@ -279,6 +284,7 @@ export default function RootLayout() {
           <BlockedAppOverlay />
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="privacy-policy" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
             <Stack.Screen name="onboarding" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
             <Stack.Screen name="permissions" options={{ headerShown: false }} />
             <Stack.Screen name="+not-found" />

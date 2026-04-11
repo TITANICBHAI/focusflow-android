@@ -19,7 +19,7 @@ import dayjs from 'dayjs';
 import { InstalledAppsModule, InstalledApp } from '@/native-modules/InstalledAppsModule';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
-import type { DailyAllowanceEntry } from '@/data/types';
+import type { DailyAllowanceEntry, AllowanceMode } from '@/data/types';
 
 interface Props {
   visible: boolean;
@@ -29,6 +29,31 @@ interface Props {
   dailyAllowanceEntries?: DailyAllowanceEntry[];
   onSave: (packages: string[], untilMs: number | null, allowanceEntries: DailyAllowanceEntry[]) => void | Promise<void>;
   onClose: () => void;
+}
+
+const ALL_MODES: AllowanceMode[] = ['count', 'time_budget', 'interval'];
+
+const MODE_LABELS: Record<AllowanceMode, string> = {
+  count: 'Count',
+  time_budget: 'Time',
+  interval: 'Interval',
+};
+
+const MODE_ICONS: Record<AllowanceMode, React.ComponentProps<typeof Ionicons>['name']> = {
+  count: 'finger-print-outline',
+  time_budget: 'hourglass-outline',
+  interval: 'timer-outline',
+};
+
+function makeDefaultEntry(packageName: string): DailyAllowanceEntry {
+  return {
+    packageName,
+    mode: 'count',
+    countPerDay: 1,
+    budgetMinutes: 30,
+    intervalMinutes: 5,
+    intervalHours: 1,
+  };
 }
 
 /**
@@ -138,28 +163,31 @@ export function StandaloneBlockModal({
       if (next.has(packageName)) {
         next.delete(packageName);
       } else {
-        next.set(packageName, {
-          packageName,
-          mode: 'count',
-          countPerDay: 1,
-          budgetMinutes: 30,
-          intervalMinutes: 5,
-          intervalHours: 1,
-        });
+        next.set(packageName, makeDefaultEntry(packageName));
       }
       return next;
     });
   };
 
-  const adjustDailyCount = (packageName: string, delta: number) => {
+  const updateDailyEntry = (packageName: string, patch: Partial<DailyAllowanceEntry>) => {
     setDailyEntriesMap((prev) => {
       const next = new Map(prev);
-      const existing = next.get(packageName);
-      if (!existing) return next;
-      const newCount = Math.min(20, Math.max(1, (existing.countPerDay ?? 1) + delta));
-      next.set(packageName, { ...existing, countPerDay: newCount });
+      const existing = next.get(packageName) ?? makeDefaultEntry(packageName);
+      next.set(packageName, { ...existing, ...patch });
       return next;
     });
+  };
+
+  const adjustDailyValue = (
+    packageName: string,
+    field: 'countPerDay' | 'budgetMinutes' | 'intervalMinutes' | 'intervalHours',
+    delta: number,
+    min: number,
+    max: number,
+  ) => {
+    const existing = dailyEntriesMap.get(packageName) ?? makeDefaultEntry(packageName);
+    const nextValue = Math.min(max, Math.max(min, (existing[field] ?? min) + delta));
+    updateDailyEntry(packageName, { [field]: nextValue });
   };
 
   const handleAddManual = () => {
@@ -248,10 +276,97 @@ export function StandaloneBlockModal({
     }
   };
 
+  const allowanceSummary = (entry: DailyAllowanceEntry) => {
+    if (entry.mode === 'time_budget') return `${entry.budgetMinutes ?? 30} min/day`;
+    if (entry.mode === 'interval') return `${entry.intervalMinutes ?? 5} min every ${entry.intervalHours ?? 1}hr`;
+    return `${entry.countPerDay ?? 1}×/day`;
+  };
+
+  const renderDailyControls = (packageName: string) => {
+    const isDaily = dailyAllowed.has(packageName);
+    const dailyEntry = dailyEntriesMap.get(packageName);
+    return (
+      <View style={[styles.dailyRow, { backgroundColor: theme.surface, borderTopColor: theme.border }, isDaily && styles.dailyRowActive]}>
+        <View style={styles.dailyTopLine}>
+          <TouchableOpacity style={styles.dailyToggle} onPress={() => toggleDailyAllowed(packageName)} activeOpacity={0.7}>
+            <Ionicons
+              name={isDaily ? 'sunny' : 'sunny-outline'}
+              size={13}
+              color={isDaily ? COLORS.orange : COLORS.muted}
+            />
+            <Text style={[styles.dailyText, isDaily && styles.dailyTextActive]}>
+              {isDaily ? 'Daily allowance:' : 'Add daily allowance'}
+            </Text>
+          </TouchableOpacity>
+          {isDaily && dailyEntry && (
+            <Text style={styles.dailyCountText}>{allowanceSummary(dailyEntry)}</Text>
+          )}
+        </View>
+        {isDaily && dailyEntry && (
+          <View style={styles.dailyConfig}>
+            <View style={styles.modeRow}>
+              {ALL_MODES.map((mode) => (
+                <TouchableOpacity
+                  key={mode}
+                  style={[styles.modePill, dailyEntry.mode === mode && styles.modePillActive]}
+                  onPress={() => updateDailyEntry(packageName, { mode })}
+                  activeOpacity={0.75}
+                >
+                  <Ionicons
+                    name={MODE_ICONS[mode]}
+                    size={12}
+                    color={dailyEntry.mode === mode ? COLORS.orange : COLORS.muted}
+                  />
+                  <Text style={[styles.modePillText, dailyEntry.mode === mode && styles.modePillTextActive]}>
+                    {MODE_LABELS[mode]}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {dailyEntry.mode === 'count' && (
+              <StepperRow
+                label="Opens per day"
+                value={dailyEntry.countPerDay ?? 1}
+                suffix=""
+                onMinus={() => adjustDailyValue(packageName, 'countPerDay', -1, 1, 20)}
+                onPlus={() => adjustDailyValue(packageName, 'countPerDay', 1, 1, 20)}
+              />
+            )}
+            {dailyEntry.mode === 'time_budget' && (
+              <StepperRow
+                label="Minutes per day"
+                value={dailyEntry.budgetMinutes ?? 30}
+                suffix=" min"
+                onMinus={() => adjustDailyValue(packageName, 'budgetMinutes', -5, 1, 480)}
+                onPlus={() => adjustDailyValue(packageName, 'budgetMinutes', 5, 1, 480)}
+              />
+            )}
+            {dailyEntry.mode === 'interval' && (
+              <>
+                <StepperRow
+                  label="Minutes per window"
+                  value={dailyEntry.intervalMinutes ?? 5}
+                  suffix=" min"
+                  onMinus={() => adjustDailyValue(packageName, 'intervalMinutes', -1, 1, 120)}
+                  onPlus={() => adjustDailyValue(packageName, 'intervalMinutes', 1, 1, 120)}
+                />
+                <StepperRow
+                  label="Window size"
+                  value={dailyEntry.intervalHours ?? 1}
+                  suffix=" hr"
+                  onMinus={() => adjustDailyValue(packageName, 'intervalHours', -1, 1, 24)}
+                  onPlus={() => adjustDailyValue(packageName, 'intervalHours', 1, 1, 24)}
+                />
+              </>
+            )}
+          </View>
+        )}
+      </View>
+    );
+  };
+
   const renderItem = ({ item }: { item: InstalledApp }) => {
     const blocked = selected.has(item.packageName);
-    const isDaily = dailyAllowed.has(item.packageName);
-    const dailyEntry = dailyEntriesMap.get(item.packageName);
     return (
       <View style={styles.rowWrap}>
         <TouchableOpacity style={[styles.row, { backgroundColor: theme.card }]} onPress={() => toggle(item.packageName)} activeOpacity={0.7}>
@@ -273,38 +388,13 @@ export function StandaloneBlockModal({
             {blocked && <Ionicons name="ban" size={13} color="#fff" />}
           </View>
         </TouchableOpacity>
-        {/* Daily allowance row — toggle + inline count stepper when active */}
-        <View style={[styles.dailyRow, { backgroundColor: theme.surface, borderTopColor: theme.border }, isDaily && styles.dailyRowActive]}>
-          <TouchableOpacity style={styles.dailyToggle} onPress={() => toggleDailyAllowed(item.packageName)} activeOpacity={0.7}>
-            <Ionicons
-              name={isDaily ? 'sunny' : 'sunny-outline'}
-              size={13}
-              color={isDaily ? COLORS.orange : COLORS.muted}
-            />
-            <Text style={[styles.dailyText, isDaily && styles.dailyTextActive]}>
-              {isDaily ? 'Daily allowance:' : 'Add daily allowance'}
-            </Text>
-          </TouchableOpacity>
-          {isDaily && dailyEntry && (
-            <View style={styles.dailyStepper}>
-              <TouchableOpacity onPress={() => adjustDailyCount(item.packageName, -1)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="remove-circle-outline" size={18} color={COLORS.orange} />
-              </TouchableOpacity>
-              <Text style={styles.dailyCountText}>{dailyEntry.countPerDay ?? 1}×/day</Text>
-              <TouchableOpacity onPress={() => adjustDailyCount(item.packageName, 1)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="add-circle-outline" size={18} color={COLORS.orange} />
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
+        {renderDailyControls(item.packageName)}
       </View>
     );
   };
 
   const renderManualPackage = (pkg: string) => {
     const blocked = selected.has(pkg);
-    const isDaily = dailyAllowed.has(pkg);
-    const dailyEntry = dailyEntriesMap.get(pkg);
     return (
       <View key={pkg} style={styles.rowWrap}>
         <TouchableOpacity style={[styles.row, { backgroundColor: theme.card }]} onPress={() => toggle(pkg)} activeOpacity={0.7}>
@@ -319,25 +409,7 @@ export function StandaloneBlockModal({
             {blocked && <Ionicons name="ban" size={13} color="#fff" />}
           </View>
         </TouchableOpacity>
-        <View style={[styles.dailyRow, { backgroundColor: theme.surface, borderTopColor: theme.border }, isDaily && styles.dailyRowActive]}>
-          <TouchableOpacity style={styles.dailyToggle} onPress={() => toggleDailyAllowed(pkg)} activeOpacity={0.7}>
-            <Ionicons name={isDaily ? 'sunny' : 'sunny-outline'} size={13} color={isDaily ? COLORS.orange : COLORS.muted} />
-            <Text style={[styles.dailyText, isDaily && styles.dailyTextActive]}>
-              {isDaily ? 'Daily allowance:' : 'Add daily allowance'}
-            </Text>
-          </TouchableOpacity>
-          {isDaily && dailyEntry && (
-            <View style={styles.dailyStepper}>
-              <TouchableOpacity onPress={() => adjustDailyCount(pkg, -1)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="remove-circle-outline" size={18} color={COLORS.orange} />
-              </TouchableOpacity>
-              <Text style={styles.dailyCountText}>{dailyEntry.countPerDay ?? 1}×/day</Text>
-              <TouchableOpacity onPress={() => adjustDailyCount(pkg, 1)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="add-circle-outline" size={18} color={COLORS.orange} />
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
+        {renderDailyControls(pkg)}
       </View>
     );
   };
@@ -513,6 +585,35 @@ export function StandaloneBlockModal({
         />
       </SafeAreaView>
     </Modal>
+  );
+}
+
+function StepperRow({
+  label,
+  value,
+  suffix,
+  onMinus,
+  onPlus,
+}: {
+  label: string;
+  value: number;
+  suffix: string;
+  onMinus: () => void;
+  onPlus: () => void;
+}) {
+  return (
+    <View style={styles.stepperRow}>
+      <Text style={styles.stepperLabel}>{label}</Text>
+      <View style={styles.dailyStepper}>
+        <TouchableOpacity onPress={onMinus} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Ionicons name="remove-circle-outline" size={18} color={COLORS.orange} />
+        </TouchableOpacity>
+        <Text style={styles.dailyCountText}>{value}{suffix}</Text>
+        <TouchableOpacity onPress={onPlus} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Ionicons name="add-circle-outline" size={18} color={COLORS.orange} />
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }
 
@@ -766,11 +867,9 @@ const styles = StyleSheet.create({
     gap: 0,
   },
   dailyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: SPACING.xs,
     paddingHorizontal: SPACING.md,
-    paddingVertical: 5,
+    paddingVertical: SPACING.xs,
     marginTop: -2,
     backgroundColor: COLORS.surface,
     borderBottomLeftRadius: RADIUS.md,
@@ -788,6 +887,12 @@ const styles = StyleSheet.create({
     gap: SPACING.xs,
     flex: 1,
   },
+  dailyTopLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: SPACING.xs,
+  },
   dailyText: {
     fontSize: FONT.xs,
     color: COLORS.muted,
@@ -800,6 +905,49 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.xs,
+  },
+  dailyConfig: {
+    gap: SPACING.xs,
+    paddingTop: 2,
+  },
+  modeRow: {
+    flexDirection: 'row',
+    gap: SPACING.xs,
+  },
+  modePill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.sm,
+    paddingVertical: 5,
+    backgroundColor: COLORS.card,
+  },
+  modePillActive: {
+    borderColor: COLORS.orange,
+    backgroundColor: COLORS.orange + '15',
+  },
+  modePillText: {
+    fontSize: FONT.xs,
+    fontWeight: '700',
+    color: COLORS.muted,
+  },
+  modePillTextActive: {
+    color: COLORS.orange,
+  },
+  stepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: SPACING.sm,
+  },
+  stepperLabel: {
+    flex: 1,
+    fontSize: FONT.xs,
+    color: COLORS.muted,
   },
   dailyCountText: {
     fontSize: FONT.xs,
