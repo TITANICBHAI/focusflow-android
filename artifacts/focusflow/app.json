@@ -94,13 +94,7 @@
           }
         }
       ],
-      "./plugins/withFocusDayAndroid",
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "Allow FocusFlow to access your photos to set a custom block screen wallpaper."
-        }
-      ]
+      "./plugins/withFocusDayAndroid"
     ],
     "experiments": {
       "typedRoutes": true

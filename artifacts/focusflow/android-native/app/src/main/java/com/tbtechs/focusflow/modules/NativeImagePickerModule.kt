@@ -6,7 +6,6 @@ import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import com.facebook.react.bridge.ActivityEventListener
-import com.facebook.react.bridge.BaseActivityEventListener
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
@@ -41,8 +40,8 @@ class NativeImagePickerModule(reactContext: ReactApplicationContext) :
 
     private var pendingPromise: Promise? = null
 
-    private val activityEventListener: ActivityEventListener = object : BaseActivityEventListener() {
-        override fun onActivityResult(activity: Activity?, requestCode: Int, resultCode: Int, data: Intent?) {
+    private val activityEventListener = object : ActivityEventListener {
+        override fun onActivityResult(activity: Activity, requestCode: Int, resultCode: Int, data: Intent?) {
             if (requestCode != REQUEST_PICK_IMAGE) return
             val promise = pendingPromise ?: return
             pendingPromise = null
@@ -53,6 +52,8 @@ class NativeImagePickerModule(reactContext: ReactApplicationContext) :
             val uri: Uri? = data.data
             promise.resolve(uri?.toString())
         }
+
+        override fun onNewIntent(intent: Intent) {}
     }
 
     init {
