@@ -1,0 +1,73 @@
+name: Debug Release (Tag)
+
+# Builds a debug APK and publishes it as a pre-release on GitHub
+# whenever a debug tag is pushed (e.g. v1.0.0-debug).
+# No secrets required.
+#
+# ── How to trigger ────────────────────────────────────────────────────────────
+#   git tag v1.0.0-debug
+#   git push origin v1.0.0-debug
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    tags:
+      - 'v*-debug'
+
+permissions:
+  contents: write
+
+jobs:
+  debug-release:
+    name: Debug APK ${{ github.ref_name }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Create local.properties
+        working-directory: android-native
+        run: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          echo "local.properties written: $(cat local.properties)"
+
+      - name: Build debug APK
+        working-directory: android-native
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false"
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Verify APK was produced
+        run: |
+          APK="android-native/app/build/outputs/apk/debug/app-debug.apk"
+          if [ -f "$APK" ]; then
+            echo "APK built successfully: $(du -sh $APK)"
+          else
+            echo "ERROR: APK not found at $APK" && exit 1
+          fi
+
+      - name: Rename build output
+        run: |
+          cp android-native/app/build/outputs/apk/debug/app-debug.apk \
+             focusflow-${{ github.ref_name }}.apk
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: FocusFlow ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          draft: false
+          prerelease: true
+          generate_release_notes: false
+          body: Debug build — not for production use.
+          files: focusflow-${{ github.ref_name }}.apk
