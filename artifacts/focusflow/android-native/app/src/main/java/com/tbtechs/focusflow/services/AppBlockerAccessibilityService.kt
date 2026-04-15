@@ -86,7 +86,106 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         const val PREF_DAILY_ALLOWANCE_PKGS  = "daily_allowance_packages"  // legacy — no longer written
         const val PREF_DAILY_ALLOWANCE_USED  = "daily_allowance_used"
 
-        const val PREF_BLOCKED_WORDS = "blocked_words"
+        const val PREF_BLOCKED_WORDS   = "blocked_words"
+        const val PREF_BLOCKED_DOMAINS = "blocked_domains"
+        const val PREF_KEYWORD_CATS    = "keyword_categories"
+
+        /** Minimum ms between repeated content-changed keyword checks for the same package. */
+        private const val CONTENT_DEBOUNCE_MS = 1500L
+        /** Minimum ms between repeated text-changed checks for the same package. */
+        private const val TEXT_DEBOUNCE_MS = 800L
+
+        /**
+         * Known accessibility view IDs for the URL/address bar in popular Android browsers.
+         * Used to extract the current URL and match it against the blocked-domains list.
+         */
+        private val BROWSER_URL_BAR_IDS: Map<String, List<String>> = mapOf(
+            "com.android.chrome"              to listOf("com.android.chrome:id/url_bar",
+                                                         "com.android.chrome:id/search_box_text",
+                                                         "com.android.chrome:id/omnibox_text"),
+            "com.chrome.beta"                 to listOf("com.chrome.beta:id/url_bar"),
+            "com.chrome.dev"                  to listOf("com.chrome.dev:id/url_bar"),
+            "com.chrome.canary"               to listOf("com.chrome.canary:id/url_bar"),
+            "org.mozilla.firefox"             to listOf("org.mozilla.firefox:id/mozac_browser_toolbar_url_view",
+                                                         "org.mozilla.firefox:id/url_bar_layout",
+                                                         "org.mozilla.firefox:id/url_edit_text"),
+            "org.mozilla.fenix"               to listOf("org.mozilla.fenix:id/mozac_browser_toolbar_url_view",
+                                                         "org.mozilla.fenix:id/url_bar_layout"),
+            "org.mozilla.focus"               to listOf("org.mozilla.focus:id/mozac_browser_toolbar_url_view"),
+            "com.sec.android.app.sbrowser"    to listOf("com.sec.android.app.sbrowser:id/location_bar_edit_text",
+                                                         "com.sec.android.app.sbrowser:id/sb_url_input_layout"),
+            "com.microsoft.emmx"              to listOf("com.microsoft.emmx:id/address_bar_edit_text",
+                                                         "com.microsoft.emmx:id/url_bar"),
+            "com.opera.browser"               to listOf("com.opera.browser:id/url_field"),
+            "com.opera.mini.native"           to listOf("com.opera.mini.native:id/url_field"),
+            "com.brave.browser"               to listOf("com.brave.browser:id/url_bar",
+                                                         "com.brave.browser:id/url_bar_text"),
+            "com.duckduckgo.mobile.android"   to listOf("com.duckduckgo.mobile.android:id/omnibarTextInput",
+                                                         "com.duckduckgo.mobile.android:id/browserToolbarUrlView"),
+            "com.vivaldi.browser"             to listOf("com.vivaldi.browser:id/url_bar"),
+            "com.kiwibrowser.browser"         to listOf("com.kiwibrowser.browser:id/url_bar"),
+        )
+
+        /** All browser package names — used to decide whether to do URL-bar scanning. */
+        private val KNOWN_BROWSERS: Set<String> = BROWSER_URL_BAR_IDS.keys.toSet()
+
+        /**
+         * Adaptive scan depths for known apps with deeply-nested content.
+         * Default for unlisted apps is 3 (set in containsBlockedWord).
+         */
+        private val ADAPTIVE_SCAN_DEPTHS: Map<String, Int> = mapOf(
+            "com.reddit.frontpage"               to 7,
+            "com.zhiliaoapp.musically"           to 7,  // TikTok
+            "com.instagram.android"              to 6,
+            "com.twitter.android"                to 6,
+            "com.x.android"                      to 6,
+            "com.facebook.katana"                to 6,
+            "com.facebook.lite"                  to 6,
+            "com.snapchat.android"               to 5,
+            "com.google.android.youtube"         to 5,
+            "com.linkedin.android"               to 5,
+            "com.pinterest"                      to 5,
+            "com.tumblr"                         to 5,
+            "com.discord"                        to 6,
+            "org.telegram.messenger"             to 5,
+            "com.telegram.messenger"             to 5,
+            "com.android.chrome"                 to 5,
+            "org.mozilla.firefox"                to 5,
+            "org.mozilla.fenix"                  to 5,
+            "com.microsoft.emmx"                 to 5,
+            "com.sec.android.app.sbrowser"       to 5,
+            "com.brave.browser"                  to 5,
+            "com.duckduckgo.mobile.android"      to 5,
+        )
+
+        /**
+         * Pre-built keyword categories. JS can activate any subset by writing their names
+         * to SharedPrefs key "keyword_categories" as a JSON string array.
+         * These are merged with user-defined blocked_words at runtime.
+         */
+        private val KEYWORD_CATEGORIES: Map<String, List<String>> = mapOf(
+            "social_media"  to listOf("facebook", "instagram", "twitter", "tiktok", "snapchat",
+                                      "reddit", "linkedin", "pinterest", "tumblr", "discord",
+                                      "reels", "stories", "explore", "trending", "fyp",
+                                      "for you", "suggested posts", "share", "like", "follow"),
+            "gambling"      to listOf("bet", "casino", "poker", "slots", "jackpot", "wager",
+                                      "odds", "roulette", "blackjack", "lottery", "bookie",
+                                      "sportsbook", "stake", "spin", "free spins", "bet365"),
+            "adult"         to listOf("onlyfans", "pornhub", "xvideos", "xhamster",
+                                      "nsfw", "nude", "explicit", "18+", "adult content"),
+            "shopping"      to listOf("add to cart", "buy now", "checkout", "flash sale",
+                                      "deal", "discount", "limited offer", "promo code",
+                                      "order now", "best seller", "today only"),
+            "news"          to listOf("breaking news", "headlines", "latest news",
+                                      "top stories", "trending now", "live updates",
+                                      "just in", "developing story"),
+            "gaming"        to listOf("free fire", "pubg", "fortnite", "minecraft", "roblox",
+                                      "clash of clans", "clash royale", "gaming", "twitch",
+                                      "esports", "battle royale", "new match", "squad up"),
+            "entertainment" to listOf("netflix", "watch now", "new episode", "trailer",
+                                      "binge", "season", "now streaming", "hulu", "prime video",
+                                      "disney plus", "autoplay"),
+        )
 
         /** Notification channel used to launch the block overlay via full-screen intent. */
         private const val BLOCK_ALERT_CHANNEL  = "focusday_block_alert"
@@ -243,6 +342,12 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     // Handler for retry re-checks AND timed-allowance expiry — runs on main thread
     private val handler = Handler(Looper.getMainLooper())
 
+    // ── Debounce maps for content-changed / text-changed events ──────────────
+    // Keyed by package name → last-check epoch ms. Prevents scanning the same
+    // app more than once per debounce window on rapidly-firing events.
+    private val contentDebounceMap = HashMap<String, Long>()
+    private val textDebounceMap    = HashMap<String, Long>()
+
     // ── Timed allowance tracking (time_budget / interval modes) ──────────────
     // Tracks the app currently open under a time-limited allowance so we can
     // accumulate usage time when the user switches away to another app.
@@ -256,7 +361,19 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
+        event ?: return
+        when (event.eventType) {
+            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
+                handleContentOrTextChanged(event, debounceMs = CONTENT_DEBOUNCE_MS, debounceMap = contentDebounceMap)
+                return
+            }
+            AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED -> {
+                handleContentOrTextChanged(event, debounceMs = TEXT_DEBOUNCE_MS, debounceMap = textDebounceMap)
+                return
+            }
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> { /* fall through to existing logic */ }
+            else -> return
+        }
 
         val now = System.currentTimeMillis()
 
@@ -444,6 +561,23 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 }
             }
             return
+        }
+
+        // ── URL domain check (browsers, TYPE_WINDOW_STATE_CHANGED) ──────────
+        // Catches the initial page load when a user opens a browser to a blocked domain.
+        // Dynamic navigation is caught by handleContentOrTextChanged above.
+        if ((focusActive || saActive) && KNOWN_BROWSERS.contains(pkg)) {
+            val blockedDomains = getBlockedDomains()
+            if (blockedDomains.isNotEmpty()) {
+                val root = event.source
+                if (root != null) {
+                    val url = try { extractBrowserUrl(root, pkg) } finally { root.recycle() }
+                    if (url != null && isBlockedDomain(url, blockedDomains)) {
+                        handleBlockedApp(pkg)
+                        return
+                    }
+                }
+            }
         }
 
         // ── Word blocking ─────────────────────────────────────────────────────
@@ -1626,38 +1760,160 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
     // ─── Word blocking helpers ────────────────────────────────────────────────
 
+    /**
+     * Returns the merged list of blocked words: user-defined words PLUS any words from
+     * the active keyword categories stored in "keyword_categories" SharedPrefs key.
+     */
     private fun getBlockedWords(): List<String> {
-        val json = prefs.getString(PREF_BLOCKED_WORDS, "[]") ?: "[]"
-        return parseJsonArray(json).map { it.trim() }.filter { it.isNotBlank() }
+        val userWords = run {
+            val json = prefs.getString(PREF_BLOCKED_WORDS, "[]") ?: "[]"
+            parseJsonArray(json).map { it.trim() }.filter { it.isNotBlank() }
+        }
+        val categoryWords = run {
+            val catsJson = prefs.getString(PREF_KEYWORD_CATS, "[]") ?: "[]"
+            parseJsonArray(catsJson).flatMap { cat -> KEYWORD_CATEGORIES[cat] ?: emptyList() }
+        }
+        return (userWords + categoryWords).distinct()
+    }
+
+    /** Returns the list of blocked domain patterns from SharedPreferences. */
+    private fun getBlockedDomains(): List<String> {
+        val json = prefs.getString(PREF_BLOCKED_DOMAINS, "[]") ?: "[]"
+        return parseJsonArray(json).map { it.trim().lowercase() }.filter { it.isNotBlank() }
+    }
+
+    /**
+     * Returns the appropriate node-tree scan depth for [pkg].
+     * Apps with deeply-nested content (social feeds, browsers) use a larger depth
+     * so their feed posts and inline text are scanned. Unknown apps default to 3
+     * to avoid false positives from background list items or notification text.
+     */
+    private fun adaptiveScanDepth(pkg: String): Int = ADAPTIVE_SCAN_DEPTHS[pkg] ?: 3
+
+    /**
+     * Returns true if [url] matches any pattern in [blocked].
+     * Supports exact domain match AND subdomain match (e.g. "reddit.com" blocks "www.reddit.com").
+     * The url may be a full URL (https://...) or just a hostname.
+     */
+    private fun isBlockedDomain(url: String, blocked: List<String>): Boolean {
+        val host = url.removePrefix("https://").removePrefix("http://")
+            .substringBefore("/").substringBefore("?").lowercase().trim()
+        if (host.isBlank()) return false
+        return blocked.any { pattern ->
+            host == pattern || host.endsWith(".$pattern")
+        }
+    }
+
+    /**
+     * Attempts to read the current URL from the address bar of a known browser.
+     * Tries each known view ID for [pkg] in order, returning the first non-blank text found.
+     * Returns null if the URL bar cannot be located or the text is empty.
+     *
+     * NOTE: Caller is responsible for recycling [root] if desired; this method does NOT
+     * recycle nodes returned by findAccessibilityNodeInfosByViewId.
+     */
+    private fun extractBrowserUrl(root: AccessibilityNodeInfo, pkg: String): String? {
+        val viewIds = BROWSER_URL_BAR_IDS[pkg] ?: return null
+        for (viewId in viewIds) {
+            val nodes = try { root.findAccessibilityNodeInfosByViewId(viewId) } catch (_: Exception) { null }
+            if (nodes.isNullOrEmpty()) continue
+            val text = nodes[0].text?.toString()?.trim()
+            nodes.forEach { runCatching { it.recycle() } }
+            if (!text.isNullOrBlank()) return text
+        }
+        return null
+    }
+
+    /**
+     * Handles TYPE_WINDOW_CONTENT_CHANGED and TYPE_VIEW_TEXT_CHANGED events.
+     *
+     * Steps:
+     *  1. Verify a blocking session is active.
+     *  2. Debounce: skip if this package was already checked within [debounceMs].
+     *  3. For browsers: extract the URL bar text and check against blocked domains.
+     *  4. Check on-screen text against the full blocked-words list (adaptive depth).
+     */
+    private fun handleContentOrTextChanged(
+        event: AccessibilityEvent,
+        debounceMs: Long,
+        debounceMap: HashMap<String, Long>
+    ) {
+        val focusActive = prefs.getBoolean(PREF_FOCUS_ON, false)
+        val saActive    = prefs.getBoolean(PREF_SA_ACTIVE, false)
+        if (!focusActive && !saActive) return
+
+        val pkg = event.packageName?.toString() ?: return
+        if (pkg == packageName) return
+        if (NEVER_BLOCK.any { pkg.equals(it, ignoreCase = true) }) return
+        if (ALWAYS_ALLOWED.any { pkg.equals(it, ignoreCase = true) }) return
+
+        // Debounce: don't hammer the same package on every rapid event
+        val now = System.currentTimeMillis()
+        val lastCheck = debounceMap[pkg] ?: 0L
+        if (now - lastCheck < debounceMs) return
+        debounceMap[pkg] = now
+
+        var root: AccessibilityNodeInfo? = null
+        try {
+            root = event.source
+
+            // ── URL-bar domain check (browsers only) ─────────────────────────
+            val blockedDomains = getBlockedDomains()
+            if (blockedDomains.isNotEmpty() && KNOWN_BROWSERS.contains(pkg) && root != null) {
+                val url = extractBrowserUrl(root, pkg)
+                if (url != null && isBlockedDomain(url, blockedDomains)) {
+                    handleBlockedApp(pkg)
+                    return
+                }
+            }
+
+            // ── Keyword / category check (all apps) ──────────────────────────
+            val blockedWords = getBlockedWords()
+            if (blockedWords.isNotEmpty()) {
+                val corpus = buildString {
+                    event.text?.forEach { t -> t?.let { append(it); append(' ') } }
+                    event.contentDescription?.let { append(it); append(' ') }
+                    root?.let { append(collectNodeTextShallow(it, maxDepth = adaptiveScanDepth(pkg))) }
+                }.lowercase()
+                if (corpus.isNotBlank()) {
+                    val hit = blockedWords.any { word ->
+                        Regex("\\b${Regex.escape(word.lowercase())}\\b").containsMatchIn(corpus)
+                    }
+                    if (hit) {
+                        handleBlockedApp(pkg)
+                        return
+                    }
+                }
+            }
+        } finally {
+            root?.recycle()
+        }
     }
 
     /**
      * Returns true if any blocked word appears as a whole word in the event title text
-     * or in the shallow node tree (max 3 levels deep).
+     * or in the node tree up to [adaptiveScanDepth] levels deep.
      *
      * Matching is case-insensitive and whole-word only — prevents "short" from
-     * matching "shortage", "shortage" in shopping apps, etc.
-     *
-     * Node traversal is deliberately depth-limited to avoid picking up deep content
-     * like notification text, search suggestions, or background list items that the
-     * user is not actively viewing, which was the primary source of false positives.
+     * matching "shortage" etc. Depth is now adaptive per app so deep-content apps
+     * (Reddit, Twitter, TikTok) are scanned more thoroughly while low-risk apps
+     * stay at 3 levels to avoid false positives.
      */
     private fun containsBlockedWord(event: AccessibilityEvent, words: List<String>): Boolean {
+        val pkg = event.packageName?.toString() ?: ""
+        val depth = adaptiveScanDepth(pkg)
         val corpus = buildString {
             event.text?.forEach { t -> t?.let { append(it); append(' ') } }
             event.contentDescription?.let { append(it); append(' ') }
-            // Only scan the top 3 levels of the node tree to avoid deep content
-            // (notifications, list item descriptions, background elements).
             event.source?.let { root ->
                 try {
-                    append(collectNodeTextShallow(root, maxDepth = 3))
+                    append(collectNodeTextShallow(root, maxDepth = depth))
                 } finally {
                     root.recycle()
                 }
             }
         }.lowercase()
         if (corpus.isBlank()) return false
-        // Use whole-word matching: wrap the word in word boundaries via regex.
         return words.any { word ->
             val pattern = Regex("\\b${Regex.escape(word.lowercase())}\\b")
             pattern.containsMatchIn(corpus)
