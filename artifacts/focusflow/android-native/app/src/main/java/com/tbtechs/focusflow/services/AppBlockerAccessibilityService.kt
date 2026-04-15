@@ -446,11 +446,6 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             return
         }
 
-        // Google Play Store — uninstall dialogs are always allowed through.
-        if (pkg == "com.android.vending" && (focusActive || saActive) && isUninstallDialog(event)) {
-            return
-        }
-
         // ── Word blocking ─────────────────────────────────────────────────────
         // During any active blocking session, if the current window content contains
         // a user-defined blocked word, show the overlay and redirect immediately.
