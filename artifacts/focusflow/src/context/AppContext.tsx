@@ -118,6 +118,7 @@ const defaultSettings: AppSettings = {
   greyoutSchedule: [],
   overlayWallpaper: '',
   overlayQuotes: [],
+  launcherApps: [],
 };
 
 const initialState: AppState = {

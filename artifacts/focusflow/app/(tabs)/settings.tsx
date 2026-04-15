@@ -25,6 +25,7 @@ import { BlockedWordsModal } from '@/components/BlockedWordsModal';
 import { GreyoutScheduleModal } from '@/components/GreyoutScheduleModal';
 import { WeeklyReportModal } from '@/components/WeeklyReportModal';
 import { OverlayAppearanceModal } from '@/components/OverlayAppearanceModal';
+import { LauncherSetupModal } from '@/components/LauncherSetupModal';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 
 const DURATION_OPTIONS = [30, 45, 60, 90, 120];
@@ -41,6 +42,7 @@ export default function SettingsScreen() {
   const [greyoutModalVisible, setGreyoutModalVisible] = useState(false);
   const [weeklyReportVisible, setWeeklyReportVisible] = useState(false);
   const [overlayAppearanceVisible, setOverlayAppearanceVisible] = useState(false);
+  const [launcherModalVisible, setLauncherModalVisible] = useState(false);
 
   if (!state.isDbReady) {
     return (
@@ -110,6 +112,11 @@ export default function SettingsScreen() {
     if (state.focusSession?.isActive) {
       await SharedPrefsModule.setAllowedPackages(packages);
     }
+  };
+
+  const handleSaveLauncherApps = async (packages: string[]) => {
+    await update({ launcherApps: packages });
+    await SharedPrefsModule.setLauncherApps(packages);
   };
 
   const handleViewReport = () => {
@@ -340,6 +347,20 @@ export default function SettingsScreen() {
           )}
         </Section>
 
+        {/* ── Focus Launcher ── */}
+        <Section title="Focus Launcher">
+          <SettingButton
+            icon="home-outline"
+            label="Manage Launcher Apps"
+            description={
+              (settings.launcherApps ?? []).length === 0
+                ? 'No apps selected — during a block the launcher shows only the permanent dock'
+                : `${(settings.launcherApps ?? []).length} app${(settings.launcherApps ?? []).length !== 1 ? 's' : ''} in launcher grid — Phone, WhatsApp, VLC, Settings always in dock`
+            }
+            onPress={() => setLauncherModalVisible(true)}
+          />
+        </Section>
+
         {/* ── Permissions ── */}
         <Section title="Permissions">
           <SettingButton
@@ -415,6 +436,13 @@ export default function SettingsScreen() {
       <OverlayAppearanceModal
         visible={overlayAppearanceVisible}
         onClose={() => setOverlayAppearanceVisible(false)}
+      />
+
+      <LauncherSetupModal
+        visible={launcherModalVisible}
+        onClose={() => setLauncherModalVisible(false)}
+        currentLauncherApps={settings.launcherApps ?? []}
+        onSave={handleSaveLauncherApps}
       />
     </SafeAreaView>
   );

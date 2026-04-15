@@ -93,6 +93,19 @@ export const SharedPrefsModule = {
     return SharedPrefs.setKeywordCategories(JSON.stringify(categories));
   },
 
+  /**
+   * Writes the user's selected launcher app package list to SharedPreferences.
+   * FocusLauncherActivity reads this to populate its scrollable app grid.
+   * Pinned dock apps (Phone, WhatsApp, VLC, Settings) are always shown
+   * by the launcher regardless of this list.
+   *
+   * @param packages  Array of package name strings the user has selected for the launcher
+   */
+  async setLauncherApps(packages: string[]): Promise<void> {
+    if (!hasSharedPrefsMethod('setLauncherApps')) return;
+    return SharedPrefs.setLauncherApps(packages);
+  },
+
   async putString(key: string, value: string): Promise<void> {
     if (!hasSharedPrefsMethod('putString')) return;
     return SharedPrefs.putString(key, value);

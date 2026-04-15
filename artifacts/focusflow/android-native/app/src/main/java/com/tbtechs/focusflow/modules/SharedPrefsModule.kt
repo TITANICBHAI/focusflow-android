@@ -200,6 +200,28 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
     }
 
     /**
+     * Writes the user's selected launcher app list to SharedPreferences.
+     *
+     * FocusLauncherActivity reads this to populate the scrollable app grid.
+     * Pinned dock apps (Phone, WhatsApp, VLC, Settings) are always shown
+     * by the launcher regardless of this list — this only controls the
+     * user-selected apps shown in the main grid.
+     *
+     * Pass an empty array to clear the grid (only pinned apps will be shown).
+     *
+     * @param packages  ReadableArray of package names selected by the user
+     */
+    @ReactMethod
+    fun setLauncherApps(packages: ReadableArray, promise: Promise) {
+        val list = (0 until packages.size()).map { "\"${packages.getString(it)}\"" }
+        val json = "[${list.joinToString(",")}]"
+        prefs().edit()
+            .putString("launcher_apps", json)
+            .apply()
+        promise.resolve(null)
+    }
+
+    /**
      * Generic key/value string setter — lets JS write arbitrary overlay config keys
      * (e.g. block_overlay_wallpaper, block_overlay_quotes) directly to SharedPreferences
      * without needing a dedicated typed method for each one.

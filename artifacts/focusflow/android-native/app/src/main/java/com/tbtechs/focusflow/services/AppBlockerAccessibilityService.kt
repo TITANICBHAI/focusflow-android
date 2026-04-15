@@ -438,6 +438,36 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // not mistake it for "the blocked app has left" and reveal the X early.
         if (pkg == packageName) return
 
+        // ── Power menu suppression (GlobalActionsDialog) ──────────────────────
+        // During ANY active block session (task focus OR standalone), dismiss
+        // the Android power menu the instant it appears by pressing BACK.
+        //
+        // This prevents the user from rebooting or powering off the device to
+        // bypass an active focus session.  The power menu appears as a window
+        // event from com.android.systemui with a class name that contains
+        // "GlobalActions" or "globalactions" (OEM-specific class naming varies).
+        //
+        // Emergency carve-out: if the telephony stack reports an active or
+        // ringing call (OFFHOOK / RINGING), we leave the power menu alone so
+        // the user can reboot during a genuine emergency.
+        if ((focusActive || saActive) && pkg == "com.android.systemui") {
+            val className = event.className?.toString() ?: ""
+            val isPowerMenu = className.contains("globalactions", ignoreCase = true) ||
+                              className.contains("GlobalActionsDialog", ignoreCase = false) ||
+                              className.contains("PowerMenuDialog", ignoreCase = false)
+            if (isPowerMenu) {
+                val tm = getSystemService(android.content.Context.TELEPHONY_SERVICE)
+                    as? android.telephony.TelephonyManager
+                val isOnCall = tm != null &&
+                    (tm.callState == android.telephony.TelephonyManager.CALL_STATE_OFFHOOK ||
+                     tm.callState == android.telephony.TelephonyManager.CALL_STATE_RINGING)
+                if (!isOnCall) {
+                    performGlobalAction(GLOBAL_ACTION_BACK)
+                }
+                return
+            }
+        }
+
         // ── Overlay X-button: signal when the blocked app leaves foreground ──
         // When the AccessibilityService presses HOME after blocking, the next
         // window event from a different package means the user is back at the
