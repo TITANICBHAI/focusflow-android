@@ -6,6 +6,7 @@ import android.content.SharedPreferences
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -19,7 +20,6 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import com.tbtechs.focusflow.MainActivity
 import org.json.JSONArray
-import java.io.File
 
 /**
  * BlockOverlayActivity
@@ -226,12 +226,15 @@ class BlockOverlayActivity : Activity() {
         // the system (home screen) wallpaper so the overlay never shows a bare
         // gradient when the user hasn't picked a custom image.
         val wallpaperPath = prefs.getString("block_overlay_wallpaper", "") ?: ""
-        val customFile = File(wallpaperPath)
-        if (wallpaperPath.isNotEmpty() && customFile.exists()) {
+        if (wallpaperPath.isNotEmpty()) {
             // User has set a custom overlay image — use it at 82 % opacity so the
             // dark scrim below still keeps text readable.
             try {
-                val bmp = BitmapFactory.decodeFile(wallpaperPath)
+                val bmp = if (wallpaperPath.startsWith("content://")) {
+                    contentResolver.openInputStream(Uri.parse(wallpaperPath))?.use { BitmapFactory.decodeStream(it) }
+                } else {
+                    BitmapFactory.decodeFile(wallpaperPath.removePrefix("file://"))
+                }
                 if (bmp != null) {
                     root.addView(ImageView(this).apply {
                         layoutParams = FrameLayout.LayoutParams(
@@ -390,6 +393,7 @@ class BlockOverlayActivity : Activity() {
 
     private fun dismissOverlay() {
         intentionalFinish = true
+        AversiveActionsManager.stopAll(applicationContext)
         prefs.edit()
             .putBoolean(PREF_OVERLAY_X_READY, false)
             // Tell the accessibility service to reset its cooldown so the next

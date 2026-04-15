@@ -13,6 +13,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.net.VpnService
 import android.os.Build
 import android.os.Handler
@@ -442,11 +443,6 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                     return
                 }
             }
-            return
-        }
-
-        // Google Play Store — uninstall dialogs are always allowed through.
-        if (pkg == "com.android.vending" && (focusActive || saActive) && isUninstallDialog(event)) {
             return
         }
 
@@ -1318,10 +1314,13 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
         // ── Wallpaper / system wallpaper background ───────────────────────────
         val wallpaperPath = prefs.getString("block_overlay_wallpaper", "") ?: ""
-        val customFile = java.io.File(wallpaperPath)
-        if (wallpaperPath.isNotEmpty() && customFile.exists()) {
+        if (wallpaperPath.isNotEmpty()) {
             try {
-                val bmp = BitmapFactory.decodeFile(wallpaperPath)
+                val bmp = if (wallpaperPath.startsWith("content://")) {
+                    contentResolver.openInputStream(Uri.parse(wallpaperPath))?.use { BitmapFactory.decodeStream(it) }
+                } else {
+                    BitmapFactory.decodeFile(wallpaperPath.removePrefix("file://"))
+                }
                 if (bmp != null) root.addView(ImageView(this).apply {
                     layoutParams = FrameLayout.LayoutParams(
                         FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
@@ -1478,6 +1477,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
     /** Removes the WindowManager overlay view if one is currently showing. */
     private fun dismissWindowOverlay() {
+        AversiveActionsManager.stopAll(this)
         val view = wOverlayView ?: return
         try {
             getSystemService(WindowManager::class.java)?.removeView(view)
@@ -1492,6 +1492,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     private fun revealWindowXButton() {
         if (wOverlayXRevealed) return
         wOverlayXRevealed = true
+        AversiveActionsManager.stopAll(this)
         handler.post {
             // ✕ close button
             wOverlayXBtn?.let { btn ->

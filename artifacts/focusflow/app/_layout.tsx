@@ -15,13 +15,13 @@
 import '@/tasks/backgroundTasks';
 
 import React, { useEffect, useRef } from 'react';
-import { Stack, router } from 'expo-router';
+import { Stack, router, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Notifications from 'expo-notifications';
-import { StyleSheet, View, Text, Animated } from 'react-native';
+import { StyleSheet, View, Text, Animated, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONT, SPACING } from '@/styles/theme';
 
@@ -92,6 +92,7 @@ Notifications.addNotificationReceivedListener(async (notification) => {
 
 // ─── 7. Notification action categories ───────────────────────────────────────
 async function setupNotificationCategories() {
+  if (Platform.OS === 'web' || typeof Notifications.setNotificationCategoryAsync !== 'function') return;
   await Notifications.setNotificationCategoryAsync('task-active', [
     {
       identifier: 'COMPLETE',
@@ -166,14 +167,18 @@ function AppSplashOverlay() {
 
   // Fade out when DB is ready
   useEffect(() => {
-    if (state.isDbReady) {
+    if (state.isDbReady || !state.isLoading) {
+      if (Platform.OS === 'web') {
+        setVisible(false);
+        return;
+      }
       Animated.timing(opacity, {
         toValue: 0,
         duration: 400,
         useNativeDriver: true,
       }).start(() => setVisible(false));
     }
-  }, [state.isDbReady, opacity]);
+  }, [state.isDbReady, state.isLoading, opacity]);
 
   if (!visible) return null;
 
@@ -236,13 +241,18 @@ function ThemedStatusBar() {
 
 function OnboardingGuard() {
   const { state } = useApp();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!state.isDbReady) return;
-    if (!state.settings.onboardingComplete) {
-      router.push('/onboarding');
+    if (!state.settings.privacyAccepted) {
+      if (pathname !== '/privacy-policy') router.replace('/privacy-policy');
+      return;
     }
-  }, [state.isDbReady, state.settings.onboardingComplete]);
+    if (!state.settings.onboardingComplete) {
+      if (pathname !== '/onboarding') router.replace('/onboarding');
+    }
+  }, [pathname, state.isDbReady, state.settings.onboardingComplete, state.settings.privacyAccepted]);
 
   return null;
 }
@@ -252,19 +262,22 @@ function OnboardingGuard() {
 export default function RootLayout() {
   useEffect(() => {
     async function bootstrap() {
-      await setupNotificationCategories();
-      await registerBackgroundFetch();
-      await registerOverrunCheckTask();
-      consumePendingTaskNavigation();
-
       try {
-        const { ForegroundServiceModule } = await import('@/native-modules/ForegroundServiceModule');
-        await ForegroundServiceModule.requestBatteryOptimizationExemption();
-      } catch {
-        // Native module not yet linked (dev build without EAS)
-      }
+        await SplashScreen.hideAsync().catch(() => {});
+        await setupNotificationCategories();
+        await registerBackgroundFetch();
+        await registerOverrunCheckTask();
+        consumePendingTaskNavigation();
 
-      setTimeout(() => SplashScreen.hideAsync().catch(() => {}), 400);
+        try {
+          const { ForegroundServiceModule } = await import('@/native-modules/ForegroundServiceModule');
+          await ForegroundServiceModule.requestBatteryOptimizationExemption();
+        } catch {
+          // Native module not yet linked (dev build without EAS)
+        }
+      } finally {
+        setTimeout(() => SplashScreen.hideAsync().catch(() => {}), 400);
+      }
     }
 
     bootstrap();
@@ -279,6 +292,7 @@ export default function RootLayout() {
           <BlockedAppOverlay />
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="privacy-policy" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
             <Stack.Screen name="onboarding" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
             <Stack.Screen name="permissions" options={{ headerShown: false }} />
             <Stack.Screen name="+not-found" />

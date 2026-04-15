@@ -132,6 +132,7 @@ export default function FocusScreen() {
           visible={blockModalVisible}
           blockedPackages={settings.standaloneBlockPackages ?? []}
           blockUntil={settings.standaloneBlockUntil}
+          locked={standaloneActive}
           dailyAllowanceEntries={settings.dailyAllowanceEntries ?? []}
           onSave={async (packages, untilMs, allowanceEntries) => {
             await setStandaloneBlockAndAllowance(packages, untilMs, allowanceEntries);
@@ -334,31 +335,6 @@ export default function FocusScreen() {
         </View>
       )}
 
-      {/* Block Schedule card */}
-      <TouchableOpacity
-        style={[styles.blockScheduleBtn, { backgroundColor: theme.card, borderColor: theme.border }, standaloneActive && styles.blockScheduleBtnActive, { marginHorizontal: SPACING.lg, marginBottom: SPACING.md }]}
-        onPress={() => setBlockModalVisible(true)}
-        activeOpacity={0.8}
-      >
-        <Ionicons
-          name={standaloneActive ? 'ban' : 'ban-outline'}
-          size={18}
-          color={standaloneActive ? COLORS.red : COLORS.primary}
-        />
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.blockScheduleBtnText, { color: theme.text }, standaloneActive && { color: COLORS.red }]}>
-            {standaloneActive ? 'Block Schedule Active' : 'Set Block Schedule'}
-          </Text>
-          {standaloneActive && settings.standaloneBlockUntil && (
-            <Text style={[styles.blockScheduleBtnDesc, { color: theme.textSecondary }]}>
-              {(settings.standaloneBlockPackages ?? []).length} apps blocked until{' '}
-              {dayjs(settings.standaloneBlockUntil).format('MMM D [at] h:mm A')}
-            </Text>
-          )}
-        </View>
-        <Ionicons name="chevron-forward" size={16} color={theme.border} />
-      </TouchableOpacity>
-
         <View style={{ height: 60 + insets.bottom + 20 }} />
       </ScrollView>
 
@@ -366,6 +342,7 @@ export default function FocusScreen() {
         visible={blockModalVisible}
         blockedPackages={settings.standaloneBlockPackages ?? []}
         blockUntil={settings.standaloneBlockUntil}
+        locked={standaloneActive}
         dailyAllowanceEntries={settings.dailyAllowanceEntries ?? []}
         onSave={async (packages, untilMs, allowanceEntries) => {
           await setStandaloneBlockAndAllowance(packages, untilMs, allowanceEntries);

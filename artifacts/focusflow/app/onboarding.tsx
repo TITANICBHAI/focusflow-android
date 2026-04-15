@@ -26,12 +26,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
-import * as ImagePicker from 'expo-image-picker';
+import { NativeImagePickerModule } from '@/native-modules/NativeImagePickerModule';
 import { useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/useTheme';
 import { requestPermissions } from '@/services/notificationService';
 import { ForegroundServiceModule } from '@/native-modules/ForegroundServiceModule';
 import { UsageStatsModule } from '@/native-modules/UsageStatsModule';
+import { ForegroundLaunchModule } from '@/native-modules/ForegroundLaunchModule';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 
 type PermStatus = 'granted' | 'denied' | 'unknown';
@@ -93,6 +94,20 @@ const PERMISSIONS: PermItem[] = [
     grantAction: 'auto',
   },
   {
+    id: 'overlay',
+    icon: 'layers-outline',
+    title: 'Appear on Top',
+    description: 'Draws the block screen directly over blocked apps.',
+    whyNeeded:
+      'This lets FocusFlow cover blocked apps instantly without briefly showing the app underneath.',
+    brokenWithout: [
+      'Block overlay opens inside FocusFlow instead of directly over the blocked app',
+      'A brief flash of the blocked app may appear before redirect',
+    ],
+    deepLinkLabel: 'Enable Appear on Top',
+    grantAction: 'manual',
+  },
+  {
     id: 'usage',
     icon: 'analytics-outline',
     title: 'Usage Access',
@@ -128,8 +143,8 @@ async function checkStatus(id: string): Promise<PermStatus> {
   try {
     switch (id) {
       case 'media': {
-        const { status } = await ImagePicker.getMediaLibraryPermissionsAsync();
-        return status === 'granted' ? 'granted' : 'denied';
+        const granted = await NativeImagePickerModule.checkMediaPermission();
+        return granted ? 'granted' : 'denied';
       }
       case 'notifications': {
         const { status } = await Notifications.getPermissionsAsync();
@@ -145,6 +160,10 @@ async function checkStatus(id: string): Promise<PermStatus> {
       }
       case 'accessibility': {
         const ok = await UsageStatsModule.hasAccessibilityPermission();
+        return ok ? 'granted' : 'denied';
+      }
+      case 'overlay': {
+        const ok = await ForegroundLaunchModule.hasOverlayPermission();
         return ok ? 'granted' : 'denied';
       }
       default:
@@ -192,8 +211,8 @@ export default function OnboardingScreen() {
     setActionLoading(perm.id);
     try {
       if (perm.id === 'media') {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        setStatuses((prev) => ({ ...prev, media: status === 'granted' ? 'granted' : 'denied' }));
+        const granted = await NativeImagePickerModule.requestMediaPermission();
+        setStatuses((prev) => ({ ...prev, media: granted ? 'granted' : 'denied' }));
       } else if (perm.id === 'notifications') {
         const granted = await requestPermissions();
         setStatuses((prev) => ({ ...prev, notifications: granted ? 'granted' : 'denied' }));
@@ -209,6 +228,8 @@ export default function OnboardingScreen() {
         }
       } else if (perm.id === 'accessibility') {
         await UsageStatsModule.openAccessibilitySettings();
+      } else if (perm.id === 'overlay') {
+        await ForegroundLaunchModule.requestOverlayPermission();
       }
     } catch {
       try {
@@ -224,7 +245,7 @@ export default function OnboardingScreen() {
 
   const handleFinish = async () => {
     await updateSettings({ ...state.settings, onboardingComplete: true });
-    router.back();
+    router.replace('/');
   };
 
   return (
