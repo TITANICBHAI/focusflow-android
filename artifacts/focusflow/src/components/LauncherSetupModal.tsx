@@ -43,10 +43,15 @@ interface InstalledApp {
 
 // Packages permanently pinned to the dock — always shown, cannot be removed.
 const PINNED_PKGS = new Set([
-  // ── Phone / Dialer (all major brands) ─────────────────────────────────────
-  'com.google.android.dialer',        // Pixel / stock Android
-  'com.android.dialer',               // AOSP (Nokia, Sony, LG, etc.)
-  'com.samsung.android.app.telephonyui', // Samsung One UI
+  // ── Phone / Dialer (confirmed + all major brands) ─────────────────────────
+  'com.samsung.crane',                // Samsung Phone (confirmed from device)
+  'com.samsung.android.dialer',       // Samsung Phone alternate (confirmed)
+  'com.samsung.android.app.telephonyui', // Samsung One UI telephony
+  'com.android.dialer',               // AOSP / stock Android
+  'com.google.android.dialer',        // Pixel
+  'com.android.phone',                // Android Phone services (confirmed)
+  'com.android.server.telecom',       // Android Phone calls (confirmed)
+  'com.android.providers.telephony',  // Phone & Messaging Storage (confirmed)
   'com.miui.dialer',                  // Xiaomi / MIUI
   'com.oneplus.dialer',               // OnePlus OxygenOS
   'com.coloros.dialer',               // Oppo / Realme ColorOS
@@ -56,11 +61,11 @@ const PINNED_PKGS = new Set([
   'com.asus.contacts',                // Asus ROG / Zenfone
   'com.transsion.contacts',           // Tecno / Infinix / Itel
 
-  // ── WhatsApp ──────────────────────────────────────────────────────────────
+  // ── WhatsApp (confirmed from device) ─────────────────────────────────────
   'com.whatsapp',
   'com.whatsapp.w4b',                 // WhatsApp Business
 
-  // ── VLC ───────────────────────────────────────────────────────────────────
+  // ── VLC (confirmed from device) ───────────────────────────────────────────
   'org.videolan.vlc',
   'org.videolan.vlc.betav',
 
@@ -68,22 +73,19 @@ const PINNED_PKGS = new Set([
   'com.android.settings',
   'com.samsung.android.app.settings',
   'com.miui.settings',
-  'com.coloros.settings',             // Oppo / Realme
+  'com.coloros.settings',
   'com.vivo.settings',
   'com.huawei.systemmanager',
   'com.asus.settings',
 
-  // ── Education: Allen ─────────────────────────────────────────────────────
-  'in.allen.online',
-  'in.allen.parent',
+  // ── Education: ALLEN (confirmed from device) ──────────────────────────────
+  'digital.allen.study',
 
-  // ── Education: Physics Wallah (PW) ────────────────────────────────────────
-  'com.physicswallah.live',
-  'com.pw.live',
+  // ── Education: Physics Wallah / PW (confirmed from device) ───────────────
+  'xyz.penpencil.physicswala',
 
-  // ── Education: Gurukripa / GCI ────────────────────────────────────────────
-  'in.schoollog.testseries.gcisikar', // Gurukripa e-Learning (student app)
-  'com.gurukripa.publicapp',          // Gurukripa Parent App
+  // ── Education: Gurukripa / GCI (confirmed from device) ────────────────────
+  'com.gurukripa.publicapp',
 ]);
 
 // ─── Component ────────────────────────────────────────────────────────────────
