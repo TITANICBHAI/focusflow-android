@@ -365,8 +365,8 @@ export default function SettingsScreen() {
             label="Manage Launcher Apps"
             description={
               (settings.launcherApps ?? []).length === 0
-                ? 'Choose which apps appear in the launcher grid during a block'
-                : `${(settings.launcherApps ?? []).length} app${(settings.launcherApps ?? []).length !== 1 ? 's' : ''} in grid — Phone, WhatsApp, VLC, Settings always in dock`
+                ? 'Choose which apps appear in the grid — once a block starts you can only remove, not add'
+                : `${(settings.launcherApps ?? []).length} app${(settings.launcherApps ?? []).length !== 1 ? 's' : ''} in grid — add apps before starting a block, remove any time`
             }
             onPress={() => setLauncherModalVisible(true)}
           />

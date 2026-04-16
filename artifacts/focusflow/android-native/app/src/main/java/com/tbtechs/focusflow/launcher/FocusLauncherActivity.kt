@@ -350,12 +350,17 @@ class FocusLauncherActivity : Activity() {
     }
 
     private fun updateBlockUI() {
-        // In locked state: hide All Apps and Edit Grid; show lock banner
-        val unlocked = !isBlocked
-        allAppsBtn.visibility = if (unlocked) View.VISIBLE else View.GONE
-        editBtn.visibility    = if (unlocked) View.VISIBLE else View.GONE
+        // All Apps only available when unlocked
+        allAppsBtn.visibility = if (!isBlocked) View.VISIBLE else View.GONE
 
+        // Edit Grid is ALWAYS visible, but its label changes:
+        //   Unlocked → "⚙  Edit Grid"  (add or remove)
+        //   Locked   → "✕  Remove Apps" (remove-only)
+        editBtn.visibility = View.VISIBLE
         if (isBlocked) {
+            editBtn.text = "✕  Remove Apps"
+            editBtn.setTextColor(LOCKED_COLOR)
+
             val untilMs = maxOf(
                 prefs.getLong("task_end_ms", 0L),
                 prefs.getLong("standalone_block_until_ms", 0L)
@@ -369,6 +374,8 @@ class FocusLauncherActivity : Activity() {
             statusBadge.text       = label
             statusBadge.visibility = View.VISIBLE
         } else {
+            editBtn.text = "⚙  Edit Grid"
+            editBtn.setTextColor(TEXT_SECONDARY)
             statusBadge.visibility = View.GONE
         }
     }
@@ -465,40 +472,85 @@ class FocusLauncherActivity : Activity() {
         dialog.show()
     }
 
-    // ─── Curated-grid app picker (UNLOCKED only) ──────────────────────────────
+    // ─── App grid editor ──────────────────────────────────────────────────────
+    //
+    //   UNLOCKED: full add + remove (all installed apps shown, any can be toggled)
+    //   LOCKED:   remove-only — only currently-selected apps are shown, and they
+    //             can only be unchecked (not new ones checked in)
 
     private fun showAppPicker() {
-        if (isBlocked) return
+        val pm           = packageManager
+        val pinnedPkgSet = pinnedApps.map { it.packageName }.toSet()
+        val currentPkgs  = parseJsonArray(prefs.getString(KEY_LAUNCHER_APPS, "[]") ?: "[]").toMutableSet()
 
-        val pm          = packageManager
-        val all         = pm.getInstalledApplications(PackageManager.GET_META_DATA)
-            .filter { pm.getLaunchIntentForPackage(it.packageName) != null }
-            .mapNotNull { info ->
-                val label = pm.getApplicationLabel(info).toString()
-                AppInfo(label, info.packageName, pm.getApplicationIcon(info))
-            }
-            .sortedBy { it.label.lowercase(Locale.getDefault()) }
+        // Which apps to display in the list depends on lock state:
+        //   Unlocked → every launchable app (minus pinned dock apps)
+        //   Locked   → only the apps already in the grid (so user can only uncheck)
+        val candidateApps: List<AppInfo> = if (!isBlocked) {
+            pm.getInstalledApplications(PackageManager.GET_META_DATA)
+                .filter { pm.getLaunchIntentForPackage(it.packageName) != null }
+                .mapNotNull { info ->
+                    val label = pm.getApplicationLabel(info).toString()
+                    val icon  = try { pm.getApplicationIcon(info) } catch (_: Exception) { return@mapNotNull null }
+                    AppInfo(label, info.packageName, icon)
+                }
+                .filter { it.packageName !in pinnedPkgSet }
+                .sortedBy { it.label.lowercase(Locale.getDefault()) }
+        } else {
+            // Locked: only show apps already in the grid
+            userApps.filter { it.packageName !in pinnedPkgSet }
+                .sortedBy { it.label.lowercase(Locale.getDefault()) }
+        }
 
-        val pinnedPkgSet   = pinnedApps.map { it.packageName }.toSet()
-        val currentPkgs    = parseJsonArray(prefs.getString(KEY_LAUNCHER_APPS, "[]") ?: "[]").toMutableSet()
-        val filteredApps   = all.filter { it.packageName !in pinnedPkgSet }
-        val labels         = filteredApps.map { it.label }.toTypedArray()
-        val checked        = filteredApps.map { it.packageName in currentPkgs }.toBooleanArray()
-        val selected       = checked.toMutableList()
+        if (candidateApps.isEmpty()) {
+            android.widget.Toast.makeText(
+                this,
+                if (isBlocked) "No apps in your grid to remove." else "No apps found.",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
 
-        AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
-            .setTitle("Select Grid Apps")
+        val labels   = candidateApps.map { it.label }.toTypedArray()
+        val checked  = candidateApps.map { it.packageName in currentPkgs }.toBooleanArray()
+        val selected = checked.toMutableList()
+
+        val title = if (isBlocked) "Remove Apps from Grid" else "Edit Grid Apps"
+
+        val builder = AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+            .setTitle(title)
             .setMultiChoiceItems(labels, checked) { _, which, isChecked ->
-                selected[which] = isChecked
+                if (isBlocked && isChecked) {
+                    // During lock: silently refuse to add; keep it unchecked.
+                    // The dialog doesn't expose a direct way to set the check state here,
+                    // so we revert immediately in onDismiss via the saved `selected` list.
+                    selected[which] = false
+                } else {
+                    selected[which] = isChecked
+                }
             }
             .setPositiveButton("Save") { _, _ ->
-                val newPkgs = filteredApps.indices
+                val newPkgs = candidateApps.indices
                     .filter { selected[it] }
-                    .map { filteredApps[it].packageName }
-                saveSelectedApps(newPkgs)
+                    .map { candidateApps[it].packageName }
+
+                if (isBlocked) {
+                    // Merge: keep any existing app that isn't in candidateApps
+                    // (i.e., items the locked list didn't show), then add what's still checked.
+                    val shown     = candidateApps.map { it.packageName }.toSet()
+                    val untouched = currentPkgs.filter { it !in shown }
+                    saveSelectedApps(untouched + newPkgs)
+                } else {
+                    saveSelectedApps(newPkgs)
+                }
             }
             .setNegativeButton("Cancel", null)
-            .show()
+
+        if (isBlocked) {
+            builder.setMessage("You can only remove apps while a block is active.")
+        }
+
+        builder.show()
     }
 
     private fun saveSelectedApps(packages: List<String>) {
