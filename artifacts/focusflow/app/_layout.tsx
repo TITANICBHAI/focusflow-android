@@ -180,6 +180,19 @@ function AppSplashOverlay() {
     }
   }, [state.isDbReady, state.isLoading, opacity]);
 
+  // Hard failsafe: dismiss the splash after 10 s no matter what.
+  // Prevents permanent stuck-on-splash if any native initialisation hangs.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (!visible) return;
+      Animated.timing(opacity, { toValue: 0, duration: 300, useNativeDriver: true }).start(
+        () => setVisible(false)
+      );
+    }, 10_000);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   if (!visible) return null;
 
   return (

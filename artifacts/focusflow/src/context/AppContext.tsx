@@ -202,15 +202,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         console.warn('[AppContext] notification permission request failed', e);
       }
 
-      try {
-        await ForegroundServiceModule.startIdleService();
-      } catch (e) {
-        console.warn('[AppContext] idle foreground service start failed', e);
-      }
-
+      // DB ready FIRST — never gate the splash dismissal on the native service start.
+      // The service start is fire-and-forget after this point.
       const settings = await withTimeout(dbGetSettings(), 8000, defaultSettings);
       dispatch({ type: 'SET_SETTINGS', payload: settings });
       dispatch({ type: 'SET_DB_READY' });
+
+      // Start the foreground service AFTER the splash is cleared.
+      // Wrapped in withTimeout so a hung native Promise can never re-freeze the app.
+      withTimeout(ForegroundServiceModule.startIdleService(), 5000, undefined).catch((e) => {
+        console.warn('[AppContext] idle foreground service start failed', e);
+      });
 
       // Re-apply standalone block from persisted settings on startup.
       await _syncStandaloneBlock(settings);
