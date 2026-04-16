@@ -66,6 +66,11 @@ export const SharedPrefsModule = {
     return SharedPrefs.setBlockedWords(words);
   },
 
+  async setSystemGuardEnabled(enabled: boolean): Promise<void> {
+    if (!hasSharedPrefsMethod('setSystemGuardEnabled')) return;
+    return SharedPrefs.setSystemGuardEnabled(enabled);
+  },
+
   async putString(key: string, value: string): Promise<void> {
     if (!hasSharedPrefsMethod('putString')) return;
     return SharedPrefs.putString(key, value);

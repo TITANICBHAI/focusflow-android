@@ -71,6 +71,9 @@ export default function SettingsScreen() {
     ? dayjs(settings.standaloneBlockUntil).format('MMM D [at] h:mm A')
     : null;
 
+  const focusActive = state.focusSession?.isActive === true;
+  const blockProtectionActive = focusActive || standaloneActive;
+
   const handleSaveStandaloneBlock = async (packages: string[], untilMs: number | null, allowanceEntries: DailyAllowanceEntry[]) => {
     await setStandaloneBlockAndAllowance(packages, untilMs, allowanceEntries);
   };
@@ -114,6 +117,17 @@ export default function SettingsScreen() {
 
   const handleViewReport = () => {
     setWeeklyReportVisible(true);
+  };
+
+  const handleSystemGuardToggle = async (enabled: boolean) => {
+    if (!enabled && blockProtectionActive) {
+      Alert.alert(
+        'Protection is active',
+        'System controls protection cannot be turned off while Focus Mode or an app block is active.',
+      );
+      return;
+    }
+    await update({ systemGuardEnabled: enabled });
   };
 
   return (
@@ -235,6 +249,25 @@ export default function SettingsScreen() {
             }
             onPress={() => setWordsModalVisible(true)}
           />
+        </Section>
+
+        <Section title="System Protection">
+          <SettingRow
+            label="Protect system controls"
+            description={
+              blockProtectionActive
+                ? 'Locked on until Focus Mode or the active app block ends'
+                : 'Blocks power menu, notification shade, blocked words, and sensitive Settings pages during active blocks'
+            }
+          >
+            <Switch
+              value={settings.systemGuardEnabled ?? true}
+              onValueChange={handleSystemGuardToggle}
+              disabled={blockProtectionActive && (settings.systemGuardEnabled ?? true)}
+              trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
+              thumbColor={(settings.systemGuardEnabled ?? true) ? COLORS.primary : COLORS.muted}
+            />
+          </SettingRow>
         </Section>
 
         {/* ── Greyout Schedule ── */}
@@ -383,7 +416,7 @@ export default function SettingsScreen() {
         </Section>
 
         <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: theme.muted }]}>FocusFlow v1.0.0</Text>
+          <Text style={[styles.footerText, { color: theme.muted }]}>FocusFlow c1.0.3</Text>
           <Text style={[styles.footerText, { color: theme.muted }]}>All data stored locally on device</Text>
         </View>
       </ScrollView>

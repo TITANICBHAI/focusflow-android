@@ -87,6 +87,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         const val PREF_DAILY_ALLOWANCE_USED  = "daily_allowance_used"
 
         const val PREF_BLOCKED_WORDS = "blocked_words"
+        const val PREF_SYSTEM_GUARD_ENABLED = "system_guard_enabled"
 
         /** Notification channel used to launch the block overlay via full-screen intent. */
         private const val BLOCK_ALERT_CHANNEL  = "focusday_block_alert"
@@ -113,6 +114,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             "com.sec.android.app.launcher",          // Samsung One UI
             "com.samsung.android.app.launcher",
             "com.samsung.android.incallui",          // Samsung call screen
+            "com.samsung.android.app.powerkey",
             "com.google.android.apps.nexuslauncher", // Pixel
             "com.android.launcher3",                 // AOSP
             "com.android.launcher",
@@ -125,6 +127,10 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             "com.android.phone",
             "com.android.dialer",
             "com.google.android.dialer",
+            "com.samsung.crane",
+            "com.samsung.android.dialer",
+            "com.android.providers.telephony",
+            "com.android.server.telecom",
             "com.samsung.android.app.telephonyui",
             // Settings (user must be able to reach FocusFlow settings to stop the session)
             // Specific dangerous sub-pages are blocked via content inspection below.
@@ -147,9 +153,13 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             "com.android.emergencydialer",             // Emergency dialer (any OEM)
             "com.google.android.incallui",             // Google in-call UI
             // Samsung
+            "com.samsung.crane",
+            "com.samsung.android.dialer",
             "com.samsung.android.app.telephonyui",
             "com.samsung.android.incallui",
             "com.sec.android.app.dialertab",
+            "com.android.providers.telephony",
+            "com.android.server.telecom",
             // Xiaomi / MIUI
             "com.miui.dialer",
             "com.xiaomi.phone",
@@ -186,6 +196,10 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             // ── WhatsApp (messaging / calls) ─────────────────────────────────
             "com.whatsapp",
             "com.whatsapp.w4b",                        // WhatsApp Business
+            "org.videolan.vlc",
+            "com.gurukripa.publicapp",
+            "xyz.penpencil.physicswala",
+            "digital.allen.study",
         )
 
         val ALWAYS_BLOCKED: Set<String> = emptySet()
@@ -349,6 +363,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 saActive = false
             }
         }
+        val systemGuardEnabled = prefs.getBoolean(PREF_SYSTEM_GUARD_ENABLED, true)
 
         // ── Cooldown reset: fired when user taps ✕ to dismiss the overlay ───
         // BlockOverlayActivity writes this flag on intentional dismiss so the
@@ -460,7 +475,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 }
             }
 
-            if (focusActive || saActive) {
+            if ((focusActive || saActive) && systemGuardEnabled) {
                 // ── System UI: block notification panel + power menu ──────────
                 // When SystemUI packages fire a window event during a blocking
                 // session, check if it is the notification panel/quick-settings
@@ -571,7 +586,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         //
         // For browser packages: also extract the URL bar text and do a substring
         // (non-whole-word) match, so "gaming" catches "gaming.com/news" in the URL.
-        if (focusActive || saActive) {
+        if ((focusActive || saActive) && systemGuardEnabled) {
             val blockedWords = getBlockedWords()
             if (blockedWords.isNotEmpty()) {
                 val isBrowser = BROWSER_PACKAGES.contains(pkg)

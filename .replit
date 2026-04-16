@@ -32,7 +32,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "bash /home/runner/workspace/scripts/push-github.sh"
+args = "pnpm --filter @workspace/scripts run github:push"
 
 [workflows.workflow.metadata]
 outputType = "console"

@@ -116,6 +116,7 @@ const defaultSettings: AppSettings = {
   aversionSoundEnabled: false,
   weeklyReportEnabled: false,
   greyoutSchedule: [],
+  systemGuardEnabled: true,
   overlayWallpaper: '',
   overlayQuotes: [],
 };
@@ -221,6 +222,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await _syncAversions(settings);
       // Re-apply greyout schedule on startup.
       await _syncGreyoutSchedule(settings);
+      await _syncSystemGuard(settings);
 
       await refreshTasks();
 
@@ -299,6 +301,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await GreyoutModule.setSchedule(settings.greyoutSchedule ?? []);
     } catch (e) {
       console.warn('[AppContext] greyout sync failed', e);
+    }
+  }
+
+  async function _syncSystemGuard(settings: AppSettings): Promise<void> {
+    try {
+      await SharedPrefsModule.setSystemGuardEnabled(settings.systemGuardEnabled ?? true);
+    } catch (e) {
+      console.warn('[AppContext] system guard sync failed', e);
     }
   }
 
@@ -620,6 +630,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await _syncAversions(settings);
     // Sync greyout schedule.
     await _syncGreyoutSchedule(settings);
+    await _syncSystemGuard(settings);
   }, [state.focusSession]);
 
   /**

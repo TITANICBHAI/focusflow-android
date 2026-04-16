@@ -140,6 +140,14 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
         promise.resolve(null)
     }
 
+    @ReactMethod
+    fun setSystemGuardEnabled(enabled: Boolean, promise: Promise) {
+        prefs().edit()
+            .putBoolean(AppBlockerAccessibilityService.PREF_SYSTEM_GUARD_ENABLED, enabled)
+            .apply()
+        promise.resolve(null)
+    }
+
     /**
      * Writes the rich daily allowance config JSON to SharedPreferences.
      * Format: JSON array of DailyAllowanceEntry objects with fields:

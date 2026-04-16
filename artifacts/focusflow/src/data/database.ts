@@ -195,6 +195,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   aversionSoundEnabled: false,
   weeklyReportEnabled: false,
   greyoutSchedule: [],
+  systemGuardEnabled: true,
 };
 
 export async function dbGetSettings(): Promise<AppSettings> {

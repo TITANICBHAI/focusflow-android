@@ -1,9 +1,13 @@
 import { readFileSync, readdirSync } from 'fs';
 import { join, relative } from 'path';
 
-const TOKEN = process.env.GITHUB_PERSONAL_ACCESS_TOKEN;
+const TOKEN =
+  process.env.GITHUB_PERSONAL_ACCESS_TOKEN ||
+  process.env.GITHUB_PAT ||
+  process.env.GH_PAT ||
+  process.env.PAT;
 const OWNER = 'TITANICBHAI';
-const REPO = 'focusflow-native';
+const REPO = 'FocusFlow';
 const BRANCH = 'main';
 const BASE = '/home/runner/workspace';
 const CONCURRENCY = 10;
@@ -79,6 +83,10 @@ async function processInBatches(items, concurrency, fn) {
 }
 
 async function run() {
+  if (!TOKEN) {
+    throw new Error('Missing GitHub token secret. Add GITHUB_PERSONAL_ACCESS_TOKEN, GITHUB_PAT, GH_PAT, or PAT in Secrets.');
+  }
+
   console.log('Collecting files...');
   const allFiles = collectFiles(BASE);
   console.log(`Found ${allFiles.length} files`);
@@ -122,7 +130,7 @@ async function run() {
 
   console.log('Committing...');
   const newCommit = await ghFetch(`/repos/${OWNER}/${REPO}/git/commits`, 'POST', {
-    message: 'chore: sync workspace — docs, app source, Privacy Policy & Terms of Service\n\nIncludes:\n- docs/ landing page with Privacy Policy and Terms of Service pages\n- FocusFlow Expo/React Native mobile app source\n- Custom Kotlin native modules (6 modules)\n- Promotional ad video artifact\n- Shared workspace and build config',
+    message: `chore: sync Replit workspace ${new Date().toISOString()}`,
     tree: newTree.sha,
     parents: [latestSha],
   });
@@ -135,7 +143,6 @@ async function run() {
 
   console.log('\nSuccess!');
   console.log(`Repo:  https://github.com/${OWNER}/${REPO}`);
-  console.log(`Pages: https://${OWNER.toLowerCase()}.github.io/${REPO}/`);
 }
 
 run().catch(err => { console.error('FATAL:', err.message); process.exit(1); });

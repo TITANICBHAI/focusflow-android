@@ -14,6 +14,27 @@ type Entry = {
 
 const CHANGELOG: Entry[] = [
   {
+    version: 'c1.0.3',
+    date: 'April 2026',
+    sections: [
+      {
+        heading: 'Never Blocked Packages',
+        icon: 'call-outline',
+        items: [
+          'Added Samsung Phone, Phone services, Phone calls, Phone and Messaging Storage, VLC, WhatsApp, Gurukripa, PW, and ALLEN package IDs to the never-blocked safety list',
+        ],
+      },
+      {
+        heading: 'System Protection Toggle',
+        icon: 'shield-checkmark-outline',
+        items: [
+          'Settings now includes a system protection toggle for power menu, notification shade, blocked words, and sensitive Settings-page blocking',
+          'The toggle can be enabled anytime, but cannot be disabled while Focus Mode or an app block is active',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.1.0',
     date: 'April 2026',
     sections: [
@@ -123,7 +144,7 @@ function ChangeEntry({ entry }: { entry: Entry }) {
     <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
       <View style={styles.versionRow}>
         <View style={styles.versionBadge}>
-          <Text style={styles.versionText}>v{entry.version}</Text>
+          <Text style={styles.versionText}>{entry.version.startsWith('c') ? entry.version : `v${entry.version}`}</Text>
         </View>
         <Text style={[styles.dateText, { color: theme.muted }]}>{entry.date}</Text>
       </View>
