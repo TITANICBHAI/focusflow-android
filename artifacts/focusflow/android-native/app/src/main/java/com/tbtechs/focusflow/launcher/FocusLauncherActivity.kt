@@ -195,6 +195,8 @@ class FocusLauncherActivity : Activity() {
             gravity    = Gravity.CENTER
             setPadding(dp(16), dp(6), dp(16), dp(6))
             visibility = View.GONE
+            // Tap the lock banner to open FocusFlow and manage the session
+            setOnClickListener { openFocusFlow() }
         }
 
         topBar.addView(timeView)
@@ -365,13 +367,13 @@ class FocusLauncherActivity : Activity() {
                 prefs.getLong("task_end_ms", 0L),
                 prefs.getLong("standalone_block_until_ms", 0L)
             )
-            val label = if (untilMs > 0L) {
+            val timePart = if (untilMs > 0L) {
                 val fmt = SimpleDateFormat("HH:mm, MMM d", Locale.getDefault())
                 "🔒  Locked until ${fmt.format(Date(untilMs))}"
             } else {
                 "🔒  Locked"
             }
-            statusBadge.text       = label
+            statusBadge.text       = "$timePart\nTap to manage session"
             statusBadge.visibility = View.VISIBLE
         } else {
             editBtn.text = "⚙  Edit Grid"
@@ -402,6 +404,13 @@ class FocusLauncherActivity : Activity() {
     private fun launchApp(pkg: String) {
         val intent = packageManager.getLaunchIntentForPackage(pkg) ?: return
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try { startActivity(intent) } catch (_: Exception) {}
+    }
+
+    /** Opens FocusFlow so the user can manage / end the active session. */
+    private fun openFocusFlow() {
+        val intent = packageManager.getLaunchIntentForPackage(packageName) ?: return
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         try { startActivity(intent) } catch (_: Exception) {}
     }
 

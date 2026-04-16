@@ -220,6 +220,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             "com.huawei.android.launcher",
             "com.oppo.launcher",
             "com.bbk.launcher2",                     // Vivo
+            // FocusFlow itself — always accessible so the user can manage or end a session
+            "com.tbtechs.focusflow",
             // Phone / dialer (emergency access)
             "com.android.phone",
             "com.android.dialer",
