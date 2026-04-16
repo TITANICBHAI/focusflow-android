@@ -146,7 +146,9 @@
 
         UNLOCKED state (no active focus/standalone block):
           - Shows the user-selected app grid and the permanent dock.
-          - Gear button lets the user add/remove apps from the grid.
+          - "All Apps" button opens a full alphabetical drawer with live search —
+            the user can launch any installed app freely.
+          - "Edit Grid" button lets the user add/remove apps from the curated grid.
           - Long-press power key passes through to the system (normal behaviour).
 
         LOCKED state (focus_active OR standalone_block_active is true):
