@@ -413,6 +413,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const unsubAppBlocked = EventBridge.subscribe('APP_BLOCKED', (event) => {
       dispatch({ type: 'SET_FOCUS_VIOLATION', payload: event.blockedApp ?? null });
+      // Auto-clear the overlay after 4 s so it never gets permanently stuck.
+      // The other two violation paths (standalone-block polling and startFocusMode
+      // callback) already had this timeout; the native event path was missing it.
+      setTimeout(() => dispatch({ type: 'SET_FOCUS_VIOLATION', payload: null }), 4000);
     });
 
     return () => {
