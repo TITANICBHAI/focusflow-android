@@ -209,10 +209,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'SET_DB_READY' });
 
       // Start the foreground service AFTER the splash is cleared.
-      // Wrapped in withTimeout so a hung native Promise can never re-freeze the app.
-      withTimeout(ForegroundServiceModule.startIdleService(), 5000, undefined).catch((e) => {
-        console.warn('[AppContext] idle foreground service start failed', e);
-      });
+      // withTimeout always resolves (never rejects), so no .catch() needed.
+      // Fire-and-forget: we do not await so the rest of init continues immediately.
+      void withTimeout(ForegroundServiceModule.startIdleService(), 5000, undefined);
 
       // Re-apply standalone block from persisted settings on startup.
       await _syncStandaloneBlock(settings);
