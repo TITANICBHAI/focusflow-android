@@ -568,7 +568,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         //
         // For browser packages: also extract the URL bar text and do a substring
         // (non-whole-word) match, so "gaming" catches "gaming.com/news" in the URL.
-        if ((focusActive || saActive) && systemGuardEnabled) {
+        if (focusActive || saActive) {
             val blockedWords = getBlockedWords()
             if (blockedWords.isNotEmpty()) {
                 val isBrowser = BROWSER_PACKAGES.contains(pkg)

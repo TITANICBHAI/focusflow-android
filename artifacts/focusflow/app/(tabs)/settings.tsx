@@ -257,7 +257,7 @@ export default function SettingsScreen() {
             description={
               blockProtectionActive
                 ? 'Locked on until Focus Mode or the active app block ends'
-                : 'Blocks power menu, notification shade, blocked words, and sensitive Settings pages during active blocks'
+                : 'Blocks power menu, notification shade, Emergency mode, and sensitive Settings pages during active blocks'
             }
           >
             <Switch

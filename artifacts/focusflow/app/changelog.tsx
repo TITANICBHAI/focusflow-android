@@ -30,6 +30,7 @@ const CHANGELOG: Entry[] = [
         icon: 'shield-checkmark-outline',
         items: [
           'Notification shade, quick settings, power menu, and Samsung Emergency mode are now detected by accessibility class/text matching only',
+          'Blocked keywords now continue working during active Focus Mode or app blocks even when System Protection is turned off',
         ],
       },
     ],
