@@ -14,6 +14,45 @@ type Entry = {
 
 const CHANGELOG: Entry[] = [
   {
+    version: 'c1.0.5',
+    date: 'April 2026',
+    sections: [
+      {
+        heading: 'Session Security Hardening',
+        icon: 'lock-closed-outline',
+        items: [
+          'Session PIN — SHA-256 PIN gates all native session-ending calls (stop service, stop network block, deactivate focus). Raw PIN is never stored.',
+          'FLAG_SECURE on block overlay — prevents screenshots and hides session content from the Android recents thumbnail',
+          'Self-package loophole closed — FocusFlow\'s own activity classes are allowlisted so they can never be used to dismiss the block overlay',
+          'Recents screen detection — pressing the overview/recent-apps button during a session now sends HOME, preventing escape via app switching',
+        ],
+      },
+      {
+        heading: 'Mid-Session Install Blocking',
+        icon: 'shield-checkmark-outline',
+        items: [
+          'Newly installed apps are automatically added to the block list if a standalone block session is active at install time',
+          'Every new install during a session triggers an aversion vibration deterrent and flags the app for a JS-side warning banner',
+          'Clock-tamper defense — BootReceiver now cross-checks task duration against wall-clock time to detect system-time manipulation',
+        ],
+      },
+      {
+        heading: 'IME & Keyboard Detection',
+        icon: 'keypad-outline',
+        items: [
+          'Input Method Engines (keyboards) are now tagged with isIme in the app list — keyboards with built-in browsers or GIF search can be explicitly blocked',
+        ],
+      },
+      {
+        heading: 'Home Screen Reminder',
+        icon: 'notifications-outline',
+        items: [
+          'A high-priority peek notification now appears when the user returns to the home screen after being kicked from a blocked app — clear reminder that the session is still running',
+        ],
+      },
+    ],
+  },
+  {
     version: 'c1.0.4',
     date: 'April 2026',
     sections: [
@@ -57,7 +96,7 @@ const CHANGELOG: Entry[] = [
     ],
   },
   {
-    version: '1.1.0',
+    version: 'c1.0.2',
     date: 'April 2026',
     sections: [
       {
