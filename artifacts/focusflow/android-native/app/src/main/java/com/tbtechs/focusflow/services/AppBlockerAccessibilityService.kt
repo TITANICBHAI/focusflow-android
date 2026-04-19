@@ -481,9 +481,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             if ((focusActive || saActive) && systemGuardEnabled) {
                 val isSamsungPowerKey = pkg == "com.samsung.android.app.powerkey"
                 if (isSamsungPowerKey && isPowerMenu(ev)) {
-                    closeSystemDialogsBroadcast()
-                    handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_BACK) }, 80L)
-                    handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_HOME) }, 350L)
+                    handlePowerMenuIntercepted()
                     return
                 }
 
@@ -492,9 +490,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                     pkg == "com.samsung.android.systemui"
                 if (isSystemUiPkg) {
                     if (isPowerMenu(ev)) {
-                        closeSystemDialogsBroadcast()
-                        handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_BACK) }, 80L)
-                        handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_HOME) }, 350L)
+                        handlePowerMenuIntercepted()
                         return
                     }
                     // Notification bar is intentionally NOT blocked — users need it
@@ -515,9 +511,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                     pkg == "com.oppo.launcher" ||
                     pkg == "com.bbk.launcher2"
                 if (isLauncherPkg && isPowerMenu(ev)) {
-                    closeSystemDialogsBroadcast()
-                    handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_BACK) }, 80L)
-                    handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_HOME) }, 350L)
+                    handlePowerMenuIntercepted()
                     return
                 }
 
@@ -1909,10 +1903,70 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     }
 
     /**
+     * Called whenever any power-menu dialog is detected by the system guard.
+     *
+     * Shows the block overlay immediately (so the user sees WHY they were blocked),
+     * then fires BACK + HOME to close the power menu.  A retry loop re-checks up
+     * to 3 times at 200 ms intervals in case the power menu re-asserts itself on
+     * slow devices or certain OEM configurations.
+     */
+    private fun handlePowerMenuIntercepted() {
+        // Show the block overlay straight away — user sees "Power Menu" blocked label
+        prefs.edit().putString("overlay_awaiting_pkg", "system.power_menu").apply()
+        launchBlockOverlay("system.power_menu")
+
+        // Dismiss immediately (no artificial delay for the first BACK)
+        closeSystemDialogsBroadcast()
+        performGlobalAction(GLOBAL_ACTION_BACK)
+        handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_HOME) }, 100L)
+        handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_BACK) }, 220L)
+
+        // Schedule retries to catch slow / stubborn power menus
+        schedulePowerMenuRetry(1)
+    }
+
+    /**
+     * Retry loop for power menu dismissal.
+     *
+     * After the initial BACK+HOME, the power menu occasionally re-appears on
+     * Samsung devices (especially One UI 6+).  This fires at 200 ms, 400 ms,
+     * and 600 ms after the first interception and presses BACK+HOME again if a
+     * known power-system package is still the foreground window.
+     *
+     * Retries stop as soon as the foreground moves away from power-related
+     * packages (i.e. the user is back at the launcher or an allowed app).
+     */
+    private fun schedulePowerMenuRetry(attempt: Int) {
+        if (attempt > 3) return
+        handler.postDelayed({
+            val focusActive  = prefs.getBoolean(PREF_FOCUS_ON, false)
+            val saActive     = prefs.getBoolean(PREF_SA_ACTIVE, false)
+            val sysGuard     = prefs.getBoolean(PREF_SYSTEM_GUARD_ENABLED, true)
+            if ((!focusActive && !saActive) || !sysGuard) return@postDelayed
+
+            // Only retry for true system-level power packages, not the launcher
+            val lp = lastSeenPkg ?: return@postDelayed
+            val isPowerSystemPkg =
+                lp == "com.samsung.android.app.powerkey" ||
+                lp == "com.android.systemui" ||
+                lp == "com.sec.android.app.systemui" ||
+                lp == "com.samsung.android.systemui"
+
+            if (isPowerSystemPkg) {
+                closeSystemDialogsBroadcast()
+                performGlobalAction(GLOBAL_ACTION_BACK)
+                handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_HOME) }, 100L)
+                schedulePowerMenuRetry(attempt + 1)
+            }
+        }, 200L * attempt)
+    }
+
+    /**
      * Returns the human-readable label for [packageName] via PackageManager.
      * Falls back to the package name itself on any error.
      */
     private fun resolveAppDisplayName(packageName: String): String {
+        if (packageName == "system.power_menu") return "Power Menu"
         return try {
             val pm = applicationContext.packageManager
             val info = pm.getApplicationInfo(packageName, 0)
