@@ -1,13 +1,17 @@
+/**
+ * stats.tsx — FocusFlow Stats Screen
+ *
+ * Three tabs:
+ *  Today    — focus time hero, session count, task summary, blocked attempts
+ *  Week     — task productivity trend, focus time bar chart, app discipline
+ *  All Time — lifetime hero numbers, 12-week calendar heatmap, milestone badges
+ */
+
 import React, { useMemo, useEffect, useState, useCallback } from 'react';
 import { withScreenErrorBoundary } from '@/components/withScreenErrorBoundary';
 import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
+  View, Text, ScrollView, StyleSheet, TouchableOpacity,
+  Alert, ActivityIndicator, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,30 +24,33 @@ import {
   dbGetTodayOverrideCount,
   dbGetStreak,
   dbRecordDayCompletion,
+  dbGetRecentDayCompletions,
+  dbGetAllTimeFocusMinutes,
+  dbGetAllTimeFocusSessions,
+  dbGetBestStreak,
 } from '@/data/database';
 import { GreyoutModule, TemptationEntry } from '@/native-modules/GreyoutModule';
 import type { Task } from '@/data/types';
 
-type Filter = 'today' | 'week';
+type Filter = 'today' | 'week' | 'alltime';
 
 interface AppStat  { pkg: string; appName: string; count: number }
 interface DayStat  { day: string; date: string; count: number }
-interface WeekDay  {
-  day: string; date: string; isToday: boolean;
-  total: number; completed: number; focusMinutes: number;
-}
+interface WeekDay  { day: string; date: string; isToday: boolean; total: number; completed: number; focusMinutes: number }
+interface HeatDay  { date: string; rate: number; hasData: boolean } // rate 0-1
 
 // ─────────────────────────────────────────────────────────────────────────────
 
 function StatsScreen() {
-  const insets        = useSafeAreaInsets();
-  const { state }     = useApp();
-  const { theme }     = useTheme();
-  const { tasks }     = state;
+  const insets          = useSafeAreaInsets();
+  const { state }       = useApp();
+  const { theme }       = useTheme();
+  const { tasks }       = state;
+  const { width }       = useWindowDimensions();
 
   const [filter, setFilter] = useState<Filter>('today');
 
-  // ── Today DB data ─────────────────────────────────────────────────────────
+  // ── TODAY DB data ─────────────────────────────────────────────────────────
   const [focusMinutes,  setFocusMinutes]  = useState(0);
   const [overrideCount, setOverrideCount] = useState(0);
   const [streak,        setStreak]        = useState(0);
@@ -61,7 +68,7 @@ function StatsScreen() {
     })();
   }, []);
 
-  // ── Today computed stats ──────────────────────────────────────────────────
+  // ── TODAY computed stats ──────────────────────────────────────────────────
   const todayStats = useMemo(() => {
     const todayStr   = dayjs().format('YYYY-MM-DD');
     const todayTasks = tasks.filter((t) => dayjs(t.startTime).format('YYYY-MM-DD') === todayStr);
@@ -71,25 +78,13 @@ function StatsScreen() {
     const remaining  = todayTasks.filter((t) => t.status === 'scheduled' || t.status === 'active');
     const total      = todayTasks.length;
     const rate       = total > 0 ? Math.round((completed.length / total) * 100) : 0;
-    const minsScheduled = todayTasks.reduce((s, t) => s + t.durationMinutes, 0);
-    const minsCompleted = completed.reduce((s, t) => s + t.durationMinutes, 0);
     return {
-      total,
-      completed:   completed.length,
-      skipped:     skipped.length,
-      overdue:     overdue.length,
-      remaining:   remaining.length,
-      rate,
-      minsScheduled,
-      minsCompleted,
-      focusTasks:  todayTasks.filter((t) => t.focusMode).length,
-      byPriority: {
-        critical: todayTasks.filter((t) => t.priority === 'critical').length,
-        high:     todayTasks.filter((t) => t.priority === 'high').length,
-        medium:   todayTasks.filter((t) => t.priority === 'medium').length,
-        low:      todayTasks.filter((t) => t.priority === 'low').length,
-      },
-      topTags: getTopTags(todayTasks),
+      total, completed: completed.length, skipped: skipped.length,
+      overdue: overdue.length, remaining: remaining.length, rate,
+      minsScheduled:  todayTasks.reduce((s, t) => s + t.durationMinutes, 0),
+      minsCompleted:  completed.reduce((s, t) => s + t.durationMinutes, 0),
+      focusTasks:     todayTasks.filter((t) => t.focusMode).length,
+      topTags:        getTopTags(todayTasks),
     };
   }, [tasks]);
 
@@ -99,27 +94,21 @@ function StatsScreen() {
     }
   }, [todayStats.completed, todayStats.total]);
 
-  const rateColor =
-    todayStats.rate >= 80 ? COLORS.green
-    : todayStats.rate >= 50 ? COLORS.orange
-    : todayStats.rate >   0 ? COLORS.red
-    : theme.muted as string;
+  const focusHero = fmtMinsLong(focusMinutes);
+  const rateColor = todayStats.rate >= 80 ? COLORS.green : todayStats.rate >= 50 ? COLORS.orange : COLORS.primary;
 
-  // ── Weekly task data (from state.tasks) ───────────────────────────────────
+  // ── WEEK computed stats (from state.tasks) ─────────────────────────────
   const weeklyDays = useMemo<WeekDay[]>(() => {
     const days: WeekDay[] = [];
     for (let i = 6; i >= 0; i--) {
-      const d         = dayjs().subtract(i, 'day');
-      const dStr      = d.format('YYYY-MM-DD');
-      const dayTasks  = tasks.filter((t) => dayjs(t.startTime).format('YYYY-MM-DD') === dStr);
-      const completed = dayTasks.filter((t) => t.status === 'completed');
+      const d        = dayjs().subtract(i, 'day');
+      const dStr     = d.format('YYYY-MM-DD');
+      const dayTasks = tasks.filter((t) => dayjs(t.startTime).format('YYYY-MM-DD') === dStr);
+      const done     = dayTasks.filter((t) => t.status === 'completed');
       days.push({
-        day:          d.format('ddd'),
-        date:         d.format('MMM D'),
-        isToday:      i === 0,
-        total:        dayTasks.length,
-        completed:    completed.length,
-        focusMinutes: completed.filter((t) => t.focusMode).reduce((s, t) => s + t.durationMinutes, 0),
+        day: d.format('ddd'), date: d.format('MMM D'), isToday: i === 0,
+        total: dayTasks.length, completed: done.length,
+        focusMinutes: done.filter((t) => t.focusMode).reduce((s, t) => s + t.durationMinutes, 0),
       });
     }
     return days;
@@ -129,34 +118,29 @@ function StatsScreen() {
     const total     = weeklyDays.reduce((s, d) => s + d.total, 0);
     const completed = weeklyDays.reduce((s, d) => s + d.completed, 0);
     const focusMins = weeklyDays.reduce((s, d) => s + d.focusMinutes, 0);
-    const rate      = total > 0 ? Math.round((completed / total) * 100) : 0;
-    return { total, completed, rate, focusMins };
+    return { total, completed, rate: total > 0 ? Math.round((completed / total) * 100) : 0, focusMins };
   }, [weeklyDays]);
 
   const maxWeekCompleted = Math.max(...weeklyDays.map((d) => d.completed), 1);
+  const maxWeekFocus     = Math.max(...weeklyDays.map((d) => d.focusMinutes), 1);
 
-  // ── Weekly temptation log data ────────────────────────────────────────────
-  const [weekLoading,   setWeekLoading]   = useState(false);
-  const [appStats,      setAppStats]      = useState<AppStat[]>([]);
-  const [dayStats,      setDayStats]      = useState<DayStat[]>([]);
-  const [totalThisWeek, setTotalThisWeek] = useState(0);
-  const [totalAllTime,  setTotalAllTime]  = useState(0);
-  const [cleanStreak,   setCleanStreak]   = useState(0);
+  // ── TEMPTATION LOG (week view + all-time) ─────────────────────────────
+  const [weekLoading,    setWeekLoading]    = useState(false);
+  const [appStats,       setAppStats]       = useState<AppStat[]>([]);
+  const [dayStats,       setDayStats]       = useState<DayStat[]>([]);
+  const [totalThisWeek,  setTotalThisWeek]  = useState(0);
+  const [totalAllTime,   setTotalAllTime]   = useState(0);
+  const [cleanStreak,    setCleanStreak]    = useState(0);
 
   const loadWeekly = useCallback(async () => {
     setWeekLoading(true);
-    try {
-      const log = await GreyoutModule.getTemptationLog();
-      processWeeklyData(log);
-    } catch {
-      processWeeklyData([]);
-    } finally {
-      setWeekLoading(false);
-    }
+    try { processWeeklyData(await GreyoutModule.getTemptationLog()); }
+    catch { processWeeklyData([]); }
+    finally { setWeekLoading(false); }
   }, []);
 
   useEffect(() => {
-    if (filter === 'week') void loadWeekly();
+    if (filter === 'week' || filter === 'alltime') void loadWeekly();
   }, [filter, loadWeekly]);
 
   function processWeeklyData(log: TemptationEntry[]) {
@@ -164,46 +148,73 @@ function StatsScreen() {
     const thisWeek = log.filter((e) => e.timestamp >= cutoff);
     setTotalThisWeek(thisWeek.length);
     setTotalAllTime(log.length);
-
     const appMap = new Map<string, AppStat>();
     for (const e of thisWeek) {
       const ex = appMap.get(e.pkg);
-      if (ex) ex.count++;
-      else appMap.set(e.pkg, { pkg: e.pkg, appName: e.appName || e.pkg, count: 1 });
+      if (ex) ex.count++; else appMap.set(e.pkg, { pkg: e.pkg, appName: e.appName || e.pkg, count: 1 });
     }
     setAppStats(Array.from(appMap.values()).sort((a, b) => b.count - a.count));
-
     const days: DayStat[] = [];
     for (let i = 6; i >= 0; i--) {
-      const d        = dayjs().subtract(i, 'day');
-      const start    = d.startOf('day').valueOf();
-      const end      = d.endOf('day').valueOf();
-      const count    = log.filter((e) => e.timestamp >= start && e.timestamp <= end).length;
-      days.push({ day: d.format('ddd'), date: d.format('MMM D'), count });
+      const d = dayjs().subtract(i, 'day');
+      days.push({ day: d.format('ddd'), date: d.format('MMM D'),
+        count: log.filter((e) => e.timestamp >= d.startOf('day').valueOf() && e.timestamp <= d.endOf('day').valueOf()).length });
     }
     setDayStats(days);
-
     let cs = 0;
-    for (let i = days.length - 1; i >= 0; i--) {
-      if (days[i].count === 0) cs++;
-      else break;
-    }
+    for (let i = days.length - 1; i >= 0; i--) { if (days[i].count === 0) cs++; else break; }
     setCleanStreak(cs);
   }
 
   const handleClearLog = () => {
     Alert.alert('Clear Temptation Log', 'Permanently delete all blocked-app intercept data?', [
       { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Clear All',
-        style: 'destructive',
-        onPress: async () => {
-          await GreyoutModule.clearTemptationLog();
-          await loadWeekly();
-        },
-      },
+      { text: 'Clear All', style: 'destructive', onPress: async () => { await GreyoutModule.clearTemptationLog(); await loadWeekly(); } },
     ]);
   };
+
+  // ── ALL TIME DB data ──────────────────────────────────────────────────
+  const [allTimeLoading, setAllTimeLoading] = useState(false);
+  const [allTimeMins,    setAllTimeMins]    = useState(0);
+  const [allTimeSess,    setAllTimeSess]    = useState(0);
+  const [bestStreak,     setBestStreak]     = useState(0);
+  const [heatData,       setHeatData]       = useState<HeatDay[]>([]);
+
+  useEffect(() => {
+    if (filter !== 'alltime') return;
+    setAllTimeLoading(true);
+    void (async () => {
+      const [atm, ats, bs, rows] = await Promise.all([
+        dbGetAllTimeFocusMinutes(),
+        dbGetAllTimeFocusSessions(),
+        dbGetBestStreak(),
+        dbGetRecentDayCompletions(84), // 12 weeks
+      ]);
+      setAllTimeMins(atm);
+      setAllTimeSess(ats);
+      setBestStreak(bs);
+      // Build 84-slot heatmap (12 weeks × 7 days)
+      const map = new Map(rows.map((r) => [r.date, r]));
+      const heat: HeatDay[] = [];
+      for (let i = 83; i >= 0; i--) {
+        const d   = dayjs().subtract(i, 'day');
+        const key = d.format('YYYY-MM-DD');
+        const row = map.get(key);
+        heat.push({
+          date:    key,
+          hasData: !!row && row.total > 0,
+          rate:    row && row.total > 0 ? row.completed / row.total : 0,
+        });
+      }
+      setHeatData(heat);
+      setAllTimeLoading(false);
+    })();
+  }, [filter]);
+
+  const allTimeTasksCompleted = useMemo(
+    () => tasks.filter((t) => t.status === 'completed').length,
+    [tasks],
+  );
 
   const maxDay = Math.max(...dayStats.map((d) => d.count), 1);
   const maxApp = appStats[0]?.count ?? 1;
@@ -212,49 +223,42 @@ function StatsScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
 
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      {/* ── Header ────────────────────────────────────────────────────── */}
       <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
         <View>
           <Text style={[styles.title, { color: theme.text }]}>Stats</Text>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            {filter === 'today'
-              ? dayjs().format('MMMM D, YYYY')
-              : `${dayjs().subtract(6, 'day').format('MMM D')} – ${dayjs().format('MMM D')}`}
+            {filter === 'today'   ? dayjs().format('MMMM D, YYYY')
+           : filter === 'week'    ? `${dayjs().subtract(6, 'day').format('MMM D')} – ${dayjs().format('MMM D')}`
+           :                        'All time'}
           </Text>
         </View>
         {filter === 'week' && (
-          <TouchableOpacity
-            onPress={handleClearLog}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            style={[styles.iconBtn, { backgroundColor: COLORS.red + '15' }]}
-          >
+          <TouchableOpacity onPress={handleClearLog} hitSlop={{ top:8,bottom:8,left:8,right:8 }}
+            style={[styles.iconBtn, { backgroundColor: COLORS.red + '15' }]}>
             <Ionicons name="trash-outline" size={17} color={COLORS.red} />
           </TouchableOpacity>
         )}
       </View>
 
-      {/* ── Filter pills ──────────────────────────────────────────────────── */}
+      {/* ── Tab pills ─────────────────────────────────────────────────── */}
       <View style={[styles.filterRow, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
-        {(['today', 'week'] as const).map((f) => (
-          <TouchableOpacity
-            key={f}
-            style={[styles.filterPill, filter === f && { backgroundColor: COLORS.primary }]}
-            onPress={() => setFilter(f)}
-          >
+        {(['today', 'week', 'alltime'] as const).map((f) => (
+          <TouchableOpacity key={f} style={[styles.filterPill, filter === f && { backgroundColor: COLORS.primary }]}
+            onPress={() => setFilter(f)}>
             <Text style={[styles.filterLabel, { color: filter === f ? '#fff' : theme.textSecondary }]}>
-              {f === 'today' ? 'Today' : 'This Week'}
+              {f === 'today' ? 'Today' : f === 'week' ? 'Week' : 'All Time'}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      {/* ════════════════════════ TODAY ════════════════════════════════════ */}
+      {/* ════════════════ TODAY ═════════════════════════════════════════ */}
       {filter === 'today' && (
-        <ScrollView
-          style={styles.scroll}
+        <ScrollView style={styles.scroll}
           contentContainerStyle={[styles.content, { paddingBottom: 60 + insets.bottom + 24 }]}
-          showsVerticalScrollIndicator={false}
-        >
+          showsVerticalScrollIndicator={false}>
+
           {/* Streak banner */}
           {streak > 0 && (
             <View style={[styles.streakBanner, { borderColor: COLORS.orange + '40' }]}>
@@ -266,82 +270,32 @@ function StatsScreen() {
             </View>
           )}
 
-          {/* ── Completion hero ─────────────────────────────────────────── */}
-          <View style={[styles.card, { backgroundColor: theme.card }]}>
-            <View style={styles.heroRow}>
-              {/* Big percentage disc */}
-              <View style={[styles.heroDisk, { borderColor: rateColor + '30', backgroundColor: rateColor + '12' }]}>
-                <Text style={[styles.heroPercent, { color: rateColor }]}>
-                  {todayStats.rate}<Text style={styles.heroPct}>%</Text>
-                </Text>
-                <Text style={[styles.heroLabel, { color: theme.muted }]}>done</Text>
-              </View>
-
-              {/* Right-side status items */}
-              <View style={styles.heroStats}>
-                <StatusRow icon="checkmark-circle" color={COLORS.green}  label="Completed" value={todayStats.completed} />
-                <StatusRow icon="time-outline"     color={COLORS.blue}   label="Remaining" value={todayStats.remaining} />
-                <StatusRow icon="play-skip-forward" color={theme.muted as string} label="Skipped"   value={todayStats.skipped} />
-                {todayStats.overdue > 0 && (
-                  <StatusRow icon="alert-circle" color={COLORS.red} label="Overdue" value={todayStats.overdue} />
-                )}
-              </View>
-            </View>
-
-            {/* Progress bar — scheduled vs completed time */}
-            {todayStats.minsScheduled > 0 && (
-              <View style={{ gap: SPACING.xs, marginTop: SPACING.xs }}>
-                <View style={styles.progLabels}>
-                  <Text style={[styles.progLabelText, { color: theme.muted }]}>
-                    {fmtMins(todayStats.minsCompleted)} of {fmtMins(todayStats.minsScheduled)} scheduled
-                  </Text>
-                  <Text style={[styles.progLabelText, { color: COLORS.green }]}>
-                    {todayStats.minsScheduled > 0
-                      ? Math.round((todayStats.minsCompleted / todayStats.minsScheduled) * 100)
-                      : 0}%
-                  </Text>
+          {/* ── Focus Time Hero ────────────────────────────────────────── */}
+          <View style={[styles.heroCard, { backgroundColor: theme.card, borderColor: COLORS.primary + '22' }]}>
+            <Text style={[styles.heroEyebrow, { color: theme.muted }]}>FOCUS TIME TODAY</Text>
+            {focusMinutes > 0 ? (
+              <>
+                <Text style={[styles.heroTime, { color: COLORS.primary }]}>{focusHero.h > 0 ? `${focusHero.h}h ` : ''}<Text style={styles.heroTimeSmall}>{focusHero.m}m</Text></Text>
+                <View style={styles.heroRow}>
+                  {focusMinutes > 0 && <Pill icon="timer-outline" color={COLORS.primary} label={`${todayStats.focusTasks} focus task${todayStats.focusTasks !== 1 ? 's' : ''}`} theme={theme} />}
+                  {overrideCount > 0 && <Pill icon="warning-outline" color={COLORS.orange} label={`${overrideCount} override${overrideCount !== 1 ? 's' : ''}`} theme={theme} />}
                 </View>
-                <View style={[styles.trackFull, { backgroundColor: theme.border }]}>
-                  <View style={[styles.trackFill, {
-                    backgroundColor: COLORS.green,
-                    width: todayStats.minsScheduled > 0
-                      ? `${Math.min(100, (todayStats.minsCompleted / todayStats.minsScheduled) * 100)}%`
-                      : '0%',
-                  }]} />
-                </View>
+              </>
+            ) : (
+              <View style={styles.heroEmpty}>
+                <Ionicons name="timer-outline" size={40} color={theme.border} />
+                <Text style={[styles.heroEmptyText, { color: theme.muted }]}>Start a focus session to track time</Text>
               </View>
             )}
           </View>
 
-          {/* ── Focus & activity chips ──────────────────────────────────── */}
-          <View style={styles.chipRow}>
-            <InfoChip
-              icon="timer-outline"
-              label="Focus Time"
-              value={focusMinutes > 0 ? fmtMins(focusMinutes) : '—'}
-              color={COLORS.primary}
-              theme={theme}
-            />
-            <InfoChip
-              icon="shield-checkmark-outline"
-              label="Focus Tasks"
-              value={String(todayStats.focusTasks)}
-              color={COLORS.blue}
-              theme={theme}
-            />
-            <InfoChip
-              icon="warning-outline"
-              label="Overrides"
-              value={String(overrideCount)}
-              color={overrideCount > 0 ? COLORS.orange : COLORS.green}
-              theme={theme}
-            />
-          </View>
-
-          {/* ── Task status breakdown bars ──────────────────────────────── */}
-          {todayStats.total > 0 && (
+          {/* ── Task Summary ───────────────────────────────────────────── */}
+          {todayStats.total > 0 ? (
             <View style={[styles.card, { backgroundColor: theme.card }]}>
-              <Text style={[styles.cardTitle, { color: theme.text }]}>Task Breakdown</Text>
+              <View style={styles.cardHeader}>
+                <Text style={[styles.cardTitle, { color: theme.text }]}>Tasks</Text>
+                <Text style={[styles.cardBadge, { color: rateColor, backgroundColor: rateColor + '18' }]}>{todayStats.rate}% done</Text>
+              </View>
               {[
                 { label: 'Completed', value: todayStats.completed, color: COLORS.green },
                 { label: 'Remaining', value: todayStats.remaining, color: COLORS.blue },
@@ -350,56 +304,41 @@ function StatsScreen() {
               ].filter((r) => r.value > 0).map((r) => (
                 <View key={r.label} style={styles.breakdownRow}>
                   <Text style={[styles.breakdownLabel, { color: theme.textSecondary }]}>{r.label}</Text>
-                  <View style={[styles.breakdownTrack, { backgroundColor: theme.border }]}>
-                    <View style={[styles.breakdownFill, {
-                      backgroundColor: r.color,
-                      width: `${Math.round((r.value / todayStats.total) * 100)}%`,
-                    }]} />
+                  <View style={[styles.trackFull, { backgroundColor: theme.border }]}>
+                    <View style={[styles.trackFill, { backgroundColor: r.color, width: `${Math.round((r.value / todayStats.total) * 100)}%` }]} />
                   </View>
                   <Text style={[styles.breakdownValue, { color: r.color }]}>{r.value}</Text>
                 </View>
               ))}
+              {todayStats.minsScheduled > 0 && (
+                <View style={{ marginTop: SPACING.xs }}>
+                  <View style={styles.progLabels}>
+                    <Text style={[styles.progText, { color: theme.muted }]}>{fmtMins(todayStats.minsCompleted)} of {fmtMins(todayStats.minsScheduled)} scheduled time</Text>
+                  </View>
+                  <View style={[styles.trackFull, { backgroundColor: theme.border, marginTop: 5 }]}>
+                    <View style={[styles.trackFill, { backgroundColor: COLORS.green,
+                      width: `${Math.min(100, (todayStats.minsCompleted / todayStats.minsScheduled) * 100)}%` }]} />
+                  </View>
+                </View>
+              )}
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <Ionicons name="calendar-outline" size={52} color={theme.border} />
+              <Text style={[styles.emptyTitle, { color: theme.text }]}>Nothing scheduled today</Text>
+              <Text style={[styles.emptySub, { color: theme.muted }]}>Add tasks to start tracking your productivity</Text>
             </View>
           )}
 
-          {/* ── Priority breakdown ──────────────────────────────────────── */}
-          {todayStats.total > 0 && (() => {
-            const pRows = [
-              { label: 'Critical', value: todayStats.byPriority.critical, color: COLORS.red },
-              { label: 'High',     value: todayStats.byPriority.high,     color: COLORS.orange },
-              { label: 'Medium',   value: todayStats.byPriority.medium,   color: COLORS.blue },
-              { label: 'Low',      value: todayStats.byPriority.low,      color: COLORS.green },
-            ].filter((p) => p.value > 0);
-            if (pRows.length === 0) return null;
-            return (
-              <View style={[styles.card, { backgroundColor: theme.card }]}>
-                <Text style={[styles.cardTitle, { color: theme.text }]}>By Priority</Text>
-                {pRows.map((p) => (
-                  <View key={p.label} style={styles.breakdownRow}>
-                    <View style={[styles.dot, { backgroundColor: p.color }]} />
-                    <Text style={[styles.breakdownLabel, { color: theme.textSecondary, width: 58 }]}>{p.label}</Text>
-                    <View style={[styles.breakdownTrack, { backgroundColor: theme.border }]}>
-                      <View style={[styles.breakdownFill, {
-                        backgroundColor: p.color,
-                        width: `${Math.round((p.value / todayStats.total) * 100)}%`,
-                      }]} />
-                    </View>
-                    <Text style={[styles.breakdownValue, { color: p.color }]}>{p.value}</Text>
-                  </View>
-                ))}
-              </View>
-            );
-          })()}
-
-          {/* ── Top Tags ────────────────────────────────────────────────── */}
+          {/* ── Top Tags ──────────────────────────────────────────────── */}
           {todayStats.topTags.length > 0 && (
             <View style={[styles.card, { backgroundColor: theme.card }]}>
-              <Text style={[styles.cardTitle, { color: theme.text }]}>Top Tags</Text>
+              <Text style={[styles.cardTitle, { color: theme.text }]}>Today's Tags</Text>
               <View style={styles.tagsWrap}>
                 {todayStats.topTags.map(({ tag, count }) => (
-                  <View key={tag} style={[styles.tag, { backgroundColor: COLORS.primary + '18', borderColor: COLORS.primary + '33' }]}>
+                  <View key={tag} style={[styles.tag, { backgroundColor: COLORS.primary + '15', borderColor: COLORS.primary + '30' }]}>
                     <Text style={[styles.tagText, { color: COLORS.primary }]}>#{tag}</Text>
-                    <View style={[styles.tagCount, { backgroundColor: COLORS.primary + '22' }]}>
+                    <View style={[styles.tagCount, { backgroundColor: COLORS.primary + '20' }]}>
                       <Text style={[styles.tagCountText, { color: COLORS.primary }]}>{count}</Text>
                     </View>
                   </View>
@@ -408,125 +347,56 @@ function StatsScreen() {
             </View>
           )}
 
-          {/* ── Empty state ─────────────────────────────────────────────── */}
-          {todayStats.total === 0 && (
-            <View style={styles.emptyState}>
-              <Ionicons name="bar-chart-outline" size={52} color={theme.border} />
-              <Text style={[styles.emptyTitle, { color: theme.text }]}>Nothing scheduled today</Text>
-              <Text style={[styles.emptySub, { color: theme.muted }]}>Add tasks to start tracking your productivity</Text>
-            </View>
-          )}
+          {/* ── Encouragement ─────────────────────────────────────────── */}
+          <View style={[styles.encourageCard, { backgroundColor: COLORS.primary + '0E', borderColor: COLORS.primary + '22' }]}>
+            <Text style={[styles.encourageText, { color: COLORS.primary }]}>
+              {getMotivation(focusMinutes, todayStats.rate, streak)}
+            </Text>
+          </View>
         </ScrollView>
       )}
 
-      {/* ════════════════════════ WEEK ═════════════════════════════════════ */}
+      {/* ════════════════ WEEK ══════════════════════════════════════════ */}
       {filter === 'week' && (
         weekLoading ? (
-          <View style={styles.center}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
-          </View>
+          <View style={styles.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>
         ) : (
-          <ScrollView
-            style={styles.scroll}
+          <ScrollView style={styles.scroll}
             contentContainerStyle={[styles.content, { paddingBottom: 60 + insets.bottom + 24 }]}
-            showsVerticalScrollIndicator={false}
-          >
-            {/* ── TASK PRODUCTIVITY section ──────────────────────────── */}
-            <SectionHeader label="TASK PRODUCTIVITY" theme={theme} />
+            showsVerticalScrollIndicator={false}>
 
-            {/* Summary chips */}
+            <SectionLabel label="TASK PRODUCTIVITY" theme={theme} />
+
+            {/* Week summary chips */}
             <View style={styles.chipRow}>
-              <InfoChip
-                icon="list-outline"
-                label="Tasks"
-                value={String(weekSummary.total)}
-                color={COLORS.blue}
-                theme={theme}
-              />
-              <InfoChip
-                icon="checkmark-circle-outline"
-                label="Done"
-                value={weekSummary.rate > 0 ? `${weekSummary.rate}%` : '—'}
-                color={weekSummary.rate >= 80 ? COLORS.green : weekSummary.rate >= 50 ? COLORS.orange : COLORS.red}
-                theme={theme}
-              />
-              <InfoChip
-                icon="timer-outline"
-                label="Focus"
-                value={weekSummary.focusMins > 0 ? fmtMins(weekSummary.focusMins) : '—'}
-                color={COLORS.primary}
-                theme={theme}
-              />
+              <InfoChip icon="list-outline"           label="Tasks"   value={String(weekSummary.total)}   color={COLORS.blue}    theme={theme} />
+              <InfoChip icon="checkmark-circle-outline" label="Done"   value={weekSummary.rate > 0 ? `${weekSummary.rate}%` : '—'}
+                color={weekSummary.rate >= 80 ? COLORS.green : weekSummary.rate >= 50 ? COLORS.orange : COLORS.red} theme={theme} />
+              <InfoChip icon="timer-outline"           label="Focus"   value={weekSummary.focusMins > 0 ? fmtMins(weekSummary.focusMins) : '—'} color={COLORS.primary} theme={theme} />
             </View>
 
-            {/* Completed tasks bar chart */}
+            {/* Tasks completed per day */}
             <View style={[styles.card, { backgroundColor: theme.card }]}>
-              <Text style={[styles.cardTitle, { color: theme.text }]}>Completed Tasks per Day</Text>
-              <View style={styles.barChart}>
-                {weeklyDays.map((d) => {
-                  const pct      = d.completed === 0 ? 0 : Math.max(0.05, d.completed / maxWeekCompleted);
-                  const barColor = d.completed === 0
-                    ? (theme.border as string)
-                    : d.isToday ? COLORS.primary : COLORS.green;
-                  return (
-                    <View key={d.date} style={styles.barCol}>
-                      <Text style={[styles.barCount, { color: d.completed === 0 ? theme.muted : theme.text }]}>
-                        {d.completed === 0 ? '·' : d.completed}
-                      </Text>
-                      <View style={[styles.barTrack, { backgroundColor: theme.border }]}>
-                        <View style={[styles.barFill, { height: `${pct * 100}%`, backgroundColor: barColor }]} />
-                      </View>
-                      <Text style={[styles.barDay, {
-                        color:      d.isToday ? COLORS.primary : theme.muted,
-                        fontWeight: d.isToday ? '700' : '500',
-                      }]}>
-                        {d.day}
-                      </Text>
-                      {d.total > 0 && (
-                        <Text style={[styles.barTotal, { color: theme.muted }]}>/{d.total}</Text>
-                      )}
-                    </View>
-                  );
-                })}
+              <Text style={[styles.cardTitle, { color: theme.text }]}>Tasks Completed per Day</Text>
+              <DualBarChart days={weeklyDays} maxC={maxWeekCompleted} maxF={maxWeekFocus} theme={theme} />
+              <View style={styles.legendRow}>
+                <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: COLORS.green }]} /><Text style={[styles.legendLabel, { color: theme.muted }]}>Completed</Text></View>
+                <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: COLORS.primary + '60' }]} /><Text style={[styles.legendLabel, { color: theme.muted }]}>Focus mins</Text></View>
               </View>
-              {weekSummary.total === 0 && (
-                <Text style={[styles.chartEmpty, { color: theme.muted }]}>
-                  No tasks scheduled this week yet
-                </Text>
-              )}
             </View>
 
-            {/* ── APP DISCIPLINE section ─────────────────────────────── */}
-            <SectionHeader label="APP DISCIPLINE" theme={theme} />
+            <SectionLabel label="APP DISCIPLINE" theme={theme} />
 
-            {/* Summary grid */}
+            {/* App discipline chips */}
             <View style={styles.chipRow}>
-              <InfoChip
-                icon="shield-checkmark"
-                label="Blocked"
-                value={String(totalThisWeek)}
-                color={totalThisWeek === 0 ? COLORS.green : COLORS.orange}
-                theme={theme}
-              />
-              <InfoChip
-                icon="flame"
-                label="Clean Days"
-                value={`${cleanStreak}d`}
-                color={cleanStreak > 0 ? COLORS.green : theme.muted as string}
-                theme={theme}
-              />
-              <InfoChip
-                icon="apps-outline"
-                label="Apps Tempted"
-                value={String(appStats.length)}
-                color={COLORS.blue}
-                theme={theme}
-              />
+              <InfoChip icon="shield-checkmark" label="Blocked"    value={String(totalThisWeek)}    color={totalThisWeek === 0 ? COLORS.green : COLORS.orange} theme={theme} />
+              <InfoChip icon="flame"            label="Clean Days" value={`${cleanStreak}d`}         color={cleanStreak > 0 ? COLORS.green : theme.muted as string} theme={theme} />
+              <InfoChip icon="apps-outline"     label="Apps"       value={String(appStats.length)}   color={COLORS.blue} theme={theme} />
             </View>
 
-            {/* Daily blocked attempts bar chart */}
+            {/* Daily blocked attempts */}
             <View style={[styles.card, { backgroundColor: theme.card }]}>
-              <Text style={[styles.cardTitle, { color: theme.text }]}>App Block Intercepts per Day</Text>
+              <Text style={[styles.cardTitle, { color: theme.text }]}>Block Intercepts per Day</Text>
               <View style={styles.barChart}>
                 {dayStats.map((d, i) => {
                   const isToday  = i === dayStats.length - 1;
@@ -534,81 +404,114 @@ function StatsScreen() {
                   const barColor = d.count === 0 ? COLORS.green : isToday ? COLORS.primary : COLORS.orange;
                   return (
                     <View key={d.date} style={styles.barCol}>
-                      <Text style={[styles.barCount, { color: d.count === 0 ? COLORS.green : theme.text }]}>
-                        {d.count === 0 ? '✓' : d.count}
-                      </Text>
+                      <Text style={[styles.barCount, { color: d.count === 0 ? COLORS.green : theme.text }]}>{d.count === 0 ? '✓' : d.count}</Text>
                       <View style={[styles.barTrack, { backgroundColor: theme.border }]}>
                         <View style={[styles.barFill, { height: `${pct * 100}%`, backgroundColor: barColor }]} />
                       </View>
-                      <Text style={[styles.barDay, {
-                        color:      isToday ? COLORS.primary : theme.muted,
-                        fontWeight: isToday ? '700' : '500',
-                      }]}>
-                        {d.day}
-                      </Text>
+                      <Text style={[styles.barDay, { color: isToday ? COLORS.primary : theme.muted, fontWeight: isToday ? '700' : '500' }]}>{d.day}</Text>
                     </View>
                   );
                 })}
               </View>
-              {dayStats.length === 0 && (
-                <Text style={[styles.chartEmpty, { color: theme.muted }]}>
-                  Block some apps to see intercept data
-                </Text>
-              )}
             </View>
 
             {/* Most tempting apps */}
             {appStats.length > 0 && (
               <View style={[styles.card, { backgroundColor: theme.card }]}>
                 <Text style={[styles.cardTitle, { color: theme.text }]}>Most Tempting Apps</Text>
-                {appStats.slice(0, 8).map((a, i) => (
+                {appStats.slice(0, 6).map((a, i) => (
                   <View key={a.pkg} style={[styles.appRow, { borderBottomColor: theme.border }]}>
-                    <View style={[styles.rankBadge, {
-                      backgroundColor: i === 0 ? COLORS.red + '18' : theme.surface,
-                    }]}>
-                      <Text style={[styles.rankText, { color: i === 0 ? COLORS.red : theme.muted }]}>
-                        #{i + 1}
-                      </Text>
+                    <View style={[styles.rankBadge, { backgroundColor: i === 0 ? COLORS.red + '18' : theme.surface }]}>
+                      <Text style={[styles.rankText, { color: i === 0 ? COLORS.red : theme.muted }]}>#{i + 1}</Text>
                     </View>
                     <View style={styles.appInfo}>
-                      <Text style={[styles.appName, { color: theme.text }]} numberOfLines={1}>
-                        {a.appName}
-                      </Text>
+                      <Text style={[styles.appName, { color: theme.text }]} numberOfLines={1}>{a.appName}</Text>
                       <View style={[styles.trackFull, { backgroundColor: theme.border }]}>
-                        <View style={[styles.trackFill, {
-                          width:           `${(a.count / maxApp) * 100}%`,
-                          backgroundColor: i === 0 ? COLORS.red : COLORS.orange,
-                        }]} />
+                        <View style={[styles.trackFill, { width: `${(a.count / maxApp) * 100}%`, backgroundColor: i === 0 ? COLORS.red : COLORS.orange }]} />
                       </View>
                     </View>
-                    <View style={[styles.countBadge, {
-                      backgroundColor: i === 0 ? COLORS.red + '18' : theme.surface,
-                    }]}>
-                      <Text style={[styles.countText, { color: i === 0 ? COLORS.red : theme.text }]}>
-                        {a.count}×
-                      </Text>
+                    <View style={[styles.countBadge, { backgroundColor: i === 0 ? COLORS.red + '18' : theme.surface }]}>
+                      <Text style={[styles.countText, { color: i === 0 ? COLORS.red : theme.text }]}>{a.count}×</Text>
                     </View>
                   </View>
                 ))}
               </View>
             )}
 
-            {appStats.length === 0 && totalThisWeek === 0 && (
+            {appStats.length === 0 && dayStats.length > 0 && dayStats.every((d) => d.count === 0) && (
               <View style={styles.emptyState}>
                 <Ionicons name="shield-checkmark" size={52} color={COLORS.green} />
-                <Text style={[styles.emptyTitle, { color: theme.text }]}>Clean discipline this week!</Text>
-                <Text style={[styles.emptySub, { color: theme.muted }]}>
-                  Data appears here when the app blocker intercepts an attempt to open a blocked app.
-                </Text>
+                <Text style={[styles.emptyTitle, { color: theme.text }]}>Perfect discipline this week!</Text>
+                <Text style={[styles.emptySub, { color: theme.muted }]}>No blocked-app intercepts — you resisted every distraction.</Text>
               </View>
             )}
+          </ScrollView>
+        )
+      )}
 
-            {/* All-time footnote */}
-            {totalAllTime > 0 && (
-              <Text style={[styles.footnote, { color: theme.muted }]}>
-                {totalAllTime} total block intercepts all time
-              </Text>
-            )}
+      {/* ════════════════ ALL TIME ══════════════════════════════════════ */}
+      {filter === 'alltime' && (
+        allTimeLoading ? (
+          <View style={styles.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>
+        ) : (
+          <ScrollView style={styles.scroll}
+            contentContainerStyle={[styles.content, { paddingBottom: 60 + insets.bottom + 24 }]}
+            showsVerticalScrollIndicator={false}>
+
+            {/* ── All-time hero ──────────────────────────────────────── */}
+            <View style={[styles.heroCard, { backgroundColor: theme.card, borderColor: COLORS.primary + '22' }]}>
+              <Text style={[styles.heroEyebrow, { color: theme.muted }]}>TOTAL FOCUS TIME</Text>
+              {allTimeMins > 0 ? (
+                <>
+                  <Text style={[styles.heroTime, { color: COLORS.primary }]}>
+                    {Math.floor(allTimeMins / 60) > 0 ? `${Math.floor(allTimeMins / 60)}h ` : ''}
+                    <Text style={styles.heroTimeSmall}>{allTimeMins % 60}m</Text>
+                  </Text>
+                  <Text style={[styles.heroSub, { color: theme.muted }]}>{allTimeSess} focus session{allTimeSess !== 1 ? 's' : ''} total</Text>
+                </>
+              ) : (
+                <View style={styles.heroEmpty}>
+                  <Ionicons name="hourglass-outline" size={40} color={theme.border} />
+                  <Text style={[styles.heroEmptyText, { color: theme.muted }]}>Complete your first focus session to start building your history</Text>
+                </View>
+              )}
+            </View>
+
+            {/* ── Lifetime stats grid ────────────────────────────────── */}
+            <View style={styles.lifeGrid}>
+              <LifeStat icon="checkmark-done-circle" color={COLORS.green}   label="Tasks Done"    value={String(allTimeTasksCompleted)} theme={theme} />
+              <LifeStat icon="flame"                 color={COLORS.orange}  label="Best Streak"   value={`${bestStreak}d`}             theme={theme} />
+              <LifeStat icon="shield-checkmark"      color={COLORS.blue}    label="Apps Blocked"  value={String(totalAllTime)}         theme={theme} />
+              <LifeStat icon="trophy"                color={COLORS.purple}  label="Days Active"   value={String(heatData.filter((d) => d.hasData).length)} theme={theme} />
+            </View>
+
+            {/* ── Calendar heatmap ───────────────────────────────────── */}
+            <View style={[styles.card, { backgroundColor: theme.card }]}>
+              <Text style={[styles.cardTitle, { color: theme.text }]}>Activity — Last 12 Weeks</Text>
+              <CalendarHeatmap data={heatData} width={width - SPACING.md * 4} theme={theme} />
+              <View style={styles.heatLegendRow}>
+                <Text style={[styles.heatLegendLabel, { color: theme.muted }]}>Less</Text>
+                {[0, 0.3, 0.6, 1].map((v, i) => (
+                  <View key={i} style={[styles.heatDot, { backgroundColor: heatColor(v, true) }]} />
+                ))}
+                <Text style={[styles.heatLegendLabel, { color: theme.muted }]}>More</Text>
+              </View>
+            </View>
+
+            {/* ── Milestone badges ───────────────────────────────────── */}
+            <View style={[styles.card, { backgroundColor: theme.card }]}>
+              <Text style={[styles.cardTitle, { color: theme.text }]}>Milestones</Text>
+              <View style={styles.badgeGrid}>
+                {getMilestones(allTimeMins, allTimeTasksCompleted, bestStreak, totalAllTime).map((m) => (
+                  <View key={m.label} style={[styles.badge, { backgroundColor: m.earned ? m.color + '18' : theme.surface, borderColor: m.earned ? m.color + '44' : theme.border }]}>
+                    <Text style={styles.badgeIcon}>{m.icon}</Text>
+                    <Text style={[styles.badgeLabel, { color: m.earned ? m.color : theme.muted }]}>{m.label}</Text>
+                    <Text style={[styles.badgeSub, { color: theme.muted }]}>{m.sub}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+
           </ScrollView>
         )
       )}
@@ -618,44 +521,88 @@ function StatsScreen() {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function SectionHeader({ label, theme }: { label: string; theme: any }) {
-  return (
-    <Text style={[styles.sectionLabel, { color: theme.muted }]}>{label}</Text>
-  );
+function SectionLabel({ label, theme }: { label: string; theme: any }) {
+  return <Text style={[styles.sectionLabel, { color: theme.muted }]}>{label}</Text>;
 }
 
-function StatusRow({
-  icon, color, label, value,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  color: string;
-  label: string;
-  value: number;
-}) {
-  const { theme } = useTheme();
+function Pill({ icon, label, color, theme }: { icon: any; label: string; color: string; theme: any }) {
   return (
-    <View style={styles.statusRow}>
-      <Ionicons name={icon} size={15} color={color} />
-      <Text style={[styles.statusLabel, { color: theme.textSecondary }]}>{label}</Text>
-      <Text style={[styles.statusValue, { color }]}>{value}</Text>
+    <View style={[styles.pill, { backgroundColor: color + '15', borderColor: color + '30' }]}>
+      <Ionicons name={icon} size={12} color={color} />
+      <Text style={[styles.pillText, { color }]}>{label}</Text>
     </View>
   );
 }
 
-function InfoChip({
-  icon, label, value, color, theme,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  value: string;
-  color: string;
-  theme: any;
-}) {
+function InfoChip({ icon, label, value, color, theme }: { icon: any; label: string; value: string; color: string; theme: any }) {
   return (
     <View style={[styles.chip, { backgroundColor: theme.card, borderColor: color + '33' }]}>
       <Ionicons name={icon} size={18} color={color} />
       <Text style={[styles.chipValue, { color }]}>{value}</Text>
       <Text style={[styles.chipLabel, { color: theme.muted }]}>{label}</Text>
+    </View>
+  );
+}
+
+function LifeStat({ icon, label, value, color, theme }: { icon: any; label: string; value: string; color: string; theme: any }) {
+  return (
+    <View style={[styles.lifeStat, { backgroundColor: theme.card, borderColor: color + '22' }]}>
+      <Ionicons name={icon} size={22} color={color} />
+      <Text style={[styles.lifeValue, { color }]}>{value}</Text>
+      <Text style={[styles.lifeLabel, { color: theme.muted }]}>{label}</Text>
+    </View>
+  );
+}
+
+function DualBarChart({ days, maxC, maxF, theme }: { days: WeekDay[]; maxC: number; maxF: number; theme: any }) {
+  return (
+    <View style={styles.barChart}>
+      {days.map((d) => {
+        const cPct = d.completed === 0 ? 0 : Math.max(0.04, d.completed / maxC);
+        const fPct = d.focusMinutes === 0 ? 0 : Math.max(0.04, d.focusMinutes / maxF);
+        return (
+          <View key={d.date} style={styles.barCol}>
+            <Text style={[styles.barCount, { color: d.completed > 0 ? theme.text : theme.muted }]}>{d.completed > 0 ? d.completed : '·'}</Text>
+            <View style={[styles.barTrack, { backgroundColor: theme.border }]}>
+              <View style={{ width: '100%', justifyContent: 'flex-end', flex: 1 }}>
+                {fPct > 0 && <View style={{ height: `${fPct * 100}%`, backgroundColor: COLORS.primary + '55', borderRadius: 2 }} />}
+                {cPct > 0 && <View style={{ height: `${cPct * 100}%`, backgroundColor: COLORS.green, borderRadius: 2 }} />}
+              </View>
+            </View>
+            <Text style={[styles.barDay, { color: d.isToday ? COLORS.primary : theme.muted, fontWeight: d.isToday ? '700' : '500' }]}>{d.day}</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function heatColor(rate: number, hasData: boolean): string {
+  if (!hasData || rate === 0) return COLORS.green + '18';
+  if (rate >= 0.8) return COLORS.green;
+  if (rate >= 0.5) return COLORS.green + 'AA';
+  if (rate > 0)   return COLORS.orange + '88';
+  return COLORS.green + '18';
+}
+
+function CalendarHeatmap({ data, width, theme }: { data: HeatDay[]; width: number; theme: any }) {
+  const cellSize = Math.floor((width - SPACING.sm * 6) / 12);
+  const weeks: HeatDay[][] = [];
+  for (let i = 0; i < data.length; i += 7) weeks.push(data.slice(i, i + 7));
+
+  return (
+    <View style={styles.heatGrid}>
+      {weeks.map((week, wi) => (
+        <View key={wi} style={styles.heatWeek}>
+          {week.map((day, di) => (
+            <View key={di} style={[styles.heatCell, {
+              width: cellSize, height: cellSize,
+              backgroundColor: heatColor(day.rate, day.hasData),
+              borderColor: theme.border,
+            }]} />
+          ))}
+        </View>
+      ))}
     </View>
   );
 }
@@ -669,17 +616,37 @@ function fmtMins(minutes: number): string {
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
 
+function fmtMinsLong(minutes: number): { h: number; m: number } {
+  return { h: Math.floor(minutes / 60), m: minutes % 60 };
+}
+
 function getTopTags(tasks: Task[]): { tag: string; count: number }[] {
   const counts: Record<string, number> = {};
-  for (const t of tasks) {
-    for (const tag of t.tags) {
-      counts[tag] = (counts[tag] ?? 0) + 1;
-    }
-  }
-  return Object.entries(counts)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 6)
-    .map(([tag, count]) => ({ tag, count }));
+  for (const t of tasks) for (const tag of t.tags) counts[tag] = (counts[tag] ?? 0) + 1;
+  return Object.entries(counts).sort(([, a], [, b]) => b - a).slice(0, 6).map(([tag, count]) => ({ tag, count }));
+}
+
+function getMotivation(focusMins: number, rate: number, streak: number): string {
+  if (streak >= 7)    return `🏆 ${streak} days straight — elite consistency.`;
+  if (focusMins >= 120) return `🔥 ${Math.floor(focusMins / 60)}h+ of deep work today. That's rare.`;
+  if (focusMins >= 60)  return `⚡ An hour of focus done. Keep the momentum going.`;
+  if (rate >= 80)       return `✅ ${rate}% completion — productive day. Stay on it.`;
+  if (rate >= 50)       return `📈 Good start. Finish the remaining tasks strong.`;
+  if (focusMins > 0)    return `🌱 Every session counts. You've started — keep going.`;
+  return `🎯 Start a focus session to build your streak.`;
+}
+
+function getMilestones(mins: number, tasks: number, streak: number, blocked: number) {
+  return [
+    { icon: '⏱', label: '1 Hour',       sub: 'focus time',     color: COLORS.primary, earned: mins >= 60 },
+    { icon: '🕐', label: '10 Hours',     sub: 'focus time',     color: COLORS.primary, earned: mins >= 600 },
+    { icon: '🏅', label: '10 Tasks',     sub: 'completed',      color: COLORS.green,   earned: tasks >= 10 },
+    { icon: '🥇', label: '100 Tasks',    sub: 'completed',      color: COLORS.green,   earned: tasks >= 100 },
+    { icon: '🔥', label: '7-Day Streak', sub: 'in a row',       color: COLORS.orange,  earned: streak >= 7 },
+    { icon: '💪', label: '30-Day Streak',sub: 'in a row',       color: COLORS.orange,  earned: streak >= 30 },
+    { icon: '🛡', label: '10 Blocked',   sub: 'distractions',   color: COLORS.blue,    earned: blocked >= 10 },
+    { icon: '⚔️', label: '100 Blocked',  sub: 'distractions',   color: COLORS.blue,    earned: blocked >= 100 },
+  ];
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -691,172 +658,126 @@ const styles = StyleSheet.create({
   content: { padding: SPACING.md, gap: SPACING.md },
 
   header: {
-    flexDirection:       'row',
-    alignItems:          'center',
-    justifyContent:      'space-between',
-    paddingHorizontal:   SPACING.lg,
-    paddingVertical:     SPACING.md,
-    borderBottomWidth:   StyleSheet.hairlineWidth,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md, borderBottomWidth: StyleSheet.hairlineWidth,
   },
   title:    { fontSize: FONT.xxl, fontWeight: '800' },
   subtitle: { fontSize: FONT.sm, marginTop: 2 },
   iconBtn:  { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
 
-  filterRow: {
-    flexDirection:     'row',
-    padding:           SPACING.xs,
-    gap:               SPACING.xs,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  filterPill: {
-    flex:            1,
-    paddingVertical: SPACING.sm,
-    borderRadius:    RADIUS.md,
-    alignItems:      'center',
-  },
+  filterRow: { flexDirection: 'row', padding: SPACING.xs, gap: SPACING.xs, borderBottomWidth: StyleSheet.hairlineWidth },
+  filterPill: { flex: 1, paddingVertical: SPACING.sm, borderRadius: RADIUS.md, alignItems: 'center' },
   filterLabel: { fontSize: FONT.sm, fontWeight: '700' },
 
-  // ── Cards & sections ──────────────────────────────────────────────────────
-  card: {
-    borderRadius: RADIUS.lg,
-    padding:      SPACING.md,
-    gap:          SPACING.sm,
-  },
+  card: { borderRadius: RADIUS.lg, padding: SPACING.md, gap: SPACING.sm },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cardTitle: { fontSize: FONT.md, fontWeight: '700' },
-  sectionLabel: {
-    fontSize:      FONT.xs,
-    fontWeight:    '700',
-    letterSpacing: 0.8,
-    marginTop:     SPACING.xs,
-    paddingLeft:   SPACING.xs,
-  },
+  cardBadge: { fontSize: FONT.xs, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full },
+  sectionLabel: { fontSize: FONT.xs, fontWeight: '700', letterSpacing: 0.8, paddingLeft: SPACING.xs },
 
-  // ── Streak banner ─────────────────────────────────────────────────────────
+  // Hero card
+  heroCard: {
+    borderRadius: RADIUS.xl, padding: SPACING.lg, alignItems: 'center', gap: SPACING.sm,
+    borderWidth: 1.5,
+  },
+  heroEyebrow: { fontSize: FONT.xs, fontWeight: '700', letterSpacing: 1 },
+  heroTime:    { fontSize: 64, fontWeight: '900', lineHeight: 70 },
+  heroTimeSmall: { fontSize: 36, fontWeight: '700' },
+  heroSub:     { fontSize: FONT.sm },
+  heroRow:     { flexDirection: 'row', gap: SPACING.xs, flexWrap: 'wrap', justifyContent: 'center' },
+  heroEmpty:   { alignItems: 'center', gap: SPACING.sm, paddingVertical: SPACING.sm },
+  heroEmptyText: { fontSize: FONT.sm, textAlign: 'center', maxWidth: 240 },
+
+  // Streak
   streakBanner: {
-    flexDirection:   'row',
-    alignItems:      'center',
-    gap:             SPACING.sm,
-    backgroundColor: COLORS.orange + '15',
-    borderRadius:    RADIUS.lg,
-    padding:         SPACING.md,
-    borderWidth:     1.5,
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    backgroundColor: COLORS.orange + '15', borderRadius: RADIUS.lg, padding: SPACING.md, borderWidth: 1.5,
   },
-  streakFire:  { fontSize: 24 },
-  streakTitle: { fontSize: FONT.md, fontWeight: '700' },
-  streakSub:   { fontSize: FONT.xs, marginTop: 1 },
+  streakFire: { fontSize: 24 }, streakTitle: { fontSize: FONT.md, fontWeight: '700' }, streakSub: { fontSize: FONT.xs, marginTop: 1 },
 
-  // ── Hero completion ───────────────────────────────────────────────────────
-  heroRow:    { flexDirection: 'row', alignItems: 'center', gap: SPACING.lg },
-  heroDisk: {
-    width:        108,
-    height:       108,
-    borderRadius: 54,
-    borderWidth:  3,
-    alignItems:   'center',
-    justifyContent: 'center',
-    gap:          2,
-  },
-  heroPercent: { fontSize: 36, fontWeight: '800', lineHeight: 42 },
-  heroPct:     { fontSize: 20, fontWeight: '600' },
-  heroLabel:   { fontSize: FONT.xs, fontWeight: '600', letterSpacing: 0.5 },
-  heroStats:   { flex: 1, gap: SPACING.sm },
-
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
-  statusLabel: { flex: 1, fontSize: FONT.sm },
-  statusValue: { fontSize: FONT.md, fontWeight: '700', minWidth: 24, textAlign: 'right' },
-
-  // ── Progress bar ──────────────────────────────────────────────────────────
-  progLabels:    { flexDirection: 'row', justifyContent: 'space-between' },
-  progLabelText: { fontSize: FONT.xs },
-  trackFull:     { height: 7, borderRadius: 4, overflow: 'hidden' },
-  trackFill:     { height: '100%', borderRadius: 4 },
-
-  // ── Info chips (3-across) ─────────────────────────────────────────────────
-  chipRow: { flexDirection: 'row', gap: SPACING.sm },
-  chip: {
-    flex:            1,
-    alignItems:      'center',
-    paddingVertical: SPACING.md,
-    borderRadius:    RADIUS.lg,
-    borderWidth:     1.5,
-    gap:             4,
-  },
-  chipValue: { fontSize: FONT.lg, fontWeight: '800' },
-  chipLabel: { fontSize: FONT.xs, fontWeight: '600' },
-
-  // ── Task breakdown bars ───────────────────────────────────────────────────
-  breakdownRow: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    gap:           SPACING.sm,
-  },
+  // Breakdown bars
+  breakdownRow:   { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   breakdownLabel: { fontSize: FONT.sm, width: 70 },
-  breakdownTrack: { flex: 1, height: 7, borderRadius: 4, overflow: 'hidden' },
-  breakdownFill:  { height: '100%', borderRadius: 4 },
   breakdownValue: { fontSize: FONT.md, fontWeight: '700', width: 24, textAlign: 'right' },
-  dot:            { width: 10, height: 10, borderRadius: 5 },
+  trackFull:      { flex: 1, height: 7, borderRadius: 4, overflow: 'hidden' },
+  trackFill:      { height: '100%', borderRadius: 4 },
+  progLabels:     { flexDirection: 'row', justifyContent: 'space-between' },
+  progText:       { fontSize: FONT.xs },
 
-  // ── Tags ──────────────────────────────────────────────────────────────────
-  tagsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.xs },
-  tag: {
-    flexDirection:   'row',
-    alignItems:      'center',
-    gap:             5,
-    paddingVertical: 5,
-    paddingHorizontal: SPACING.sm,
-    borderRadius:    RADIUS.pill,
-    borderWidth:     1,
-  },
+  // Pill tags
+  pill:     { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: RADIUS.full, borderWidth: 1 },
+  pillText: { fontSize: FONT.xs, fontWeight: '600' },
+
+  // Tags
+  tagsWrap:     { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.xs },
+  tag:          { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 5, paddingHorizontal: SPACING.sm, borderRadius: RADIUS.full, borderWidth: 1 },
   tagText:      { fontSize: FONT.xs, fontWeight: '600' },
   tagCount:     { borderRadius: 10, paddingHorizontal: 5, paddingVertical: 1 },
   tagCountText: { fontSize: 10, fontWeight: '700' },
 
-  // ── Bar chart ─────────────────────────────────────────────────────────────
-  barChart: {
-    flexDirection:   'row',
-    alignItems:      'flex-end',
-    height:          120,
-    gap:             SPACING.xs,
-    paddingTop:      SPACING.sm,
-  },
-  barCol: {
-    flex:           1,
-    alignItems:     'center',
-    height:         '100%',
-    justifyContent: 'flex-end',
-    gap:            3,
-  },
-  barCount:  { fontSize: 10, fontWeight: '700' },
-  barTrack:  { width: '100%', flex: 1, borderRadius: 3, overflow: 'hidden', justifyContent: 'flex-end' },
-  barFill:   { width: '100%', borderRadius: 3 },
-  barDay:    { fontSize: 10 },
-  barTotal:  { fontSize: 9 },
-  chartEmpty:{ fontSize: FONT.sm, textAlign: 'center', paddingVertical: SPACING.md },
+  // Encourage
+  encourageCard: { borderRadius: RADIUS.lg, padding: SPACING.md, borderWidth: 1.5, alignItems: 'center' },
+  encourageText: { fontSize: FONT.md, fontWeight: '600', textAlign: 'center', lineHeight: 22 },
 
-  // ── App rows ──────────────────────────────────────────────────────────────
-  appRow: {
-    flexDirection:    'row',
-    alignItems:       'center',
-    gap:              SPACING.sm,
-    paddingVertical:  SPACING.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  rankBadge:  { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  rankText:   { fontSize: FONT.xs, fontWeight: '700' },
-  appInfo:    { flex: 1, gap: 5 },
-  appName:    { fontSize: FONT.sm, fontWeight: '600' },
-  countBadge: { paddingHorizontal: SPACING.sm, paddingVertical: 4, borderRadius: RADIUS.sm },
-  countText:  { fontSize: FONT.sm, fontWeight: '700' },
+  // Chips
+  chipRow: { flexDirection: 'row', gap: SPACING.sm },
+  chip: { flex: 1, alignItems: 'center', paddingVertical: SPACING.md, borderRadius: RADIUS.lg, borderWidth: 1.5, gap: 4 },
+  chipValue: { fontSize: FONT.lg, fontWeight: '800' },
+  chipLabel: { fontSize: FONT.xs, fontWeight: '600' },
 
-  // ── Empty / footnote ──────────────────────────────────────────────────────
-  emptyState: {
-    alignItems:    'center',
-    paddingVertical: SPACING.xxl,
-    gap:             SPACING.sm,
+  // Bar charts (week)
+  barChart: { flexDirection: 'row', alignItems: 'flex-end', height: 110, gap: SPACING.xs, paddingTop: SPACING.sm },
+  barCol:   { flex: 1, alignItems: 'center', height: '100%', justifyContent: 'flex-end', gap: 3 },
+  barCount: { fontSize: 10, fontWeight: '700' },
+  barTrack: { width: '100%', flex: 1, borderRadius: 3, overflow: 'hidden', justifyContent: 'flex-end' },
+  barFill:  { width: '100%', borderRadius: 3 },
+  barDay:   { fontSize: 10 },
+
+  legendRow:  { flexDirection: 'row', gap: SPACING.md, justifyContent: 'center', marginTop: SPACING.xs },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  legendDot:  { width: 8, height: 8, borderRadius: 4 },
+  legendLabel:{ fontSize: FONT.xs },
+
+  // App rows
+  appRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingVertical: SPACING.sm, borderBottomWidth: StyleSheet.hairlineWidth },
+  rankBadge: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  rankText:  { fontSize: FONT.xs, fontWeight: '700' },
+  appInfo:   { flex: 1, gap: 5 },
+  appName:   { fontSize: FONT.sm, fontWeight: '600' },
+  countBadge:{ paddingHorizontal: SPACING.sm, paddingVertical: 4, borderRadius: RADIUS.sm },
+  countText: { fontSize: FONT.sm, fontWeight: '700' },
+
+  // All-time life stats
+  lifeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
+  lifeStat: {
+    width: '48%', alignItems: 'center', paddingVertical: SPACING.lg, borderRadius: RADIUS.lg,
+    borderWidth: 1.5, gap: 4,
   },
+  lifeValue: { fontSize: FONT.xxl, fontWeight: '900' },
+  lifeLabel: { fontSize: FONT.xs, fontWeight: '600' },
+
+  // Heatmap
+  heatGrid:       { flexDirection: 'row', gap: 3, marginTop: SPACING.sm },
+  heatWeek:       { flexDirection: 'column', gap: 3 },
+  heatCell:       { borderRadius: 2, borderWidth: 0.5 },
+  heatLegendRow:  { flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'flex-end', marginTop: SPACING.xs },
+  heatDot:        { width: 10, height: 10, borderRadius: 2 },
+  heatLegendLabel:{ fontSize: 9 },
+
+  // Milestones
+  badgeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
+  badge: {
+    width: '47%', alignItems: 'center', paddingVertical: SPACING.md, paddingHorizontal: SPACING.sm,
+    borderRadius: RADIUS.lg, borderWidth: 1.5, gap: 3,
+  },
+  badgeIcon:  { fontSize: 24 },
+  badgeLabel: { fontSize: FONT.sm, fontWeight: '700', textAlign: 'center' },
+  badgeSub:   { fontSize: FONT.xs, textAlign: 'center' },
+
+  // Empty
+  emptyState: { alignItems: 'center', paddingVertical: SPACING.xxl, gap: SPACING.sm },
   emptyTitle: { fontSize: FONT.lg, fontWeight: '700', textAlign: 'center' },
   emptySub:   { fontSize: FONT.sm, textAlign: 'center', maxWidth: 280 },
-  footnote:   { fontSize: FONT.xs, textAlign: 'center', paddingBottom: SPACING.sm },
 });
 
 export default withScreenErrorBoundary(StatsScreen, 'Stats');

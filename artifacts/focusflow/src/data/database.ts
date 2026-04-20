@@ -454,3 +454,92 @@ export async function dbGetStreak(): Promise<number> {
     return 0;
   }
 }
+
+// ─── All-time / heatmap stats ─────────────────────────────────────────────────
+
+/** Returns all daily_completions rows for the last `days` days, sorted oldest-first. */
+export async function dbGetRecentDayCompletions(days: number): Promise<
+  { date: string; completed: number; total: number }[]
+> {
+  try {
+    const database = await getDb();
+    if (!database) return [];
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days + 1);
+    cutoff.setHours(0, 0, 0, 0);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+    return await database.getAllAsync<{ date: string; completed: number; total: number }>(
+      `SELECT date, completed, total FROM daily_completions WHERE date >= ? ORDER BY date ASC`,
+      [cutoffStr],
+    );
+  } catch (e) {
+    console.error('[database] dbGetRecentDayCompletions failed:', e);
+    return [];
+  }
+}
+
+/** Total focus minutes across all recorded sessions. */
+export async function dbGetAllTimeFocusMinutes(): Promise<number> {
+  try {
+    const database = await getDb();
+    if (!database) return 0;
+    const rows = await database.getAllAsync<{ started_at: string; ended_at: string | null }>(
+      `SELECT started_at, ended_at FROM focus_sessions WHERE is_active = 0`,
+    );
+    let total = 0;
+    for (const r of rows) {
+      if (!r.ended_at) continue;
+      const ms = new Date(r.ended_at).getTime() - new Date(r.started_at).getTime();
+      if (ms > 0) total += ms / 60_000;
+    }
+    return Math.round(total);
+  } catch (e) {
+    console.error('[database] dbGetAllTimeFocusMinutes failed:', e);
+    return 0;
+  }
+}
+
+/** Total count of completed focus sessions across all time. */
+export async function dbGetAllTimeFocusSessions(): Promise<number> {
+  try {
+    const database = await getDb();
+    if (!database) return 0;
+    const row = await database.getFirstAsync<{ count: number }>(
+      `SELECT COUNT(*) as count FROM focus_sessions WHERE is_active = 0`,
+    );
+    return row?.count ?? 0;
+  } catch (e) {
+    console.error('[database] dbGetAllTimeFocusSessions failed:', e);
+    return 0;
+  }
+}
+
+/** Best consecutive-day streak ever recorded (50% completion threshold). */
+export async function dbGetBestStreak(): Promise<number> {
+  try {
+    const database = await getDb();
+    if (!database) return 0;
+    const rows = await database.getAllAsync<{ date: string; completed: number; total: number }>(
+      `SELECT date, completed, total FROM daily_completions ORDER BY date ASC`,
+    );
+    let best = 0;
+    let current = 0;
+    let prevDate: Date | null = null;
+    for (const r of rows) {
+      const d = new Date(r.date);
+      const isGood = r.total > 0 && r.completed / r.total >= 0.5;
+      if (!isGood) { best = Math.max(best, current); current = 0; prevDate = null; continue; }
+      if (!prevDate) { current = 1; }
+      else {
+        const diff = Math.round((d.getTime() - prevDate.getTime()) / 86400000);
+        if (diff === 1) current++;
+        else { best = Math.max(best, current); current = 1; }
+      }
+      prevDate = d;
+    }
+    return Math.max(best, current);
+  } catch (e) {
+    console.error('[database] dbGetBestStreak failed:', e);
+    return 0;
+  }
+}
