@@ -71,3 +71,9 @@ id = "NC7vwxHM9N-2KR15CxnyC"
 uri = "file://artifacts/focusflow/CUSTOM_NODE_RULES_JSON.md"
 type = "text"
 title = "FocusFlow Custom Node Rules JSON Guide"
+
+[[outputs]]
+id = "iP0BDwrOXTHyQj8dDGfBV"
+uri = "file://focusflow-competitive-analysis.pdf"
+type = "pdf"
+title = "FocusFlow Competitive Analysis — April 2026"

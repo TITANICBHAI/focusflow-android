@@ -13,6 +13,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   focusModeEnabled: true,
   allowedInFocus: [],
   allowedAppPresets: [],
+  blockPresets: [],
   pomodoroEnabled: false,
   pomodoroDuration: 25,
   pomodoroBreak: 5,
@@ -30,6 +31,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   greyoutSchedule: [],
   systemGuardEnabled: true,
   customNodeRules: [],
+  recurringBlockSchedules: [],
 };
 
 /**

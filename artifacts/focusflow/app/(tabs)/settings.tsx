@@ -23,13 +23,10 @@ import { StandaloneBlockModal } from '@/components/StandaloneBlockModal';
 import { DailyAllowanceModal } from '@/components/DailyAllowanceModal';
 import { BlockedWordsModal } from '@/components/BlockedWordsModal';
 import { GreyoutScheduleModal } from '@/components/GreyoutScheduleModal';
-import { WeeklyReportModal } from '@/components/WeeklyReportModal';
 import { OverlayAppearanceModal } from '@/components/OverlayAppearanceModal';
-import CustomNodeRulesModal from '@/components/CustomNodeRulesModal';
 import DiagnosticsModal from '@/components/DiagnosticsModal';
 import { withScreenErrorBoundary } from '@/components/withScreenErrorBoundary';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
-import type { CustomNodeRule } from '@/data/types';
 
 const DURATION_OPTIONS = [30, 45, 60, 90, 120];
 
@@ -43,9 +40,7 @@ function SettingsScreen() {
   const [dailyModalVisible, setDailyModalVisible] = useState(false);
   const [wordsModalVisible, setWordsModalVisible] = useState(false);
   const [greyoutModalVisible, setGreyoutModalVisible] = useState(false);
-  const [weeklyReportVisible, setWeeklyReportVisible] = useState(false);
   const [overlayAppearanceVisible, setOverlayAppearanceVisible] = useState(false);
-  const [customNodeRulesVisible, setCustomNodeRulesVisible] = useState(false);
   const [diagnosticsVisible, setDiagnosticsVisible] = useState(false);
 
   if (!state.isDbReady) {
@@ -84,6 +79,16 @@ function SettingsScreen() {
     await setStandaloneBlockAndAllowance(packages, untilMs, allowanceEntries);
   };
 
+  const handleSaveBlockPreset = async (preset: import('@/data/types').BlockPreset) => {
+    const presets = [...(settings.blockPresets ?? []), preset];
+    await update({ blockPresets: presets });
+  };
+
+  const handleDeleteBlockPreset = async (id: string) => {
+    const presets = (settings.blockPresets ?? []).filter((p) => p.id !== id);
+    await update({ blockPresets: presets });
+  };
+
   // ── Other handlers ────────────────────────────────────────────────────────
 
   const handleRequestNotifications = async () => {
@@ -119,15 +124,6 @@ function SettingsScreen() {
     if (state.focusSession?.isActive) {
       await SharedPrefsModule.setAllowedPackages(packages);
     }
-  };
-
-  const handleViewReport = () => {
-    setWeeklyReportVisible(true);
-  };
-
-  const handleSaveCustomNodeRules = async (rules: CustomNodeRule[]) => {
-    await update({ customNodeRules: rules });
-    await SharedPrefsModule.setCustomNodeRules(rules);
   };
 
   const handleSystemGuardToggle = async (enabled: boolean) => {
@@ -279,16 +275,6 @@ function SettingsScreen() {
               thumbColor={(settings.systemGuardEnabled ?? true) ? COLORS.primary : COLORS.muted}
             />
           </SettingRow>
-          <SettingButton
-            icon="scan-outline"
-            label="Custom Node Rules"
-            description={
-              (settings.customNodeRules ?? []).length === 0
-                ? 'Import NodeSpy captures to block specific in-app elements'
-                : `${(settings.customNodeRules ?? []).filter((r: CustomNodeRule) => r.enabled).length} of ${(settings.customNodeRules ?? []).length} rule${(settings.customNodeRules ?? []).length !== 1 ? 's' : ''} active — tap to manage`
-            }
-            onPress={() => setCustomNodeRulesVisible(true)}
-          />
         </Section>
 
         {/* ── Greyout Schedule ── */}
@@ -354,24 +340,6 @@ function SettingsScreen() {
           />
         </Section>
 
-        {/* ── Temptation Report ── */}
-        <Section title="Temptation Report">
-          <SettingRow label="Weekly Report" description="Sunday notification with blocked-app attempt counts">
-            <Switch
-              value={settings.weeklyReportEnabled}
-              onValueChange={(v) => update({ weeklyReportEnabled: v })}
-              trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
-              thumbColor={settings.weeklyReportEnabled ? COLORS.primary : COLORS.muted}
-            />
-          </SettingRow>
-          <SettingButton
-            icon="bar-chart-outline"
-            label="View Report"
-            description="See this week's blocked-app attempt summary"
-            onPress={handleViewReport}
-          />
-        </Section>
-
         {/* ── Pomodoro ── */}
         <Section title="Pomodoro Mode">
           <SettingRow label="Enable Pomodoro" description="Auto-cycle work and break sessions">
@@ -404,15 +372,17 @@ function SettingsScreen() {
           />
         </Section>
 
-        {/* ── Diagnostics ── */}
-        <Section title="Diagnostics">
-          <SettingButton
-            icon="terminal-outline"
-            label="View Startup Logs"
-            description="Timestamped log of startup steps, warnings, and errors"
-            onPress={() => setDiagnosticsVisible(true)}
-          />
-        </Section>
+        {/* ── Diagnostics (debug builds only) ── */}
+        {__DEV__ && (
+          <Section title="Diagnostics">
+            <SettingButton
+              icon="terminal-outline"
+              label="View Startup Logs"
+              description="Timestamped log of startup steps, warnings, and errors"
+              onPress={() => setDiagnosticsVisible(true)}
+            />
+          </Section>
+        )}
 
         {/* ── Danger Zone ── */}
         <Section title="Data">
@@ -465,7 +435,10 @@ function SettingsScreen() {
         blockUntil={settings.standaloneBlockUntil}
         locked={standaloneActive}
         dailyAllowanceEntries={settings.dailyAllowanceEntries ?? []}
+        blockPresets={settings.blockPresets ?? []}
         onSave={handleSaveStandaloneBlock}
+        onSavePreset={handleSaveBlockPreset}
+        onDeletePreset={handleDeleteBlockPreset}
         onClose={() => setBlockModalVisible(false)}
       />
 
@@ -492,21 +465,9 @@ function SettingsScreen() {
         onClose={() => setGreyoutModalVisible(false)}
       />
 
-      <WeeklyReportModal
-        visible={weeklyReportVisible}
-        onClose={() => setWeeklyReportVisible(false)}
-      />
-
       <OverlayAppearanceModal
         visible={overlayAppearanceVisible}
         onClose={() => setOverlayAppearanceVisible(false)}
-      />
-
-      <CustomNodeRulesModal
-        visible={customNodeRulesVisible}
-        rules={settings.customNodeRules ?? []}
-        onClose={() => setCustomNodeRulesVisible(false)}
-        onSave={async (rules) => { await handleSaveCustomNodeRules(rules); }}
       />
 
       <DiagnosticsModal

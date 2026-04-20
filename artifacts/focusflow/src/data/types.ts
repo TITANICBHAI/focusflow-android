@@ -19,6 +19,12 @@ export interface AllowedAppPreset {
   packages: string[]; // [] = "all apps allowed" sentinel
 }
 
+export interface BlockPreset {
+  id: string;
+  name: string;
+  packages: string[];
+}
+
 export interface Reminder {
   id: string;
   taskId: string;
@@ -59,6 +65,23 @@ export interface GreyoutWindow {
   endHour: number;
   endMin: number;
   days: number[]; // Calendar.DAY_OF_WEEK: 1=Sun 2=Mon 3=Tue 4=Wed 5=Thu 6=Fri 7=Sat
+  scheduleId?: string; // if set, this window was auto-generated from a RecurringBlockSchedule
+}
+
+/**
+ * A recurring block schedule that blocks a set of apps on specific days/times.
+ * These are stored separately and converted to GreyoutWindows at sync time.
+ */
+export interface RecurringBlockSchedule {
+  id: string;
+  name: string;
+  packages: string[];
+  days: number[];        // Calendar.DAY_OF_WEEK: 1=Sun 2=Mon 3=Tue 4=Wed 5=Thu 6=Fri 7=Sat
+  startHour: number;
+  startMin: number;
+  endHour: number;
+  endMin: number;
+  enabled: boolean;
 }
 
 export interface AppSettings {
@@ -77,6 +100,7 @@ export interface AppSettings {
   standaloneBlockPackages: string[]; // packages to always block regardless of task state
   standaloneBlockUntil: string | null; // ISO timestamp when the standalone block expires
   allowedAppPresets: AllowedAppPreset[]; // saved preset allow-lists
+  blockPresets: BlockPreset[];           // saved preset block-lists
   // Per-app daily allowance — replaces old dailyAllowancePackages: string[]
   // Each entry configures a specific allowance mode for an app:
   //   count:       allowed N opens per day (resets midnight)
@@ -100,6 +124,8 @@ export interface AppSettings {
   overlayQuotes?: string[];         // Custom quote pool (empty = use built-in quotes)
   // NodeSpy custom node rules — imported from NodeSpyCaptureV1 exports
   customNodeRules: CustomNodeRule[];
+  // Recurring block schedules — blocks a group of apps on a repeating daily/weekly timetable
+  recurringBlockSchedules: RecurringBlockSchedule[];
 }
 
 /**

@@ -7,7 +7,7 @@ import React, {
   useRef,
 } from 'react';
 import { Alert } from 'react-native';
-import type { Task, AppSettings, FocusSession, DailyAllowanceEntry } from '@/data/types';
+import type { Task, AppSettings, FocusSession, DailyAllowanceEntry, RecurringBlockSchedule, GreyoutWindow } from '@/data/types';
 import {
   dbGetTasksForDate,
   dbInsertTask,
@@ -32,6 +32,8 @@ import {
   cancelTaskReminders,
   setupNotificationChannels,
   requestPermissions,
+  scheduleStandaloneBlockExpiry,
+  cancelStandaloneBlockExpiry,
 } from '@/services/notificationService';
 import {
   startFocusMode as _startFocusMode,
@@ -102,6 +104,7 @@ const defaultSettings: AppSettings = {
   focusModeEnabled: true,
   allowedInFocus: [], // [] = all apps allowed (no blocking) — sentinel value
   allowedAppPresets: [],
+  blockPresets: [],
   pomodoroEnabled: false,
   pomodoroDuration: 25,
   pomodoroBreak: 5,
@@ -121,6 +124,7 @@ const defaultSettings: AppSettings = {
   overlayWallpaper: '',
   overlayQuotes: [],
   customNodeRules: [],
+  recurringBlockSchedules: [],
 };
 
 const initialState: AppState = {
@@ -170,6 +174,7 @@ interface AppContextValue {
   setStandaloneBlockAndAllowance: (packages: string[], untilMs: number | null, allowanceEntries: DailyAllowanceEntry[]) => Promise<void>;
   setDailyAllowanceEntries: (entries: DailyAllowanceEntry[]) => Promise<void>;
   setBlockedWords: (words: string[]) => Promise<void>;
+  setRecurringBlockSchedules: (schedules: RecurringBlockSchedule[]) => Promise<void>;
   refreshTasks: () => Promise<void>;
 }
 
@@ -289,8 +294,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        void logger.info('AppContext', 'Syncing greyout schedule');
-        await _syncGreyoutSchedule(settings);
+        void logger.info('AppContext', 'Syncing greyout schedule + recurring block schedules');
+        const combined = _recurringSchedulesToGreyoutWindows(settings);
+        await GreyoutModule.setSchedule(combined);
         void logger.info('AppContext', 'Greyout schedule synced');
       } catch (e) {
         void logger.warn('AppContext', `Greyout schedule sync failed: ${String(e)}`);
@@ -408,6 +414,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  /**
+   * Converts enabled recurring block schedules into GreyoutWindow entries
+   * (one per package per schedule) and syncs the full combined list with
+   * the native GreyoutModule. User-created greyout windows are preserved.
+   */
+  function _recurringSchedulesToGreyoutWindows(settings: AppSettings): GreyoutWindow[] {
+    const schedules = settings.recurringBlockSchedules ?? [];
+    // Keep user-created windows (no scheduleId) untouched
+    const userWindows = (settings.greyoutSchedule ?? []).filter((w) => !w.scheduleId);
+    const scheduleWindows: GreyoutWindow[] = [];
+    for (const sched of schedules) {
+      if (!sched.enabled || sched.packages.length === 0) continue;
+      for (const pkg of sched.packages) {
+        scheduleWindows.push({
+          pkg,
+          startHour: sched.startHour,
+          startMin: sched.startMin,
+          endHour: sched.endHour,
+          endMin: sched.endMin,
+          days: sched.days,
+          scheduleId: sched.id,
+        });
+      }
+    }
+    return [...userWindows, ...scheduleWindows];
+  }
+
   async function _syncSystemGuard(settings: AppSettings): Promise<void> {
     try {
       await SharedPrefsModule.setSystemGuardEnabled(settings.systemGuardEnabled ?? true);
@@ -457,24 +490,44 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     stateRef.current = state;
   });
 
-  // ── Tick: check active tasks every 30s ──────────────────────────────────────
+  // ── Tick: check active tasks + standalone block expiry every 30s ─────────────
   // Only recreated when DB readiness changes — state is read via stateRef.
 
   useEffect(() => {
     if (!state.isDbReady) return;
     tickRef.current = setInterval(() => {
-      const active = getActiveTask(stateRef.current.tasks);
+      const s = stateRef.current;
+      const active = getActiveTask(s.tasks);
       // NOTE: The native ForegroundTaskService already shows a persistent
       // notification while focus is active (NEW-011). No JS sticky needed here.
       if (!active && isFocusActive()) {
         void _stopFocusMode();
         dispatch({ type: 'SET_FOCUS_SESSION', payload: null });
       }
+      // Also clear any expired standalone block so the UI reflects reality.
+      if (s.settings.standaloneBlockUntil) {
+        void _syncStandaloneBlock(s.settings);
+      }
     }, 30000);
     return () => {
       if (tickRef.current) clearInterval(tickRef.current);
     };
   }, [state.isDbReady]);
+
+  // ── Precise expiry timer: clears standalone block the moment it expires ───────
+  // Fires a one-shot setTimeout set to the exact expiry ms so the UI updates
+  // immediately rather than waiting up to 30 s for the next tick.
+
+  useEffect(() => {
+    const until = state.settings.standaloneBlockUntil;
+    if (!until) return;
+    const msUntilExpiry = new Date(until).getTime() - Date.now();
+    if (msUntilExpiry <= 0) return;
+    const t = setTimeout(() => {
+      void _syncStandaloneBlock(stateRef.current.settings);
+    }, msUntilExpiry + 500); // +500 ms buffer so the clock has definitely passed
+    return () => clearTimeout(t);
+  }, [state.settings.standaloneBlockUntil]);
 
   // ── Auto-start focus mode when active task has focusMode: true ───────────────
   // Runs when the active task changes. If the task was created with focusMode
@@ -782,8 +835,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await _syncDailyAllowance(settings);
       // Sync aversion deterrent flags.
       await _syncAversions(settings);
-      // Sync greyout schedule.
-      await _syncGreyoutSchedule(settings);
+      // Sync greyout schedule (combined: user windows + recurring schedule windows).
+      const combinedGreyout = _recurringSchedulesToGreyoutWindows(settings);
+      await GreyoutModule.setSchedule(combinedGreyout).catch((e) =>
+        void logger.warn('AppContext', `greyout sync failed: ${String(e)}`),
+      );
       await _syncSystemGuard(settings);
     } catch (e) {
       void logger.error('AppContext', `updateSettings failed: ${String(e)}`);
@@ -818,6 +874,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await SharedPrefsModule.setBlockedWords(words);
   }, [state.settings]);
 
+  const setRecurringBlockSchedules = useCallback(async (schedules: RecurringBlockSchedule[]) => {
+    const newSettings: AppSettings = {
+      ...state.settings,
+      recurringBlockSchedules: schedules,
+    };
+    await dbSaveSettings(newSettings);
+    dispatch({ type: 'SET_SETTINGS', payload: newSettings });
+    // Sync combined greyout windows (user windows + recurring schedule windows)
+    const combined = _recurringSchedulesToGreyoutWindows(newSettings);
+    await GreyoutModule.setSchedule(combined).catch((e) =>
+      void logger.warn('AppContext', `greyout sync (recurring) failed: ${String(e)}`),
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.settings]);
+
   const setStandaloneBlock = useCallback(async (packages: string[], untilMs: number | null) => {
     const untilIso = untilMs ? new Date(untilMs).toISOString() : null;
     const newSettings: AppSettings = {
@@ -829,6 +900,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_SETTINGS', payload: newSettings });
     const active = packages.length > 0 && untilMs !== null && untilMs > Date.now();
     await SharedPrefsModule.setStandaloneBlock(active, packages, untilMs ?? 0);
+    // Schedule or cancel the expiry warning notification
+    if (active && untilMs) {
+      void scheduleStandaloneBlockExpiry(untilMs, packages.length).catch(() => {});
+    } else {
+      void cancelStandaloneBlockExpiry().catch(() => {});
+    }
   }, [state.settings]);
 
   /**
@@ -857,6 +934,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const active = packages.length > 0 && untilMs !== null && untilMs > Date.now();
     await SharedPrefsModule.setStandaloneBlock(active, packages, untilMs ?? 0);
     await SharedPrefsModule.setDailyAllowanceConfig(allowanceEntries);
+    // Schedule or cancel the expiry warning notification
+    if (active && untilMs) {
+      void scheduleStandaloneBlockExpiry(untilMs, packages.length).catch(() => {});
+    } else {
+      void cancelStandaloneBlockExpiry().catch(() => {});
+    }
   }, [state.settings]);
 
   // ── Derived ──────────────────────────────────────────────────────────────────
@@ -881,6 +964,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setStandaloneBlockAndAllowance,
     setDailyAllowanceEntries,
     setBlockedWords,
+    setRecurringBlockSchedules,
     refreshTasks,
   };
 

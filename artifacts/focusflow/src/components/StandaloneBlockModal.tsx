@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
   Modal,
   FlatList,
+  ScrollView,
   TextInput,
   TouchableOpacity,
   Image,
@@ -12,14 +13,127 @@ import {
   SafeAreaView,
   Platform,
   Alert,
+  Switch,
 } from 'react-native';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import { InstalledAppsModule, InstalledApp } from '@/native-modules/InstalledAppsModule';
+import { UsageStatsModule } from '@/native-modules/UsageStatsModule';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
-import type { DailyAllowanceEntry, AllowanceMode } from '@/data/types';
+import type { DailyAllowanceEntry, AllowanceMode, BlockPreset, RecurringBlockSchedule } from '@/data/types';
+
+// ─── App Categories ───────────────────────────────────────────────────────────
+// Known Android package names for common app categories.
+// Used to let users block an entire category in one tap.
+
+interface AppCategory {
+  id: string;
+  label: string;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  color: string;
+  packages: string[];
+}
+
+const APP_CATEGORIES: AppCategory[] = [
+  {
+    id: 'social',
+    label: 'Social',
+    icon: 'people-outline',
+    color: '#3b82f6',
+    packages: [
+      'com.facebook.katana',
+      'com.instagram.android',
+      'com.twitter.android',
+      'com.zhiliaoapp.musically',   // TikTok
+      'com.snapchat.android',
+      'com.reddit.frontpage',
+      'com.pinterest',
+      'com.linkedin.android',
+      'com.whatsapp',
+      'org.telegram.messenger',
+      'com.discord',
+      'com.bereal.android',
+      'com.tumblr',
+      'com.vkontakte.android',
+      'jp.naver.line.android',
+    ],
+  },
+  {
+    id: 'video',
+    label: 'Video',
+    icon: 'play-circle-outline',
+    color: '#ef4444',
+    packages: [
+      'com.google.android.youtube',
+      'com.netflix.mediaclient',
+      'com.amazon.avod.thirdpartyclient',
+      'com.disney.disneyplus',
+      'tv.twitch.android.app',
+      'com.hulu.plus',
+      'com.max.android',
+      'com.peacocktv.peacockandroid',
+      'tv.pluto.android',
+      'com.roku.remote',
+      'com.apple.android.music', // Apple TV
+    ],
+  },
+  {
+    id: 'shopping',
+    label: 'Shopping',
+    icon: 'bag-outline',
+    color: '#f59e0b',
+    packages: [
+      'com.amazon.mShop.android.shopping',
+      'com.ebay.mobile',
+      'com.shein.app.us',
+      'com.walmart.android',
+      'com.etsy.android',
+      'com.target.ui',
+      'com.wish.android',
+      'com.alibaba.aliexpresshd',
+      'com.temu.app',
+      'com.bestbuy.android',
+    ],
+  },
+  {
+    id: 'news',
+    label: 'News',
+    icon: 'newspaper-outline',
+    color: '#8b5cf6',
+    packages: [
+      'com.google.android.apps.magazines',
+      'com.nytimes.android',
+      'com.cnn.mobile.android.phone',
+      'com.bbc.news',
+      'com.nbcnews.android',
+      'com.fox.news',
+      'com.reddit.frontpage',
+      'flipboard.app',
+      'com.apple.news',
+      'com.feedly.android',
+    ],
+  },
+  {
+    id: 'games',
+    label: 'Games',
+    icon: 'game-controller-outline',
+    color: '#10b981',
+    packages: [
+      'com.king.candycrushsaga',
+      'com.supercell.clashofclans',
+      'com.mojang.minecraftpe',
+      'com.roblox.client',
+      'com.ea.gp.fifamobile',
+      'com.epicgames.fortnite',
+      'com.pubg.krmobile',
+      'com.garena.game.freefire',
+      'com.supercell.brawlstars',
+      'com.activision.callofduty.shooter',
+    ],
+  },
+];
 
 interface Props {
   visible: boolean;
@@ -27,7 +141,12 @@ interface Props {
   blockUntil: string | null;
   locked?: boolean;
   dailyAllowanceEntries?: DailyAllowanceEntry[];
+  blockPresets?: BlockPreset[];
+  recurringBlockSchedules?: RecurringBlockSchedule[];
   onSave: (packages: string[], untilMs: number | null, allowanceEntries: DailyAllowanceEntry[]) => void | Promise<void>;
+  onSavePreset?: (preset: BlockPreset) => void | Promise<void>;
+  onDeletePreset?: (id: string) => void | Promise<void>;
+  onSaveRecurringSchedules?: (schedules: RecurringBlockSchedule[]) => void | Promise<void>;
   onClose: () => void;
 }
 
@@ -72,7 +191,12 @@ export function StandaloneBlockModal({
   blockUntil,
   locked = false,
   dailyAllowanceEntries = [],
+  blockPresets = [],
+  recurringBlockSchedules = [],
   onSave,
+  onSavePreset,
+  onDeletePreset,
+  onSaveRecurringSchedules,
   onClose,
 }: Props) {
   const { theme } = useTheme();
@@ -91,6 +215,23 @@ export function StandaloneBlockModal({
   const [saving, setSaving] = useState(false);
   const [manualInput, setManualInput] = useState('');
   const [manualPackages, setManualPackages] = useState<string[]>([]);
+  const [showSavePreset, setShowSavePreset] = useState(false);
+  const [presetNameInput, setPresetNameInput] = useState('');
+  // Recurring block schedules state
+  const [localRecurringSchedules, setLocalRecurringSchedules] = useState<RecurringBlockSchedule[]>(recurringBlockSchedules);
+  const [showRecurringSection, setShowRecurringSection] = useState(false);
+  const [showAddRecurring, setShowAddRecurring] = useState(false);
+  const [recurringDraft, setRecurringDraft] = useState<RecurringBlockSchedule>({
+    id: '',
+    name: '',
+    packages: [],
+    days: [2, 3, 4, 5, 6], // Mon–Fri
+    startHour: 9,
+    startMin: 0,
+    endHour: 18,
+    endMin: 0,
+    enabled: true,
+  });
 
   const defaultUntil = blockUntil ? new Date(blockUntil) : dayjs().add(1, 'day').toDate();
   const [untilDate, setUntilDate] = useState<Date>(defaultUntil);
@@ -105,6 +246,9 @@ export function StandaloneBlockModal({
     setSearch('');
     setManualInput('');
     setUntilDate(blockUntil ? new Date(blockUntil) : dayjs().add(1, 'day').toDate());
+    setLocalRecurringSchedules(recurringBlockSchedules);
+    setShowRecurringSection(false);
+    setShowAddRecurring(false);
 
     // Derive manual packages from existing blocked list before apps load
     const existingManual = blockedPackages.filter(
@@ -207,6 +351,145 @@ export function StandaloneBlockModal({
     setManualInput('');
   };
 
+  const applyPreset = useCallback((preset: BlockPreset) => {
+    setSelected(new Set(preset.packages));
+  }, []);
+
+  // ── Category helpers ──────────────────────────────────────────────────────
+
+  const installedPkgSet = useMemo(() => new Set(apps.map((a) => a.packageName)), [apps]);
+
+  const categoryInstalledCount = useCallback((cat: AppCategory) => {
+    return cat.packages.filter((pkg) => installedPkgSet.has(pkg)).length;
+  }, [installedPkgSet]);
+
+  const handleSelectCategory = useCallback((cat: AppCategory) => {
+    const installedInCat = cat.packages.filter((pkg) => installedPkgSet.has(pkg));
+    if (installedInCat.length === 0) {
+      // If none installed, still add the known packages
+      setSelected((prev) => new Set([...prev, ...cat.packages]));
+      return;
+    }
+    const allAlreadySelected = installedInCat.every((pkg) => selected.has(pkg));
+    if (allAlreadySelected) {
+      // Deselect all from this category
+      setSelected((prev) => {
+        const next = new Set(prev);
+        for (const pkg of cat.packages) next.delete(pkg);
+        return next;
+      });
+    } else {
+      // Select all installed from this category
+      setSelected((prev) => new Set([...prev, ...installedInCat]));
+    }
+  }, [installedPkgSet, selected]);
+
+  const isCategoryFullySelected = useCallback((cat: AppCategory) => {
+    const installed = cat.packages.filter((pkg) => installedPkgSet.has(pkg));
+    if (installed.length === 0) return false;
+    return installed.every((pkg) => selected.has(pkg));
+  }, [installedPkgSet, selected]);
+
+  // ── Recurring schedule helpers ────────────────────────────────────────────
+
+  const DAY_LABELS_RECURRING = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  const DAY_VALUES_RECURRING = [1, 2, 3, 4, 5, 6, 7];
+
+  const recurringDraftSelectedCount = useMemo(() => {
+    return recurringDraft.packages.filter((pkg) => installedPkgSet.has(pkg) || pkg.length > 0).length;
+  }, [recurringDraft.packages, installedPkgSet]);
+
+  const handleSaveRecurring = useCallback(async () => {
+    if (!recurringDraft.name.trim()) {
+      Alert.alert('Name Required', 'Give this recurring schedule a name.');
+      return;
+    }
+    if (recurringDraft.packages.length === 0) {
+      Alert.alert('No Apps', 'Add at least one app to this recurring schedule.');
+      return;
+    }
+    if (recurringDraft.days.length === 0) {
+      Alert.alert('No Days', 'Select at least one day.');
+      return;
+    }
+    const newSchedule: RecurringBlockSchedule = {
+      ...recurringDraft,
+      id: recurringDraft.id || Date.now().toString(),
+    };
+    const updated = recurringDraft.id
+      ? localRecurringSchedules.map((s) => s.id === recurringDraft.id ? newSchedule : s)
+      : [...localRecurringSchedules, newSchedule];
+    setLocalRecurringSchedules(updated);
+    setShowAddRecurring(false);
+    await onSaveRecurringSchedules?.(updated);
+  }, [recurringDraft, localRecurringSchedules, onSaveRecurringSchedules]);
+
+  const handleDeleteRecurring = useCallback((id: string) => {
+    Alert.alert('Delete Schedule', 'Remove this recurring block schedule?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          const updated = localRecurringSchedules.filter((s) => s.id !== id);
+          setLocalRecurringSchedules(updated);
+          await onSaveRecurringSchedules?.(updated);
+        },
+      },
+    ]);
+  }, [localRecurringSchedules, onSaveRecurringSchedules]);
+
+  const handleToggleRecurring = useCallback(async (id: string) => {
+    const updated = localRecurringSchedules.map((s) =>
+      s.id === id ? { ...s, enabled: !s.enabled } : s,
+    );
+    setLocalRecurringSchedules(updated);
+    await onSaveRecurringSchedules?.(updated);
+  }, [localRecurringSchedules, onSaveRecurringSchedules]);
+
+  const formatRecurringTime = (h: number, m: number) =>
+    dayjs().hour(h).minute(m).format('h:mm A');
+
+  const formatRecurringDays = (days: number[]) => {
+    if (days.length === 7) return 'Every day';
+    if (days.length === 5 && [2,3,4,5,6].every((d) => days.includes(d))) return 'Weekdays';
+    if (days.length === 2 && [1,7].every((d) => days.includes(d))) return 'Weekends';
+    const short = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+    return days.map((d) => short[d - 1]).join(', ');
+  };
+
+  const handleSaveCurrentAsPreset = useCallback(async () => {
+    const name = presetNameInput.trim();
+    if (!name) return;
+    if (selected.size === 0) {
+      Alert.alert('No Apps Selected', 'Select apps first, then save as preset.');
+      return;
+    }
+    const preset: BlockPreset = {
+      id: Date.now().toString(),
+      name,
+      packages: Array.from(selected),
+    };
+    await onSavePreset?.(preset);
+    setPresetNameInput('');
+    setShowSavePreset(false);
+  }, [presetNameInput, selected, onSavePreset]);
+
+  const handleDeletePreset = useCallback((preset: BlockPreset) => {
+    Alert.alert(
+      `Delete "${preset.name}"?`,
+      'This preset will be permanently removed.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => onDeletePreset?.(preset.id),
+        },
+      ]
+    );
+  }, [onDeletePreset]);
+
   const handleSave = async () => {
     if (selected.size === 0) {
       Alert.alert(
@@ -223,6 +506,28 @@ export function StandaloneBlockModal({
         [{ text: 'OK' }]
       );
       return;
+    }
+    // Check that the required permissions are in place before committing the block.
+    if (Platform.OS === 'android') {
+      const hasAccessibility = await UsageStatsModule.hasAccessibilityPermission().catch(() => false);
+      const hasUsage = await UsageStatsModule.hasPermission().catch(() => false);
+      if (!hasAccessibility || !hasUsage) {
+        Alert.alert(
+          'Permissions Required',
+          'FocusFlow needs Accessibility and Usage Access permissions to block apps.\n\nGo to Settings → Permissions to grant them, then try again.',
+          [
+            { text: 'Not Now', style: 'cancel' },
+            {
+              text: 'Open Permissions',
+              onPress: async () => {
+                if (!hasAccessibility) await UsageStatsModule.openAccessibilitySettings().catch(() => {});
+                else await UsageStatsModule.openUsageAccessSettings().catch(() => {});
+              },
+            },
+          ]
+        );
+        return;
+      }
     }
     setSaving(true);
     try {
@@ -510,6 +815,293 @@ export function StandaloneBlockModal({
           keyboardShouldPersistTaps="handled"
           ListHeaderComponent={
             <>
+              {/* ── Presets section ── */}
+              {(blockPresets.length > 0 || selected.size > 0) && (
+                <View style={[styles.presetSection, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                  <View style={styles.presetHeaderRow}>
+                    <Text style={[styles.presetSectionLabel, { color: theme.muted }]}>PRESETS</Text>
+                    {selected.size > 0 && !showSavePreset && (
+                      <TouchableOpacity onPress={() => setShowSavePreset(true)}>
+                        <Text style={styles.savePresetLink}>+ Save current selection</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {blockPresets.length > 0 && (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.presetScroll}>
+                      {blockPresets.map((preset) => (
+                        <TouchableOpacity
+                          key={preset.id}
+                          style={[styles.presetChip, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                          onPress={() => applyPreset(preset)}
+                          onLongPress={() => handleDeletePreset(preset)}
+                          delayLongPress={500}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[styles.presetChipName, { color: theme.text }]} numberOfLines={1}>{preset.name}</Text>
+                          <Text style={[styles.presetChipCount, { color: COLORS.muted }]}>{preset.packages.length} app{preset.packages.length !== 1 ? 's' : ''}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  )}
+
+                  {blockPresets.length === 0 && !showSavePreset && (
+                    <Text style={[styles.presetEmpty, { color: theme.muted }]}>
+                      Select apps below then tap "+ Save current selection" to create your first preset.
+                    </Text>
+                  )}
+
+                  {showSavePreset && (
+                    <View style={styles.savePresetRow}>
+                      <TextInput
+                        style={[styles.savePresetInput, { backgroundColor: theme.surface, color: theme.text, borderColor: theme.border }]}
+                        placeholder="Preset name (e.g. Social Media)…"
+                        placeholderTextColor={COLORS.muted}
+                        value={presetNameInput}
+                        onChangeText={setPresetNameInput}
+                        autoFocus
+                        returnKeyType="done"
+                        onSubmitEditing={() => { void handleSaveCurrentAsPreset(); }}
+                      />
+                      <TouchableOpacity
+                        style={[styles.savePresetConfirmBtn, !presetNameInput.trim() && { opacity: 0.4 }]}
+                        onPress={() => { void handleSaveCurrentAsPreset(); }}
+                        disabled={!presetNameInput.trim()}
+                      >
+                        <Text style={styles.savePresetConfirmText}>Save</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => { setShowSavePreset(false); setPresetNameInput(''); }}
+                        style={{ paddingHorizontal: 4 }}
+                      >
+                        <Ionicons name="close" size={20} color={COLORS.muted} />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {/* ── Categories section ── */}
+              <View style={[styles.categorySection, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                <Text style={[styles.presetSectionLabel, { color: theme.muted }]}>BLOCK BY CATEGORY</Text>
+                <Text style={[styles.categoryHint, { color: theme.textSecondary }]}>
+                  Tap a category to select all matching installed apps at once
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
+                  {APP_CATEGORIES.map((cat) => {
+                    const fullySelected = isCategoryFullySelected(cat);
+                    const count = categoryInstalledCount(cat);
+                    return (
+                      <TouchableOpacity
+                        key={cat.id}
+                        style={[
+                          styles.categoryChip,
+                          { borderColor: cat.color + '55', backgroundColor: fullySelected ? cat.color + '22' : theme.surface },
+                        ]}
+                        onPress={() => handleSelectCategory(cat)}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons
+                          name={cat.icon}
+                          size={16}
+                          color={fullySelected ? cat.color : COLORS.muted}
+                        />
+                        <Text style={[styles.categoryChipLabel, { color: fullySelected ? cat.color : theme.text }]}>
+                          {cat.label}
+                        </Text>
+                        {count > 0 && (
+                          <Text style={[styles.categoryChipCount, { color: fullySelected ? cat.color : COLORS.muted }]}>
+                            {count}
+                          </Text>
+                        )}
+                        {fullySelected && (
+                          <Ionicons name="checkmark-circle" size={13} color={cat.color} />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+
+              {/* ── Recurring Schedules section ── */}
+              <TouchableOpacity
+                style={[styles.recurringToggleBtn, { backgroundColor: theme.card, borderColor: theme.border }]}
+                onPress={() => setShowRecurringSection((v) => !v)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="repeat-outline" size={16} color={COLORS.primary} />
+                <Text style={[styles.recurringToggleLabel, { color: theme.text }]}>
+                  Recurring Block Schedules
+                </Text>
+                {localRecurringSchedules.length > 0 && (
+                  <View style={styles.recurringBadge}>
+                    <Text style={styles.recurringBadgeText}>{localRecurringSchedules.length}</Text>
+                  </View>
+                )}
+                <Ionicons
+                  name={showRecurringSection ? 'chevron-up' : 'chevron-down'}
+                  size={14}
+                  color={COLORS.muted}
+                />
+              </TouchableOpacity>
+
+              {showRecurringSection && (
+                <View style={[styles.recurringSection, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                  <Text style={[styles.recurringSectionHint, { color: theme.textSecondary }]}>
+                    Set it once — automatically blocks these apps on the chosen days and times every week.
+                  </Text>
+
+                  {localRecurringSchedules.map((sched) => (
+                    <View key={sched.id} style={[styles.recurringItem, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                      <View style={styles.recurringItemTop}>
+                        <Switch
+                          value={sched.enabled}
+                          onValueChange={() => { void handleToggleRecurring(sched.id); }}
+                          trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
+                          thumbColor={sched.enabled ? COLORS.primary : COLORS.muted}
+                        />
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.recurringItemName, { color: theme.text }]} numberOfLines={1}>
+                            {sched.name}
+                          </Text>
+                          <Text style={[styles.recurringItemMeta, { color: theme.muted }]}>
+                            {formatRecurringDays(sched.days)} · {formatRecurringTime(sched.startHour, sched.startMin)} – {formatRecurringTime(sched.endHour, sched.endMin)}
+                          </Text>
+                          <Text style={[styles.recurringItemMeta, { color: theme.muted }]}>
+                            {sched.packages.length} app{sched.packages.length !== 1 ? 's' : ''}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => handleDeleteRecurring(sched.id)}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Ionicons name="trash-outline" size={18} color={COLORS.red} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))}
+
+                  {!showAddRecurring ? (
+                    <TouchableOpacity
+                      style={[styles.addRecurringBtn, { borderColor: COLORS.primary + '44' }]}
+                      onPress={() => {
+                        setRecurringDraft({
+                          id: '',
+                          name: '',
+                          packages: Array.from(selected),
+                          days: [2, 3, 4, 5, 6],
+                          startHour: 9, startMin: 0,
+                          endHour: 18, endMin: 0,
+                          enabled: true,
+                        });
+                        setShowAddRecurring(true);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="add-circle-outline" size={16} color={COLORS.primary} />
+                      <Text style={[styles.addRecurringBtnText, { color: COLORS.primary }]}>
+                        Add Recurring Schedule{selected.size > 0 ? ` (${selected.size} app${selected.size !== 1 ? 's' : ''} pre-selected)` : ''}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={[styles.recurringForm, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                      <Text style={[styles.recurringFormTitle, { color: theme.text }]}>New Recurring Schedule</Text>
+
+                      <TextInput
+                        style={[styles.recurringNameInput, { backgroundColor: theme.card, color: theme.text, borderColor: theme.border }]}
+                        placeholder="Schedule name (e.g. Work Hours)"
+                        placeholderTextColor={COLORS.muted}
+                        value={recurringDraft.name}
+                        onChangeText={(name) => setRecurringDraft((d) => ({ ...d, name }))}
+                        autoFocus
+                      />
+
+                      <Text style={[styles.recurringFormLabel, { color: theme.muted }]}>APPS TO BLOCK</Text>
+                      <Text style={[styles.recurringFormValue, { color: theme.text }]}>
+                        {recurringDraft.packages.length > 0
+                          ? `${recurringDraft.packages.length} app${recurringDraft.packages.length !== 1 ? 's' : ''} (using current selection)`
+                          : 'No apps selected — select apps below first'}
+                      </Text>
+                      {selected.size > 0 && recurringDraft.packages.length !== selected.size && (
+                        <TouchableOpacity onPress={() => setRecurringDraft((d) => ({ ...d, packages: Array.from(selected) }))}>
+                          <Text style={{ color: COLORS.primary, fontSize: FONT.xs, fontWeight: '600' }}>
+                            Use current selection ({selected.size} apps)
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+
+                      <Text style={[styles.recurringFormLabel, { color: theme.muted, marginTop: SPACING.sm }]}>REPEAT ON</Text>
+                      <View style={styles.recurringDayRow}>
+                        {DAY_VALUES_RECURRING.map((dayVal, idx) => {
+                          const active = recurringDraft.days.includes(dayVal);
+                          return (
+                            <TouchableOpacity
+                              key={dayVal}
+                              style={[styles.recurringDayBtn, active && styles.recurringDayBtnActive]}
+                              onPress={() => setRecurringDraft((d) => ({
+                                ...d,
+                                days: active ? d.days.filter((v) => v !== dayVal) : [...d.days, dayVal].sort(),
+                              }))}
+                            >
+                              <Text style={[styles.recurringDayLabel, active && styles.recurringDayLabelActive]}>
+                                {DAY_LABELS_RECURRING[idx]}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+
+                      <View style={styles.recurringTimeRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.recurringFormLabel, { color: theme.muted }]}>FROM</Text>
+                          <View style={styles.recurringTimeSteppers}>
+                            <TouchableOpacity onPress={() => setRecurringDraft((d) => ({ ...d, startHour: (d.startHour - 1 + 24) % 24 }))}>
+                              <Ionicons name="remove-circle-outline" size={20} color={COLORS.primary} />
+                            </TouchableOpacity>
+                            <Text style={[styles.recurringTimeValue, { color: theme.text }]}>
+                              {formatRecurringTime(recurringDraft.startHour, recurringDraft.startMin)}
+                            </Text>
+                            <TouchableOpacity onPress={() => setRecurringDraft((d) => ({ ...d, startHour: (d.startHour + 1) % 24 }))}>
+                              <Ionicons name="add-circle-outline" size={20} color={COLORS.primary} />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.recurringFormLabel, { color: theme.muted }]}>TO</Text>
+                          <View style={styles.recurringTimeSteppers}>
+                            <TouchableOpacity onPress={() => setRecurringDraft((d) => ({ ...d, endHour: (d.endHour - 1 + 24) % 24 }))}>
+                              <Ionicons name="remove-circle-outline" size={20} color={COLORS.primary} />
+                            </TouchableOpacity>
+                            <Text style={[styles.recurringTimeValue, { color: theme.text }]}>
+                              {formatRecurringTime(recurringDraft.endHour, recurringDraft.endMin)}
+                            </Text>
+                            <TouchableOpacity onPress={() => setRecurringDraft((d) => ({ ...d, endHour: (d.endHour + 1) % 24 }))}>
+                              <Ionicons name="add-circle-outline" size={20} color={COLORS.primary} />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </View>
+
+                      <View style={styles.recurringFormActions}>
+                        <TouchableOpacity
+                          style={[styles.recurringCancelBtn, { borderColor: theme.border }]}
+                          onPress={() => setShowAddRecurring(false)}
+                        >
+                          <Text style={[styles.recurringCancelBtnText, { color: theme.muted }]}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.recurringSaveBtn, !recurringDraft.name.trim() && { opacity: 0.4 }]}
+                          onPress={() => { void handleSaveRecurring(); }}
+                          disabled={!recurringDraft.name.trim()}
+                        >
+                          <Text style={styles.recurringSaveBtnText}>Save Schedule</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+                </View>
+              )}
+
               {/* Manual entry — always shown at the top, primary option */}
               <View style={[styles.manualSection, { backgroundColor: theme.card, borderColor: theme.border }]}>
                 <Text style={[styles.manualSectionLabel, { color: theme.muted }]}>ADD BY PACKAGE NAME</Text>
@@ -998,5 +1590,286 @@ const styles = StyleSheet.create({
     fontSize: FONT.sm,
     fontWeight: '600',
     color: COLORS.red,
+  },
+  presetSection: {
+    marginBottom: SPACING.md,
+    borderRadius: RADIUS.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: SPACING.md,
+    gap: SPACING.sm,
+  },
+  presetHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  presetSectionLabel: {
+    fontSize: FONT.xs,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+  },
+  savePresetLink: {
+    fontSize: FONT.xs,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  presetScroll: {
+    marginTop: SPACING.xs,
+  },
+  presetChip: {
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    marginRight: SPACING.sm,
+    minWidth: 90,
+  },
+  presetChipName: {
+    fontSize: FONT.sm,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  presetChipCount: {
+    fontSize: FONT.xs,
+  },
+  presetEmpty: {
+    fontSize: FONT.xs,
+    lineHeight: 18,
+    marginTop: SPACING.xs,
+  },
+  savePresetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginTop: SPACING.xs,
+  },
+  savePresetInput: {
+    flex: 1,
+    height: 38,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    paddingHorizontal: SPACING.sm,
+    fontSize: FONT.sm,
+  },
+  savePresetConfirmBtn: {
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+  },
+  savePresetConfirmText: {
+    color: '#fff',
+    fontSize: FONT.sm,
+    fontWeight: '600',
+  },
+
+  // ── Category styles ────────────────────────────────────────────────────────
+  categorySection: {
+    marginTop: SPACING.lg,
+    borderRadius: RADIUS.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: SPACING.md,
+    gap: SPACING.sm,
+  },
+  categoryHint: {
+    fontSize: FONT.xs,
+    lineHeight: 16,
+  },
+  categoryScroll: {
+    marginTop: SPACING.xs,
+  },
+  categoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderWidth: 1.5,
+    borderRadius: RADIUS.full,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    marginRight: SPACING.sm,
+  },
+  categoryChipLabel: {
+    fontSize: FONT.sm,
+    fontWeight: '700',
+  },
+  categoryChipCount: {
+    fontSize: FONT.xs,
+    fontWeight: '600',
+  },
+
+  // ── Recurring schedule styles ──────────────────────────────────────────────
+  recurringToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginTop: SPACING.lg,
+    borderRadius: RADIUS.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: SPACING.md,
+  },
+  recurringToggleLabel: {
+    flex: 1,
+    fontSize: FONT.sm,
+    fontWeight: '700',
+  },
+  recurringBadge: {
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.full,
+    minWidth: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  recurringBadgeText: {
+    color: '#fff',
+    fontSize: FONT.xs,
+    fontWeight: '700',
+  },
+  recurringSection: {
+    borderRadius: RADIUS.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: SPACING.md,
+    gap: SPACING.sm,
+    marginTop: SPACING.xs,
+  },
+  recurringSectionHint: {
+    fontSize: FONT.xs,
+    lineHeight: 16,
+  },
+  recurringItem: {
+    borderRadius: RADIUS.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: SPACING.sm,
+  },
+  recurringItemTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  recurringItemName: {
+    fontSize: FONT.sm,
+    fontWeight: '700',
+  },
+  recurringItemMeta: {
+    fontSize: FONT.xs,
+    marginTop: 1,
+  },
+  addRecurringBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderRadius: RADIUS.md,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+  },
+  addRecurringBtnText: {
+    fontSize: FONT.sm,
+    fontWeight: '600',
+  },
+  recurringForm: {
+    borderRadius: RADIUS.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: SPACING.md,
+    gap: SPACING.sm,
+  },
+  recurringFormTitle: {
+    fontSize: FONT.sm,
+    fontWeight: '700',
+    marginBottom: SPACING.xs,
+  },
+  recurringNameInput: {
+    height: 40,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    paddingHorizontal: SPACING.md,
+    fontSize: FONT.sm,
+  },
+  recurringFormLabel: {
+    fontSize: FONT.xs,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  recurringFormValue: {
+    fontSize: FONT.xs,
+    marginTop: 2,
+  },
+  recurringDayRow: {
+    flexDirection: 'row',
+    gap: SPACING.xs,
+    marginTop: SPACING.xs,
+  },
+  recurringDayBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 32,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  recurringDayBtnActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  recurringDayLabel: {
+    fontSize: FONT.xs,
+    fontWeight: '700',
+    color: COLORS.muted,
+  },
+  recurringDayLabelActive: {
+    color: '#fff',
+  },
+  recurringTimeRow: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+    marginTop: SPACING.xs,
+  },
+  recurringTimeSteppers: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    marginTop: 4,
+  },
+  recurringTimeValue: {
+    fontSize: FONT.sm,
+    fontWeight: '700',
+    minWidth: 60,
+    textAlign: 'center',
+  },
+  recurringFormActions: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginTop: SPACING.sm,
+  },
+  recurringCancelBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+  },
+  recurringCancelBtnText: {
+    fontSize: FONT.sm,
+    fontWeight: '600',
+  },
+  recurringSaveBtn: {
+    flex: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primary,
+  },
+  recurringSaveBtnText: {
+    color: '#fff',
+    fontSize: FONT.sm,
+    fontWeight: '700',
   },
 });

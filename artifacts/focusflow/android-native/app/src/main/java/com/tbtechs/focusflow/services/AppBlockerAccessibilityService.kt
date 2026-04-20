@@ -235,7 +235,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         /** Max number of rapid re-check attempts after a block dismissal. */
         private const val MAX_RETRY_ATTEMPTS = 5
         /** Interval between retry checks in milliseconds. */
-        private const val RETRY_INTERVAL_MS = 200L
+        private const val RETRY_INTERVAL_MS = 150L
 
         // ── Keyword blocker: URL / search field detection ─────────────────────
 
@@ -1983,8 +1983,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             performGlobalAction(GLOBAL_ACTION_BACK)
         } else {
             performGlobalAction(GLOBAL_ACTION_BACK)
-            handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_HOME) }, 150L)
-            handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_BACK) }, 160L)
+            handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_HOME) }, 80L)
+            handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_BACK) }, 100L)
         }
     }
 

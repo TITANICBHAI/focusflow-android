@@ -87,7 +87,9 @@ export async function scheduleTaskReminders(task: Task): Promise<void> {
         body:  r.body,
         data:  { taskId: task.id, type: r.isStart ? 'task-start' : 'reminder' },
         sound: 'default',
-        categoryIdentifier: 'task-reminder',
+        // At start time, show active controls (Complete, Extend, View).
+        // Pre-start reminders only need View + Done.
+        categoryIdentifier: r.isStart ? 'task-active' : 'task-reminder',
         channelId: REMINDER_CHANNEL_ID,
       } as AndroidContent,
       trigger: { type: SchedulableTriggerInputTypes.DATE, date: new Date(fireAt) },
@@ -109,6 +111,11 @@ export async function scheduleTaskReminders(task: Task): Promise<void> {
   }
 
   // Mid-session check-ins
+  // Only schedule when there is enough headroom before the task ends:
+  //   - 15 min check-in: only for tasks ≥ 25 min (at least 10 min remaining after it)
+  //   - 30 min check-in: only for tasks ≥ 40 min (at least 10 min remaining after it)
+  // This prevents noise on short tasks and avoids stacking with the wrap-up notification.
+  const MIN_HEADROOM_MS = 10 * 60_000; // 10 min of remaining time after the check-in fires
   const midSession: Array<{ offsetMs: number; body: string }> = [
     { offsetMs: 15 * 60_000, body: `15 minutes in — how's it going?` },
     { offsetMs: 30 * 60_000, body: `Half hour in — keep going!` },
@@ -116,7 +123,11 @@ export async function scheduleTaskReminders(task: Task): Promise<void> {
 
   for (const r of midSession) {
     const fireAt = startMs + r.offsetMs;
-    if (fireAt - now < 1000 || fireAt >= endMs) continue;
+    // Skip if already passed, if it fires after the task ends, or if there's
+    // not enough headroom before the end (to avoid stacking with wrap-up notif)
+    if (fireAt - now < 1000) continue;
+    if (fireAt >= endMs) continue;
+    if (endMs - fireAt < MIN_HEADROOM_MS) continue;
 
     await Notifications.scheduleNotificationAsync({
       identifier: `${task.id}-mid${r.offsetMs}`,
@@ -194,6 +205,35 @@ export async function cancelAllReminders(): Promise<void> {
 export async function dismissPersistentNotification(): Promise<void> {
   // No-op: the native ForegroundTaskService owns the persistent notification.
   // It clears automatically when the service goes idle or is stopped.
+}
+
+// ─── Standalone block expiry warning ─────────────────────────────────────────
+// Fires 5 minutes before the standalone block expires, if applicable.
+
+export async function scheduleStandaloneBlockExpiry(untilMs: number, blockedCount: number): Promise<void> {
+  await Notifications.cancelScheduledNotificationAsync('standalone-expiry').catch(() => {});
+
+  const granted = await requestPermissions();
+  if (!granted) return;
+
+  const warnAt = untilMs - 5 * 60_000; // 5 min before expiry
+  if (warnAt - Date.now() < 1000) return; // already within 5 minutes
+
+  await Notifications.scheduleNotificationAsync({
+    identifier: 'standalone-expiry',
+    content: {
+      title: '🔓 App Block Expiring Soon',
+      body:  `Your block on ${blockedCount} app${blockedCount !== 1 ? 's' : ''} expires in 5 minutes.`,
+      data:  { type: 'standalone-expiry' },
+      sound: 'default',
+      channelId: REMINDER_CHANNEL_ID,
+    } as AndroidContent,
+    trigger: { type: SchedulableTriggerInputTypes.DATE, date: new Date(warnAt) },
+  });
+}
+
+export async function cancelStandaloneBlockExpiry(): Promise<void> {
+  await Notifications.cancelScheduledNotificationAsync('standalone-expiry').catch(() => {});
 }
 
 // ─── Late-start warning ───────────────────────────────────────────────────────

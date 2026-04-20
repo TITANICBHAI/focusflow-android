@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import dayjs from 'dayjs';
 import { useApp } from '@/context/AppContext';
 import { useTaskTimer } from '@/hooks/useTimer';
@@ -31,7 +32,7 @@ function FocusScreen() {
   const { theme } = useTheme();
   const { width: windowWidth } = useWindowDimensions();
   const ringSize = Math.min(Math.floor(windowWidth * 0.65), 260);
-  const { state, activeTask, startFocusMode, stopFocusMode, completeTask, extendTaskTime, setStandaloneBlockAndAllowance } = useApp();
+  const { state, activeTask, startFocusMode, stopFocusMode, completeTask, extendTaskTime, setStandaloneBlockAndAllowance, updateSettings, setRecurringBlockSchedules } = useApp();
   const isFocusing = state.focusSession !== null && state.focusSession.isActive;
   const [hasAccessibilityPermission, setHasAccessibilityPermission] = useState<boolean | null>(null);
   const [blockModalVisible, setBlockModalVisible] = useState(false);
@@ -45,6 +46,43 @@ function FocusScreen() {
   })();
 
   const task = activeTask;
+  const blockPresets = settings.blockPresets ?? [];
+
+  const handleSaveBlockPreset = async (preset: import('@/data/types').BlockPreset) => {
+    const presets = [...blockPresets, preset];
+    await updateSettings({ ...settings, blockPresets: presets });
+  };
+
+  const handleDeleteBlockPreset = async (id: string) => {
+    const presets = blockPresets.filter((p) => p.id !== id);
+    await updateSettings({ ...settings, blockPresets: presets });
+  };
+
+  const handleQuickBlock = async (preset: import('@/data/types').BlockPreset, hours: number) => {
+    if (Platform.OS === 'android') {
+      const hasA11y = await UsageStatsModule.hasAccessibilityPermission().catch(() => false);
+      const hasUsage = await UsageStatsModule.hasPermission().catch(() => false);
+      if (!hasA11y || !hasUsage) {
+        Alert.alert(
+          'Permissions Required',
+          'FocusFlow needs Accessibility and Usage Access to block apps.\n\nGo to Settings → Permissions to grant them.',
+          [
+            { text: 'Not Now', style: 'cancel' },
+            {
+              text: 'Open Permissions',
+              onPress: async () => {
+                if (!hasA11y) await UsageStatsModule.openAccessibilitySettings().catch(() => {});
+                else await UsageStatsModule.openUsageAccessSettings().catch(() => {});
+              },
+            },
+          ]
+        );
+        return;
+      }
+    }
+    const untilMs = Date.now() + hours * 60 * 60 * 1000;
+    await setStandaloneBlockAndAllowance(preset.packages, untilMs, []);
+  };
 
   const pulseAnim = React.useRef(new Animated.Value(1)).current;
 
@@ -95,52 +133,174 @@ function FocusScreen() {
   }, [isFocusing, task?.id]);
 
   if (!task) {
+    // ── State 1: Standalone block is active, no task ──────────────────────────
+    if (standaloneActive) {
+      return (
+        <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]}>
+          <ScrollView
+            contentContainerStyle={[styles.emptyContainer, { paddingBottom: 60 + insets.bottom + 20 }]}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Big shield icon with red tint */}
+            <View style={[styles.standaloneIconWrap, { backgroundColor: COLORS.red + '15' }]}>
+              <Ionicons name="ban" size={42} color={COLORS.red} />
+            </View>
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>Apps Blocked</Text>
+            <Text style={[styles.emptySubtitle, { color: theme.muted }]}>
+              Standalone block is running. You can add more apps but cannot stop the block early.
+            </Text>
+
+            {/* Countdown timer to expiry */}
+            {settings.standaloneBlockUntil && (
+              <StandaloneCountdown
+                untilIso={settings.standaloneBlockUntil}
+                blockedCount={(settings.standaloneBlockPackages ?? []).length}
+              />
+            )}
+
+            {/* Add more apps button */}
+            <TouchableOpacity
+              style={[styles.addMoreAppsBtn, { backgroundColor: theme.card, borderColor: COLORS.red + '44' }]}
+              onPress={() => setBlockModalVisible(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="add-circle-outline" size={18} color={COLORS.red} />
+              <Text style={[styles.addMoreAppsBtnText, { color: COLORS.red }]}>Add More Apps to Block</Text>
+            </TouchableOpacity>
+
+            {/* Quick-Block preset shortcuts (for adding more) */}
+            {blockPresets.length > 0 && (
+              <View style={styles.quickBlockSection}>
+                <Text style={[styles.quickBlockLabel, { color: theme.muted }]}>QUICK ADD FROM PRESET</Text>
+                {blockPresets.map((preset) => (
+                  <View key={preset.id} style={[styles.quickBlockCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                    <View style={styles.quickBlockCardTop}>
+                      <Ionicons name="ban-outline" size={16} color={COLORS.red} />
+                      <Text style={[styles.quickBlockCardName, { color: theme.text }]} numberOfLines={1}>{preset.name}</Text>
+                      <Text style={[styles.quickBlockCardCount, { color: theme.muted }]}>{preset.packages.length} app{preset.packages.length !== 1 ? 's' : ''}</Text>
+                    </View>
+                    <View style={styles.quickBlockDurations}>
+                      {[1, 2, 4, 8].map((h) => (
+                        <TouchableOpacity
+                          key={h}
+                          style={[styles.quickBlockDurationBtn, { backgroundColor: COLORS.red + '14', borderColor: COLORS.red + '33' }]}
+                          onPress={() => { void handleQuickBlock(preset, h); }}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[styles.quickBlockDurationText, { color: COLORS.red }]}>{h}h</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+          </ScrollView>
+
+          <StandaloneBlockModal
+            visible={blockModalVisible}
+            blockedPackages={settings.standaloneBlockPackages ?? []}
+            blockUntil={settings.standaloneBlockUntil}
+            locked={standaloneActive}
+            dailyAllowanceEntries={settings.dailyAllowanceEntries ?? []}
+            blockPresets={blockPresets}
+            recurringBlockSchedules={settings.recurringBlockSchedules ?? []}
+            onSave={async (packages, untilMs, allowanceEntries) => {
+              await setStandaloneBlockAndAllowance(packages, untilMs, allowanceEntries);
+            }}
+            onSavePreset={handleSaveBlockPreset}
+            onDeletePreset={handleDeleteBlockPreset}
+            onSaveRecurringSchedules={async (schedules) => { await setRecurringBlockSchedules(schedules); }}
+            onClose={() => setBlockModalVisible(false)}
+          />
+        </SafeAreaView>
+      );
+    }
+
+    // ── State 2: Nothing active — prompt to create a task ─────────────────────
     return (
       <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]}>
-        <View style={styles.emptyContainer}>
-          <Ionicons name="moon-outline" size={64} color={theme.border} />
-          <Text style={[styles.emptyTitle, { color: theme.muted }]}>No Active Task</Text>
+        <ScrollView
+          contentContainerStyle={[styles.emptyContainer, { paddingBottom: 60 + insets.bottom + 20 }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <Ionicons name="calendar-outline" size={64} color={theme.border} />
+          <Text style={[styles.emptyTitle, { color: theme.muted }]}>No Tasks Yet</Text>
           <Text style={[styles.emptySubtitle, { color: theme.muted }]}>
-            Start a task from the Schedule tab to activate Focus Mode
+            Create a task in the Schedule tab to start using Focus Mode
           </Text>
 
           <TouchableOpacity
-            style={[styles.blockScheduleBtn, { backgroundColor: theme.card, borderColor: theme.border }, standaloneActive && styles.blockScheduleBtnActive]}
+            style={[styles.createTaskBtn, { backgroundColor: COLORS.primary }]}
+            onPress={() => router.push('/(tabs)/')}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="add-circle-outline" size={20} color="#fff" />
+            <Text style={styles.createTaskBtnText}>Create a Task</Text>
+          </TouchableOpacity>
+
+          {/* Quick-Block preset shortcuts */}
+          {blockPresets.length > 0 && (
+            <View style={styles.quickBlockSection}>
+              <Text style={[styles.quickBlockLabel, { color: theme.muted }]}>QUICK BLOCK</Text>
+              {blockPresets.map((preset) => (
+                <View key={preset.id} style={[styles.quickBlockCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                  <View style={styles.quickBlockCardTop}>
+                    <Ionicons name="ban-outline" size={16} color={COLORS.red} />
+                    <Text style={[styles.quickBlockCardName, { color: theme.text }]} numberOfLines={1}>{preset.name}</Text>
+                    <Text style={[styles.quickBlockCardCount, { color: theme.muted }]}>{preset.packages.length} app{preset.packages.length !== 1 ? 's' : ''}</Text>
+                  </View>
+                  <View style={styles.quickBlockDurations}>
+                    {[1, 2, 4, 8].map((h) => (
+                      <TouchableOpacity
+                        key={h}
+                        style={[styles.quickBlockDurationBtn, { backgroundColor: COLORS.red + '14', borderColor: COLORS.red + '33' }]}
+                        onPress={() => { void handleQuickBlock(preset, h); }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.quickBlockDurationText, { color: COLORS.red }]}>{h}h</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={[styles.blockScheduleBtn, { backgroundColor: theme.card, borderColor: theme.border }]}
             onPress={() => setBlockModalVisible(true)}
             activeOpacity={0.8}
           >
-            <Ionicons
-              name={standaloneActive ? 'ban' : 'ban-outline'}
-              size={18}
-              color={standaloneActive ? COLORS.red : COLORS.primary}
-            />
+            <Ionicons name="ban-outline" size={18} color={COLORS.primary} />
             <View style={{ flex: 1 }}>
-              <Text style={[styles.blockScheduleBtnText, { color: theme.text }, standaloneActive && { color: COLORS.red }]}>
-                {standaloneActive ? 'Block Schedule Active' : 'Set Block Schedule'}
+              <Text style={[styles.blockScheduleBtnText, { color: theme.text }]}>
+                Block Apps Without a Task
               </Text>
-              {standaloneActive && settings.standaloneBlockUntil && (
-                <Text style={[styles.blockScheduleBtnDesc, { color: theme.textSecondary }]}>
-                  {(settings.standaloneBlockPackages ?? []).length} apps blocked until{' '}
-                  {dayjs(settings.standaloneBlockUntil).format('MMM D [at] h:mm A')}
-                </Text>
-              )}
+              <Text style={[styles.blockScheduleBtnDesc, { color: theme.textSecondary }]}>
+                Start a standalone block or recurring schedule
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={COLORS.border} />
           </TouchableOpacity>
-        </View>
+        </ScrollView>
 
         <StandaloneBlockModal
           visible={blockModalVisible}
           blockedPackages={settings.standaloneBlockPackages ?? []}
           blockUntil={settings.standaloneBlockUntil}
-          locked={standaloneActive}
+          locked={false}
           dailyAllowanceEntries={settings.dailyAllowanceEntries ?? []}
+          blockPresets={blockPresets}
+          recurringBlockSchedules={settings.recurringBlockSchedules ?? []}
           onSave={async (packages, untilMs, allowanceEntries) => {
             await setStandaloneBlockAndAllowance(packages, untilMs, allowanceEntries);
           }}
+          onSavePreset={handleSaveBlockPreset}
+          onDeletePreset={handleDeleteBlockPreset}
+          onSaveRecurringSchedules={async (schedules) => { await setRecurringBlockSchedules(schedules); }}
           onClose={() => setBlockModalVisible(false)}
         />
-        <View style={{ height: 60 + insets.bottom + 20 }} />
       </SafeAreaView>
     );
   }
@@ -258,7 +418,30 @@ function FocusScreen() {
         {!isFocusing ? (
           <TouchableOpacity
             style={[styles.primaryBtn, { backgroundColor: task.color }]}
-            onPress={() => startFocusMode(task.id)}
+            onPress={async () => {
+              if (Platform.OS === 'android') {
+                const hasA11y = await UsageStatsModule.hasAccessibilityPermission().catch(() => false);
+                const hasUsage = await UsageStatsModule.hasPermission().catch(() => false);
+                if (!hasA11y || !hasUsage) {
+                  Alert.alert(
+                    'Permissions Required',
+                    'Focus Mode needs Accessibility and Usage Access to block apps.\n\nGo to Settings → Permissions to grant them.',
+                    [
+                      { text: 'Not Now', style: 'cancel' },
+                      {
+                        text: 'Open Permissions',
+                        onPress: async () => {
+                          if (!hasA11y) await UsageStatsModule.openAccessibilitySettings().catch(() => {});
+                          else await UsageStatsModule.openUsageAccessSettings().catch(() => {});
+                        },
+                      },
+                    ]
+                  );
+                  return;
+                }
+              }
+              startFocusMode(task.id);
+            }}
           >
             <Ionicons name="shield-checkmark" size={20} color="#fff" />
             <Text style={styles.primaryBtnText}>Activate Focus</Text>
@@ -339,15 +522,35 @@ function FocusScreen() {
         <View style={{ height: 60 + insets.bottom + 20 }} />
       </ScrollView>
 
+      {/* Standalone block status chip (shown while task is active too) */}
+      {standaloneActive && settings.standaloneBlockUntil && (
+        <TouchableOpacity
+          style={styles.standaloneChip}
+          onPress={() => setBlockModalVisible(true)}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="ban" size={13} color={COLORS.red} />
+          <Text style={styles.standaloneChipText}>
+            +{(settings.standaloneBlockPackages ?? []).length} extra apps blocked
+          </Text>
+          <Ionicons name="add-outline" size={13} color={COLORS.red} />
+        </TouchableOpacity>
+      )}
+
       <StandaloneBlockModal
         visible={blockModalVisible}
         blockedPackages={settings.standaloneBlockPackages ?? []}
         blockUntil={settings.standaloneBlockUntil}
         locked={standaloneActive}
         dailyAllowanceEntries={settings.dailyAllowanceEntries ?? []}
+        blockPresets={blockPresets}
+        recurringBlockSchedules={settings.recurringBlockSchedules ?? []}
         onSave={async (packages, untilMs, allowanceEntries) => {
           await setStandaloneBlockAndAllowance(packages, untilMs, allowanceEntries);
         }}
+        onSavePreset={handleSaveBlockPreset}
+        onDeletePreset={handleDeleteBlockPreset}
+        onSaveRecurringSchedules={async (schedules) => { await setRecurringBlockSchedules(schedules); }}
         onClose={() => setBlockModalVisible(false)}
       />
 
@@ -365,6 +568,71 @@ function FocusScreen() {
     </SafeAreaView>
   );
 }
+
+function StandaloneCountdown({
+  untilIso,
+  blockedCount,
+}: {
+  untilIso: string;
+  blockedCount: number;
+}) {
+  const [remaining, setRemaining] = useState(0);
+
+  useEffect(() => {
+    const tick = () => {
+      const ms = Math.max(0, new Date(untilIso).getTime() - Date.now());
+      setRemaining(ms);
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [untilIso]);
+
+  const totalHours = Math.floor(remaining / 3600000);
+  const mins = Math.floor((remaining % 3600000) / 60000);
+  const secs = Math.floor((remaining % 60000) / 1000);
+
+  const timeStr = totalHours > 0
+    ? `${totalHours}h ${mins}m`
+    : `${mins}:${secs.toString().padStart(2, '0')}`;
+
+  return (
+    <View style={[countdownStyles.container, { backgroundColor: COLORS.red + '12', borderColor: COLORS.red + '30' }]}>
+      <Text style={[countdownStyles.label, { color: COLORS.red }]}>BLOCK EXPIRES IN</Text>
+      <Text style={[countdownStyles.time, { color: COLORS.red }]}>{timeStr}</Text>
+      <Text style={[countdownStyles.apps, { color: COLORS.red }]}>
+        {blockedCount} app{blockedCount !== 1 ? 's' : ''} blocked · cannot stop early
+      </Text>
+    </View>
+  );
+}
+
+const countdownStyles = StyleSheet.create({
+  container: {
+    alignItems: 'center',
+    paddingVertical: SPACING.lg,
+    paddingHorizontal: SPACING.xl,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1.5,
+    gap: SPACING.xs,
+    width: '100%',
+  },
+  label: {
+    fontSize: FONT.xs,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+  },
+  time: {
+    fontSize: 44,
+    fontWeight: '800',
+    letterSpacing: -1,
+  },
+  apps: {
+    fontSize: FONT.xs,
+    fontWeight: '600',
+    opacity: 0.8,
+  },
+});
 
 function TimerDisplay({
   startTime,
@@ -414,7 +682,28 @@ function SecondaryBtn({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.background },
-  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl, gap: SPACING.md },
+  emptyContainer: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl, gap: SPACING.md },
+  quickBlockSection: { width: '100%', gap: SPACING.sm },
+  quickBlockLabel: { fontSize: FONT.xs, fontWeight: '700', letterSpacing: 0.6, marginBottom: SPACING.xs },
+  quickBlockCard: {
+    borderRadius: RADIUS.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: SPACING.md,
+    gap: SPACING.sm,
+    width: '100%',
+  },
+  quickBlockCardTop: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  quickBlockCardName: { fontSize: FONT.sm, fontWeight: '700', flex: 1 },
+  quickBlockCardCount: { fontSize: FONT.xs },
+  quickBlockDurations: { flexDirection: 'row', gap: SPACING.sm },
+  quickBlockDurationBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+  },
+  quickBlockDurationText: { fontSize: FONT.sm, fontWeight: '700' },
   emptyTitle: { fontSize: FONT.xl, fontWeight: '700', color: COLORS.muted },
   emptySubtitle: { fontSize: FONT.md, color: COLORS.muted, textAlign: 'center', lineHeight: 22 },
   blockScheduleBtn: {
@@ -432,6 +721,61 @@ const styles = StyleSheet.create({
   blockScheduleBtnActive: {
     borderColor: COLORS.red + '44',
     backgroundColor: COLORS.red + '08',
+  },
+  standaloneIconWrap: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addMoreAppsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.xl,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1.5,
+    width: '100%',
+  },
+  addMoreAppsBtnText: {
+    fontSize: FONT.sm,
+    fontWeight: '700',
+  },
+  createTaskBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.xl,
+    borderRadius: RADIUS.lg,
+    width: '100%',
+  },
+  createTaskBtnText: {
+    fontSize: FONT.md,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  standaloneChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    alignSelf: 'center',
+    backgroundColor: COLORS.red + '12',
+    borderRadius: RADIUS.full,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 5,
+    marginBottom: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.red + '30',
+  },
+  standaloneChipText: {
+    fontSize: FONT.xs,
+    fontWeight: '700',
+    color: COLORS.red,
   },
   blockScheduleBtnText: {
     fontSize: FONT.sm,
