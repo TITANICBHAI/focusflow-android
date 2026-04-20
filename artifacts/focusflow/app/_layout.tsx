@@ -32,6 +32,8 @@ import { navigateToTask, consumePendingTaskNavigation } from '@/navigation/navig
 import { registerBackgroundFetch, registerOverrunCheckTask } from '@/tasks/backgroundTasks';
 import { dismissPersistentNotification } from '@/services/notificationService';
 import { BlockedAppOverlay } from '@/components/BlockedAppOverlay';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { logger } from '@/services/startupLogger';
 
 // ─── 2. Foreground notification display behaviour ─────────────────────────────
 Notifications.setNotificationHandler({
@@ -262,21 +264,28 @@ function OnboardingGuard() {
 export default function RootLayout() {
   useEffect(() => {
     async function bootstrap() {
+      void logger.info('RootLayout', 'bootstrap() start');
       try {
         await SplashScreen.hideAsync().catch(() => {});
         await setupNotificationCategories();
         await registerBackgroundFetch();
         await registerOverrunCheckTask();
         consumePendingTaskNavigation();
+        void logger.info('RootLayout', 'bootstrap() setup complete');
 
         try {
           const { ForegroundServiceModule } = await import('@/native-modules/ForegroundServiceModule');
           await ForegroundServiceModule.requestBatteryOptimizationExemption();
+          void logger.info('RootLayout', 'Battery optimization exemption requested');
         } catch {
           // Native module not yet linked (dev build without EAS)
+          void logger.warn('RootLayout', 'Battery optimization exemption failed (native module unavailable)');
         }
+      } catch (e) {
+        void logger.error('RootLayout', `bootstrap() error: ${String(e)}`);
       } finally {
         setTimeout(() => SplashScreen.hideAsync().catch(() => {}), 400);
+        void logger.info('RootLayout', 'bootstrap() done');
       }
     }
 
@@ -286,20 +295,22 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
-        <AppProvider>
-          <AppSplashOverlay />
-          <OnboardingGuard />
-          <BlockedAppOverlay />
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="privacy-policy" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
-            <Stack.Screen name="terms-of-service" options={{ headerShown: false }} />
-            <Stack.Screen name="onboarding" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
-            <Stack.Screen name="permissions" options={{ headerShown: false }} />
-            <Stack.Screen name="+not-found" />
-          </Stack>
-          <ThemedStatusBar />
-        </AppProvider>
+        <ErrorBoundary screenName="RootLayout">
+          <AppProvider>
+            <AppSplashOverlay />
+            <OnboardingGuard />
+            <BlockedAppOverlay />
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="privacy-policy" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
+              <Stack.Screen name="terms-of-service" options={{ headerShown: false }} />
+              <Stack.Screen name="onboarding" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
+              <Stack.Screen name="permissions" options={{ headerShown: false }} />
+              <Stack.Screen name="+not-found" />
+            </Stack>
+            <ThemedStatusBar />
+          </AppProvider>
+        </ErrorBoundary>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

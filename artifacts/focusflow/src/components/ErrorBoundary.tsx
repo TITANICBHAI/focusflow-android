@@ -1,10 +1,12 @@
 import React, { Component, ComponentType, PropsWithChildren } from "react";
+import { logger } from "@/services/startupLogger";
 
 import { ErrorFallback, ErrorFallbackProps } from "./ErrorFallback";
 
 export type ErrorBoundaryProps = PropsWithChildren<{
   FallbackComponent?: ComponentType<ErrorFallbackProps>;
   onError?: (error: Error, stackTrace: string) => void;
+  screenName?: string;
 }>;
 
 type ErrorBoundaryState = { error: Error | null };
@@ -30,6 +32,11 @@ export class ErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, info: { componentStack: string }): void {
+    const screen = this.props.screenName ?? "unknown";
+    void logger.error(
+      `ErrorBoundary[${screen}]`,
+      `${error.message}\n${info.componentStack}`
+    );
     if (typeof this.props.onError === "function") {
       this.props.onError(error, info.componentStack);
     }

@@ -2,16 +2,19 @@ import { Feather } from "@expo/vector-icons";
 import { reloadAppAsync } from "expo";
 import React, { useState } from "react";
 import {
+  Alert,
   Modal,
   Platform,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   View,
   useColorScheme,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { formatLogsForShare } from "@/services/startupLogger";
 
 export type ErrorFallbackProps = {
   error: Error;
@@ -29,6 +32,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
     text: isDark ? "#FFFFFF" : "#000000",
     textSecondary: isDark ? "rgba(255, 255, 255, 0.7)" : "rgba(0, 0, 0, 0.7)",
     link: "#007AFF",
+    danger: "#FF3B30",
     buttonText: "#FFFFFF",
   };
 
@@ -40,6 +44,16 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
     } catch (restartError) {
       console.error("Failed to restart app:", restartError);
       resetError();
+    }
+  };
+
+  const handleCopyLogs = async () => {
+    try {
+      const logs = await formatLogsForShare();
+      const content = `=== FocusFlow Crash Report ===\nError: ${error.message}\nStack: ${error.stack ?? "n/a"}\n\n=== Startup Logs ===\n${logs}`;
+      await Share.share({ message: content, title: "FocusFlow Crash Report" });
+    } catch {
+      Alert.alert("Error", "Could not share logs.");
     }
   };
 
@@ -99,6 +113,22 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
         >
           <Text style={[styles.buttonText, { color: theme.buttonText }]}>
             Try Again
+          </Text>
+        </Pressable>
+
+        <Pressable
+          onPress={handleCopyLogs}
+          style={({ pressed }) => [
+            styles.button,
+            {
+              backgroundColor: theme.backgroundSecondary,
+              opacity: pressed ? 0.9 : 1,
+              transform: [{ scale: pressed ? 0.98 : 1 }],
+            },
+          ]}
+        >
+          <Text style={[styles.buttonText, { color: theme.text }]}>
+            Copy Logs
           </Text>
         </Pressable>
       </View>

@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { withScreenErrorBoundary } from '@/components/withScreenErrorBoundary';
 import {
   View,
   Text,
@@ -26,7 +27,7 @@ import { formatTime } from '@/services/taskService';
 
 type ViewMode = 'list' | 'timeline';
 
-export default function ScheduleScreen() {
+function ScheduleScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const { state, todayTasks, activeTask, addTask, updateTask, deleteTask, completeTask, skipTask, extendTaskTime, startFocusMode, refreshTasks } = useApp();
@@ -303,4 +304,6 @@ const styles = StyleSheet.create({
     ...SHADOW.lg,
   },
 });
+
+export default withScreenErrorBoundary(ScheduleScreen, 'Schedule');
 

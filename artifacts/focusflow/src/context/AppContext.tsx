@@ -43,6 +43,7 @@ import { ForegroundServiceModule } from '@/native-modules/ForegroundServiceModul
 import { EventBridge } from '@/services/eventBridge';
 import { AversionsModule } from '@/native-modules/AversionsModule';
 import { GreyoutModule } from '@/native-modules/GreyoutModule';
+import { logger } from '@/services/startupLogger';
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -179,6 +180,32 @@ const AppContext = createContext<AppContextValue | null>(null);
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const watchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── 12-second splash watchdog ─────────────────────────────────────────────
+  // If SET_DB_READY hasn't fired within 12 s, force the app past the splash
+  // screen so it is never permanently stuck.
+
+  useEffect(() => {
+    watchdogRef.current = setTimeout(() => {
+      if (!state.isDbReady) {
+        void logger.error('AppContext', '[WATCHDOG_TRIGGERED] isDbReady still false after 12 s — forcing ready');
+        dispatch({ type: 'SET_DB_READY' });
+        dispatch({ type: 'SET_LOADING', payload: false });
+      }
+    }, 12000);
+    return () => {
+      if (watchdogRef.current) clearTimeout(watchdogRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (state.isDbReady && watchdogRef.current) {
+      clearTimeout(watchdogRef.current);
+      watchdogRef.current = null;
+    }
+  }, [state.isDbReady]);
 
   // ── Initialize ──────────────────────────────────────────────────────────────
 
@@ -190,62 +217,138 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   async function init() {
+    void logger.info('AppContext', '[STARTUP_BEGIN] init() called');
     dispatch({ type: 'SET_LOADING', payload: true });
     try {
+      // ── Notification channels ──────────────────────────────────────────────
       try {
+        void logger.info('AppContext', 'Setting up notification channels');
         await setupNotificationChannels();
+        void logger.info('AppContext', 'Notification channels ready');
       } catch (e) {
-        console.warn('[AppContext] notification channel setup failed', e);
-      }
-      try {
-        await requestPermissions();
-      } catch (e) {
-        console.warn('[AppContext] notification permission request failed', e);
+        void logger.warn('AppContext', `Notification channel setup failed: ${String(e)}`);
       }
 
+      // ── Notification permissions ───────────────────────────────────────────
       try {
+        void logger.info('AppContext', 'Requesting notification permissions');
+        const granted = await requestPermissions();
+        void logger.info('AppContext', `Notification permission: ${granted ? 'granted' : 'denied'}`);
+      } catch (e) {
+        void logger.warn('AppContext', `Notification permission request failed: ${String(e)}`);
+      }
+
+      // ── Foreground service (idle mode) ─────────────────────────────────────
+      // Isolated: failure here must NOT prevent DB readiness
+      try {
+        void logger.info('AppContext', 'Starting idle foreground service');
         await ForegroundServiceModule.startIdleService();
+        void logger.info('AppContext', 'Idle foreground service started');
       } catch (e) {
-        console.warn('[AppContext] idle foreground service start failed', e);
+        void logger.warn('AppContext', `Idle foreground service failed: ${String(e)}`);
       }
 
+      // ── Database / settings ────────────────────────────────────────────────
+      void logger.info('AppContext', 'Loading settings from DB (timeout=8000ms)');
       const settings = await withTimeout(dbGetSettings(), 8000, defaultSettings);
+      void logger.info('AppContext', 'Settings loaded — dispatching SET_SETTINGS + SET_DB_READY');
       dispatch({ type: 'SET_SETTINGS', payload: settings });
       dispatch({ type: 'SET_DB_READY' });
 
-      // Re-apply standalone block from persisted settings on startup.
-      await _syncStandaloneBlock(settings);
-      // Re-apply daily allowance list on startup.
-      await _syncDailyAllowance(settings);
-      // Re-apply blocked words list on startup.
-      await _syncBlockedWords(settings);
-      // Re-apply aversion deterrent flags on startup.
-      await _syncAversions(settings);
-      // Re-apply greyout schedule on startup.
-      await _syncGreyoutSchedule(settings);
-      await _syncSystemGuard(settings);
-
-      await refreshTasks();
-
-      // Recover tasks that were still "scheduled" when the app was killed/restarted
-      const allTasks = await dbGetTasksForDate(new Date().toISOString());
-      const overdue = getUnfinishedOverdueTasks(allTasks);
-      for (const t of overdue) {
-        const marked = updateTaskStatus(t, 'overdue');
-        await dbUpdateTask(marked);
+      // ── Native module syncs — each isolated ───────────────────────────────
+      try {
+        void logger.info('AppContext', 'Syncing standalone block');
+        await _syncStandaloneBlock(settings);
+        void logger.info('AppContext', 'Standalone block synced');
+      } catch (e) {
+        void logger.warn('AppContext', `Standalone block sync failed: ${String(e)}`);
       }
-      if (overdue.length > 0) await refreshTasks();
 
-      const activeSession = await dbGetActiveFocusSession();
-      if (activeSession) {
-        dispatch({ type: 'SET_FOCUS_SESSION', payload: activeSession });
+      try {
+        void logger.info('AppContext', 'Syncing daily allowance');
+        await _syncDailyAllowance(settings);
+        void logger.info('AppContext', 'Daily allowance synced');
+      } catch (e) {
+        void logger.warn('AppContext', `Daily allowance sync failed: ${String(e)}`);
       }
+
+      try {
+        void logger.info('AppContext', 'Syncing blocked words');
+        await _syncBlockedWords(settings);
+        void logger.info('AppContext', 'Blocked words synced');
+      } catch (e) {
+        void logger.warn('AppContext', `Blocked words sync failed: ${String(e)}`);
+      }
+
+      try {
+        void logger.info('AppContext', 'Syncing aversions');
+        await _syncAversions(settings);
+        void logger.info('AppContext', 'Aversions synced');
+      } catch (e) {
+        void logger.warn('AppContext', `Aversions sync failed: ${String(e)}`);
+      }
+
+      try {
+        void logger.info('AppContext', 'Syncing greyout schedule');
+        await _syncGreyoutSchedule(settings);
+        void logger.info('AppContext', 'Greyout schedule synced');
+      } catch (e) {
+        void logger.warn('AppContext', `Greyout schedule sync failed: ${String(e)}`);
+      }
+
+      try {
+        void logger.info('AppContext', 'Syncing system guard');
+        await _syncSystemGuard(settings);
+        void logger.info('AppContext', 'System guard synced');
+      } catch (e) {
+        void logger.warn('AppContext', `System guard sync failed: ${String(e)}`);
+      }
+
+      // ── Tasks & overdue recovery ───────────────────────────────────────────
+      try {
+        void logger.info('AppContext', 'Refreshing tasks');
+        await refreshTasks();
+        void logger.info('AppContext', 'Tasks refreshed');
+      } catch (e) {
+        void logger.warn('AppContext', `Task refresh failed: ${String(e)}`);
+      }
+
+      try {
+        void logger.info('AppContext', 'Checking for overdue tasks');
+        const allTasks = await dbGetTasksForDate(new Date().toISOString());
+        const overdue = getUnfinishedOverdueTasks(allTasks);
+        for (const t of overdue) {
+          const marked = updateTaskStatus(t, 'overdue');
+          await dbUpdateTask(marked);
+        }
+        if (overdue.length > 0) {
+          void logger.info('AppContext', `Marked ${overdue.length} tasks as overdue`);
+          await refreshTasks();
+        }
+      } catch (e) {
+        void logger.warn('AppContext', `Overdue task recovery failed: ${String(e)}`);
+      }
+
+      // ── Active focus session restore ───────────────────────────────────────
+      try {
+        void logger.info('AppContext', 'Checking for active focus session');
+        const activeSession = await dbGetActiveFocusSession();
+        if (activeSession) {
+          void logger.info('AppContext', `Restored active focus session for task ${activeSession.taskId}`);
+          dispatch({ type: 'SET_FOCUS_SESSION', payload: activeSession });
+        }
+      } catch (e) {
+        void logger.warn('AppContext', `Focus session restore failed: ${String(e)}`);
+      }
+
+      void logger.info('AppContext', '[STARTUP_COMPLETE] init() finished successfully');
     } catch (e) {
-      console.error('[AppContext] init error', e);
+      void logger.error('AppContext', `[STARTUP_ERROR] Unhandled init error: ${String(e)}`);
       dispatch({ type: 'SET_SETTINGS', payload: defaultSettings });
       dispatch({ type: 'SET_DB_READY' });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
+      void logger.info('AppContext', 'SET_LOADING: false dispatched');
     }
   }
 
@@ -259,7 +362,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       await SharedPrefsModule.setDailyAllowanceConfig(entries);
     } catch (e) {
-      console.warn('[AppContext] daily allowance sync failed', e);
+      void logger.warn('AppContext', `daily allowance sync failed: ${String(e)}`);
     }
   }
 
@@ -272,7 +375,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       await SharedPrefsModule.setBlockedWords(words);
     } catch (e) {
-      console.warn('[AppContext] blocked words sync failed', e);
+      void logger.warn('AppContext', `blocked words sync failed: ${String(e)}`);
     }
   }
 
@@ -289,7 +392,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         weeklyReportEnabled: settings.weeklyReportEnabled    ?? false,
       });
     } catch (e) {
-      console.warn('[AppContext] aversions sync failed', e);
+      void logger.warn('AppContext', `aversions sync failed: ${String(e)}`);
     }
   }
 
@@ -301,7 +404,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       await GreyoutModule.setSchedule(settings.greyoutSchedule ?? []);
     } catch (e) {
-      console.warn('[AppContext] greyout sync failed', e);
+      void logger.warn('AppContext', `greyout sync failed: ${String(e)}`);
     }
   }
 
@@ -309,7 +412,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       await SharedPrefsModule.setSystemGuardEnabled(settings.systemGuardEnabled ?? true);
     } catch (e) {
-      console.warn('[AppContext] system guard sync failed', e);
+      void logger.warn('AppContext', `system guard sync failed: ${String(e)}`);
     }
   }
 
@@ -324,7 +427,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         await SharedPrefsModule.setStandaloneBlock(false, [], 0);
       } catch (e) {
-        console.warn('[AppContext] standalone block clear failed', e);
+        void logger.warn('AppContext', `standalone block clear failed: ${String(e)}`);
       }
       return;
     }
@@ -333,7 +436,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         await SharedPrefsModule.setStandaloneBlock(false, [], 0);
       } catch (e) {
-        console.warn('[AppContext] expired standalone block clear failed', e);
+        void logger.warn('AppContext', `expired standalone block clear failed: ${String(e)}`);
       }
       const cleared = { ...settings, standaloneBlockPackages: [], standaloneBlockUntil: null };
       await dbSaveSettings(cleared);
@@ -342,7 +445,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         await SharedPrefsModule.setStandaloneBlock(true, packages, untilMs);
       } catch (e) {
-        console.warn('[AppContext] standalone block sync failed', e);
+        void logger.warn('AppContext', `standalone block sync failed: ${String(e)}`);
       }
     }
   }
@@ -423,27 +526,46 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Tasks ───────────────────────────────────────────────────────────────────
 
   const refreshTasks = useCallback(async () => {
-    const tasks = await dbGetTasksForDate(new Date().toISOString());
-    dispatch({ type: 'SET_TASKS', payload: tasks });
+    try {
+      const tasks = await dbGetTasksForDate(new Date().toISOString());
+      dispatch({ type: 'SET_TASKS', payload: tasks });
+    } catch (e) {
+      void logger.warn('AppContext', `refreshTasks failed: ${String(e)}`);
+    }
   }, []);
 
   const addTask = useCallback(async (task: Task) => {
-    await dbInsertTask(task);
-    dispatch({ type: 'ADD_TASK', payload: task });
-    await scheduleTaskReminders(task);
+    try {
+      await dbInsertTask(task);
+      dispatch({ type: 'ADD_TASK', payload: task });
+      await scheduleTaskReminders(task);
+    } catch (e) {
+      void logger.error('AppContext', `addTask failed: ${String(e)}`);
+      throw e;
+    }
   }, []);
 
   const updateTask = useCallback(async (task: Task) => {
-    await dbUpdateTask(task);
-    dispatch({ type: 'UPDATE_TASK', payload: task });
-    await cancelTaskReminders(task.id);
-    await scheduleTaskReminders(task);
+    try {
+      await dbUpdateTask(task);
+      dispatch({ type: 'UPDATE_TASK', payload: task });
+      await cancelTaskReminders(task.id);
+      await scheduleTaskReminders(task);
+    } catch (e) {
+      void logger.error('AppContext', `updateTask failed: ${String(e)}`);
+      throw e;
+    }
   }, []);
 
   const deleteTask = useCallback(async (taskId: string) => {
-    await dbDeleteTask(taskId);
-    await cancelTaskReminders(taskId);
-    dispatch({ type: 'DELETE_TASK', payload: taskId });
+    try {
+      await dbDeleteTask(taskId);
+      await cancelTaskReminders(taskId);
+      dispatch({ type: 'DELETE_TASK', payload: taskId });
+    } catch (e) {
+      void logger.error('AppContext', `deleteTask failed: ${String(e)}`);
+      throw e;
+    }
   }, []);
 
   // Guard against concurrent extend calls — prevents stale-state double-writes.
@@ -454,12 +576,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const tasks = stateRef.current.tasks;
       const task = tasks.find((t) => t.id === taskId);
       if (!task) return;
-      const updated = updateTaskStatus(task, 'completed');
-      await dbUpdateTask(updated);
-      await cancelTaskReminders(taskId);
-      dispatch({ type: 'UPDATE_TASK', payload: updated });
-      if (stateRef.current.focusSession?.taskId === taskId) {
-        await stopFocusMode();
+      try {
+        const updated = updateTaskStatus(task, 'completed');
+        await dbUpdateTask(updated);
+        await cancelTaskReminders(taskId);
+        dispatch({ type: 'UPDATE_TASK', payload: updated });
+        if (stateRef.current.focusSession?.taskId === taskId) {
+          await stopFocusMode();
+        }
+      } catch (e) {
+        void logger.error('AppContext', `completeTask failed: ${String(e)}`);
+        throw e;
       }
     },
     // stateRef is a stable ref — no deps needed
@@ -472,10 +599,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const tasks = stateRef.current.tasks;
       const task = tasks.find((t) => t.id === taskId);
       if (!task) return;
-      const updated = updateTaskStatus(task, 'skipped');
-      await dbUpdateTask(updated);
-      await cancelTaskReminders(taskId);
-      dispatch({ type: 'UPDATE_TASK', payload: updated });
+      try {
+        const updated = updateTaskStatus(task, 'skipped');
+        await dbUpdateTask(updated);
+        await cancelTaskReminders(taskId);
+        dispatch({ type: 'UPDATE_TASK', payload: updated });
+      } catch (e) {
+        void logger.error('AppContext', `skipTask failed: ${String(e)}`);
+        throw e;
+      }
     },
     [],
   );
@@ -592,46 +724,60 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           ? task.focusAllowedPackages
           : state.settings.allowedInFocus;
 
-      await _startFocusMode(task, allowedPackages, (app) => {
-        dispatch({ type: 'SET_FOCUS_VIOLATION', payload: app });
-        setTimeout(() => dispatch({ type: 'SET_FOCUS_VIOLATION', payload: null }), 4000);
-      });
+      try {
+        await _startFocusMode(task, allowedPackages, (app) => {
+          dispatch({ type: 'SET_FOCUS_VIOLATION', payload: app });
+          setTimeout(() => dispatch({ type: 'SET_FOCUS_VIOLATION', payload: null }), 4000);
+        });
 
-      const session: FocusSession = {
-        taskId: task.id,
-        startedAt: new Date().toISOString(),
-        isActive: true,
-        allowedPackages,
-      };
-      dispatch({ type: 'SET_FOCUS_SESSION', payload: session });
+        const session: FocusSession = {
+          taskId: task.id,
+          startedAt: new Date().toISOString(),
+          isActive: true,
+          allowedPackages,
+        };
+        dispatch({ type: 'SET_FOCUS_SESSION', payload: session });
+      } catch (e) {
+        void logger.error('AppContext', `startFocusMode failed: ${String(e)}`);
+        throw e;
+      }
     },
     [state.tasks, state.settings.allowedInFocus],
   );
 
   const stopFocusMode = useCallback(async () => {
-    await _stopFocusMode();
+    try {
+      await _stopFocusMode();
+    } catch (e) {
+      void logger.warn('AppContext', `stopFocusMode failed: ${String(e)}`);
+    }
     dispatch({ type: 'SET_FOCUS_SESSION', payload: null });
   }, []);
 
   // ── Settings ─────────────────────────────────────────────────────────────────
 
   const updateSettings = useCallback(async (settings: AppSettings) => {
-    await dbSaveSettings(settings);
-    dispatch({ type: 'SET_SETTINGS', payload: settings });
-    if (state.focusSession !== null) {
-      await SharedPrefsModule.setAllowedPackages(
-        settings.allowedInFocus.filter((p) => p.includes('.')),
-      );
+    try {
+      await dbSaveSettings(settings);
+      dispatch({ type: 'SET_SETTINGS', payload: settings });
+      if (state.focusSession !== null) {
+        await SharedPrefsModule.setAllowedPackages(
+          settings.allowedInFocus.filter((p) => p.includes('.')),
+        );
+      }
+      // Always sync standalone block — it works independently of task focus.
+      await _syncStandaloneBlock(settings);
+      // Sync daily allowance packages.
+      await _syncDailyAllowance(settings);
+      // Sync aversion deterrent flags.
+      await _syncAversions(settings);
+      // Sync greyout schedule.
+      await _syncGreyoutSchedule(settings);
+      await _syncSystemGuard(settings);
+    } catch (e) {
+      void logger.error('AppContext', `updateSettings failed: ${String(e)}`);
+      throw e;
     }
-    // Always sync standalone block — it works independently of task focus.
-    await _syncStandaloneBlock(settings);
-    // Sync daily allowance packages.
-    await _syncDailyAllowance(settings);
-    // Sync aversion deterrent flags.
-    await _syncAversions(settings);
-    // Sync greyout schedule.
-    await _syncGreyoutSchedule(settings);
-    await _syncSystemGuard(settings);
   }, [state.focusSession]);
 
   /**

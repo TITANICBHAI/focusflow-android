@@ -1,4 +1,5 @@
 import React, { useMemo, useEffect, useState, useCallback } from 'react';
+import { withScreenErrorBoundary } from '@/components/withScreenErrorBoundary';
 import {
   View,
   Text,
@@ -28,7 +29,7 @@ type Filter = 'today' | 'week';
 interface AppStat { pkg: string; appName: string; count: number }
 interface DayStat { day: string; date: string; count: number }
 
-export default function StatsScreen() {
+function StatsScreen() {
   const insets = useSafeAreaInsets();
   const { state } = useApp();
   const { theme } = useTheme();
@@ -572,3 +573,5 @@ const styles = StyleSheet.create({
   countBadge: { paddingHorizontal: SPACING.sm, paddingVertical: 4, borderRadius: RADIUS.full, minWidth: 38, alignItems: 'center' },
   countText: { fontSize: FONT.sm, fontWeight: '700' },
 });
+
+export default withScreenErrorBoundary(StatsScreen, 'Stats');

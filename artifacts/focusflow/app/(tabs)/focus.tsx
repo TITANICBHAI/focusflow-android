@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { withScreenErrorBoundary } from '@/components/withScreenErrorBoundary';
 import {
   View,
   Text,
@@ -25,7 +26,7 @@ import ExtendModal from '@/components/ExtendModal';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
 
-export default function FocusScreen() {
+function FocusScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const { width: windowWidth } = useWindowDimensions();
@@ -546,3 +547,5 @@ const timerStyles = StyleSheet.create({
   label: { fontSize: FONT.xs, color: 'rgba(255,255,255,0.7)', fontWeight: '600' },
   progress: { fontSize: FONT.sm, color: 'rgba(255,255,255,0.9)', fontWeight: '700', marginTop: 2 },
 });
+
+export default withScreenErrorBoundary(FocusScreen, 'Focus');

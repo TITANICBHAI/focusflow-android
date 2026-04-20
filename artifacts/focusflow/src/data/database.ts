@@ -1,15 +1,36 @@
 import * as SQLite from 'expo-sqlite';
 import type { Task, AppSettings, FocusSession, DailyAllowanceEntry } from './types';
+import { logger } from '@/services/startupLogger';
 
 let db: SQLite.SQLiteDatabase | null = null;
+const PRIMARY_DB_NAME = 'focusday.db';
+const RECOVERY_DB_NAME = 'focusday_recovery.db';
 
-export async function getDb(): Promise<SQLite.SQLiteDatabase> {
-  if (!db) {
-    db = await SQLite.openDatabaseAsync('focusday.db');
-    await initSchema(db);
-  }
-  return db;
-}
+const DEFAULT_SETTINGS: AppSettings = {
+  darkMode: false,
+  defaultDuration: 60,
+  defaultReminderOffsets: [-10, -5, 0],
+  focusModeEnabled: true,
+  allowedInFocus: [],
+  allowedAppPresets: [],
+  pomodoroEnabled: false,
+  pomodoroDuration: 25,
+  pomodoroBreak: 5,
+  notificationsEnabled: true,
+  privacyAccepted: false,
+  standaloneBlockPackages: [],
+  standaloneBlockUntil: null,
+  dailyAllowanceEntries: [],
+  onboardingComplete: false,
+  blockedWords: [],
+  aversionDimmerEnabled: false,
+  aversionVibrateEnabled: false,
+  aversionSoundEnabled: false,
+  weeklyReportEnabled: false,
+  greyoutSchedule: [],
+  systemGuardEnabled: true,
+  customNodeRules: [],
+};
 
 /**
  * Reset the DB singleton — call after a recoverable open error so the next
@@ -18,6 +39,51 @@ export async function getDb(): Promise<SQLite.SQLiteDatabase> {
  */
 export function resetDb(): void {
   db = null;
+}
+
+async function openAndInit(name: string = PRIMARY_DB_NAME): Promise<SQLite.SQLiteDatabase> {
+  const opened = await SQLite.openDatabaseAsync(name);
+  await initSchema(opened);
+  return opened;
+}
+
+/**
+ * Returns the open database, opening it if needed.
+ * Retry strategy (3 attempts, never throws):
+ *   1. Open PRIMARY_DB_NAME; if OK, return.
+ *   2. Reset singleton, wait 300ms, retry PRIMARY_DB_NAME; if OK, return.
+ *   3. Assume corruption — open RECOVERY_DB_NAME (always a fresh file).
+ *      Logs [DB_CORRUPTION_RECOVERY] to the startup logger.
+ *      If even this fails, return null.
+ */
+export async function getDb(): Promise<SQLite.SQLiteDatabase | null> {
+  if (db) return db;
+
+  try {
+    db = await openAndInit(PRIMARY_DB_NAME);
+    return db;
+  } catch (firstErr) {
+    console.error('[database] open/init failed (attempt 1):', firstErr);
+    void logger.warn('database', `open/init attempt 1 failed: ${String(firstErr)}`);
+    resetDb();
+    await new Promise((r) => setTimeout(r, 300));
+    try {
+      db = await openAndInit(PRIMARY_DB_NAME);
+      return db;
+    } catch (secondErr) {
+      console.error('[database] open/init failed (attempt 2 — trying recovery DB):', secondErr);
+      void logger.error('database', `open/init attempt 2 failed: ${String(secondErr)} — switching to recovery DB`);
+      try {
+        db = await openAndInit(RECOVERY_DB_NAME);
+        void logger.error('database', '[DB_CORRUPTION_RECOVERY] opened recovery DB — primary may be corrupted');
+        return db;
+      } catch (recoveryErr) {
+        console.error('[database] recovery DB also failed — giving up:', recoveryErr);
+        void logger.error('database', `[DB_UNRECOVERABLE] recovery DB failed: ${String(recoveryErr)}`);
+        return null;
+      }
+    }
+  }
 }
 
 async function initSchema(db: SQLite.SQLiteDatabase): Promise<void> {
@@ -82,24 +148,37 @@ async function initSchema(db: SQLite.SQLiteDatabase): Promise<void> {
 // ─── Tasks ────────────────────────────────────────────────────────────────────
 
 export async function dbGetAllTasks(): Promise<Task[]> {
-  const db = await getDb();
-  const rows = await db.getAllAsync<Record<string, unknown>>('SELECT * FROM tasks ORDER BY start_time ASC');
-  return rows.map(rowToTask);
+  try {
+    const database = await getDb();
+    if (!database) return [];
+    const rows = await database.getAllAsync<Record<string, unknown>>('SELECT * FROM tasks ORDER BY start_time ASC');
+    return rows.map(rowToTask);
+  } catch (e) {
+    console.error('[database] dbGetAllTasks failed:', e);
+    return [];
+  }
 }
 
 export async function dbGetTasksForDate(dateISO: string): Promise<Task[]> {
-  const db = await getDb();
-  const day = dateISO.slice(0, 10);
-  const rows = await db.getAllAsync<Record<string, unknown>>(
-    `SELECT * FROM tasks WHERE date(start_time) = ? ORDER BY start_time ASC`,
-    [day],
-  );
-  return rows.map(rowToTask);
+  try {
+    const database = await getDb();
+    if (!database) return [];
+    const day = dateISO.slice(0, 10);
+    const rows = await database.getAllAsync<Record<string, unknown>>(
+      `SELECT * FROM tasks WHERE date(start_time) = ? ORDER BY start_time ASC`,
+      [day],
+    );
+    return rows.map(rowToTask);
+  } catch (e) {
+    console.error('[database] dbGetTasksForDate failed:', e);
+    return [];
+  }
 }
 
 export async function dbInsertTask(task: Task): Promise<void> {
-  const db = await getDb();
-  await db.runAsync(
+  const database = await getDb();
+  if (!database) { console.error('[database] dbInsertTask skipped — DB unavailable'); return; }
+  await database.runAsync(
     `INSERT INTO tasks (id, title, description, start_time, end_time, duration_minutes, status, priority, tags, reminders, color, focus_mode, focus_allowed_packages, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
@@ -123,8 +202,9 @@ export async function dbInsertTask(task: Task): Promise<void> {
 }
 
 export async function dbUpdateTask(task: Task): Promise<void> {
-  const db = await getDb();
-  await db.runAsync(
+  const database = await getDb();
+  if (!database) { console.error('[database] dbUpdateTask skipped — DB unavailable'); return; }
+  await database.runAsync(
     `UPDATE tasks SET title=?, description=?, start_time=?, end_time=?, duration_minutes=?, status=?, priority=?, tags=?, reminders=?, color=?, focus_mode=?, focus_allowed_packages=?, updated_at=? WHERE id=?`,
     [
       task.title,
@@ -146,8 +226,9 @@ export async function dbUpdateTask(task: Task): Promise<void> {
 }
 
 export async function dbDeleteTask(taskId: string): Promise<void> {
-  const db = await getDb();
-  await db.runAsync('DELETE FROM tasks WHERE id = ?', [taskId]);
+  const database = await getDb();
+  if (!database) { console.error('[database] dbDeleteTask skipped — DB unavailable'); return; }
+  await database.runAsync('DELETE FROM tasks WHERE id = ?', [taskId]);
 }
 
 function rowToTask(row: Record<string, unknown>): Task {
@@ -173,61 +254,42 @@ function rowToTask(row: Record<string, unknown>): Task {
 
 // ─── Settings ────────────────────────────────────────────────────────────────
 
-const DEFAULT_SETTINGS: AppSettings = {
-  darkMode: false,
-  defaultDuration: 60,
-  defaultReminderOffsets: [-10, -5, 0],
-  focusModeEnabled: true,
-  allowedInFocus: [],
-  allowedAppPresets: [],
-  pomodoroEnabled: false,
-  pomodoroDuration: 25,
-  pomodoroBreak: 5,
-  notificationsEnabled: true,
-  privacyAccepted: false,
-  standaloneBlockPackages: [],
-  standaloneBlockUntil: null,
-  dailyAllowanceEntries: [],
-  onboardingComplete: false,
-  blockedWords: [],
-  aversionDimmerEnabled: false,
-  aversionVibrateEnabled: false,
-  aversionSoundEnabled: false,
-  weeklyReportEnabled: false,
-  greyoutSchedule: [],
-  systemGuardEnabled: true,
-  customNodeRules: [],
-};
-
 export async function dbGetSettings(): Promise<AppSettings> {
-  const db = await getDb();
-  const row = await db.getFirstAsync<{ value: string }>(
-    `SELECT value FROM settings WHERE key = 'app_settings'`,
-  );
-  if (!row) return DEFAULT_SETTINGS;
   try {
-    const parsed = JSON.parse(row.value) as Partial<AppSettings> & { dailyAllowancePackages?: string[] };
-    // Migrate old dailyAllowancePackages: string[] → dailyAllowanceEntries: DailyAllowanceEntry[]
-    if (parsed.dailyAllowancePackages && !parsed.dailyAllowanceEntries) {
-      parsed.dailyAllowanceEntries = parsed.dailyAllowancePackages.map((pkg): DailyAllowanceEntry => ({
-        packageName: pkg,
-        mode: 'count',
-        countPerDay: 1,
-        budgetMinutes: 30,
-        intervalMinutes: 5,
-        intervalHours: 1,
-      }));
-      delete parsed.dailyAllowancePackages;
+    const database = await getDb();
+    if (!database) return DEFAULT_SETTINGS;
+    const row = await database.getFirstAsync<{ value: string }>(
+      `SELECT value FROM settings WHERE key = 'app_settings'`,
+    );
+    if (!row) return DEFAULT_SETTINGS;
+    try {
+      const parsed = JSON.parse(row.value) as Partial<AppSettings> & { dailyAllowancePackages?: string[] };
+      // Migrate old dailyAllowancePackages: string[] → dailyAllowanceEntries: DailyAllowanceEntry[]
+      if (parsed.dailyAllowancePackages && !parsed.dailyAllowanceEntries) {
+        parsed.dailyAllowanceEntries = parsed.dailyAllowancePackages.map((pkg): DailyAllowanceEntry => ({
+          packageName: pkg,
+          mode: 'count',
+          countPerDay: 1,
+          budgetMinutes: 30,
+          intervalMinutes: 5,
+          intervalHours: 1,
+        }));
+        delete parsed.dailyAllowancePackages;
+      }
+      return { ...DEFAULT_SETTINGS, ...parsed };
+    } catch {
+      return DEFAULT_SETTINGS;
     }
-    return { ...DEFAULT_SETTINGS, ...parsed };
-  } catch {
+  } catch (e) {
+    console.error('[database] dbGetSettings failed — returning defaults:', e);
     return DEFAULT_SETTINGS;
   }
 }
 
 export async function dbSaveSettings(settings: AppSettings): Promise<void> {
-  const db = await getDb();
-  await db.runAsync(
+  const database = await getDb();
+  if (!database) { console.error('[database] dbSaveSettings skipped — DB unavailable'); return; }
+  await database.runAsync(
     `INSERT OR REPLACE INTO settings (key, value) VALUES ('app_settings', ?)`,
     [JSON.stringify(settings)],
   );
@@ -236,105 +298,141 @@ export async function dbSaveSettings(settings: AppSettings): Promise<void> {
 // ─── Focus Sessions ──────────────────────────────────────────────────────────
 
 export async function dbStartFocusSession(session: FocusSession): Promise<void> {
-  const db = await getDb();
-  await db.runAsync(
+  const database = await getDb();
+  if (!database) { console.error('[database] dbStartFocusSession skipped — DB unavailable'); return; }
+  await database.runAsync(
     `INSERT INTO focus_sessions (task_id, started_at, is_active, allowed_packages) VALUES (?, ?, 1, ?)`,
     [session.taskId, session.startedAt, JSON.stringify(session.allowedPackages)],
   );
 }
 
 export async function dbEndFocusSession(taskId: string): Promise<void> {
-  const db = await getDb();
-  await db.runAsync(
+  const database = await getDb();
+  if (!database) { console.error('[database] dbEndFocusSession skipped — DB unavailable'); return; }
+  await database.runAsync(
     `UPDATE focus_sessions SET is_active = 0, ended_at = ? WHERE task_id = ? AND is_active = 1`,
     [new Date().toISOString(), taskId],
   );
 }
 
 export async function dbGetActiveFocusSession(): Promise<FocusSession | null> {
-  const db = await getDb();
-  const row = await db.getFirstAsync<Record<string, unknown>>(
-    `SELECT * FROM focus_sessions WHERE is_active = 1 ORDER BY id DESC LIMIT 1`,
-  );
-  if (!row) return null;
-  return {
-    taskId: row.task_id as string,
-    startedAt: row.started_at as string,
-    isActive: true,
-    allowedPackages: JSON.parse(row.allowed_packages as string) as string[],
-  };
+  try {
+    const database = await getDb();
+    if (!database) return null;
+    const row = await database.getFirstAsync<Record<string, unknown>>(
+      `SELECT * FROM focus_sessions WHERE is_active = 1 ORDER BY id DESC LIMIT 1`,
+    );
+    if (!row) return null;
+    return {
+      taskId: row.task_id as string,
+      startedAt: row.started_at as string,
+      isActive: true,
+      allowedPackages: JSON.parse(row.allowed_packages as string) as string[],
+    };
+  } catch (e) {
+    console.error('[database] dbGetActiveFocusSession failed:', e);
+    return null;
+  }
 }
 
 export async function dbGetTodayFocusMinutes(): Promise<number> {
-  const db = await getDb();
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
-  const rows = await db.getAllAsync<{ started_at: string; ended_at: string | null }>(
-    `SELECT started_at, ended_at FROM focus_sessions WHERE started_at >= ? ORDER BY id DESC`,
-    [startOfDay.toISOString()],
-  );
-  let totalMs = 0;
-  const now = Date.now();
-  for (const row of rows) {
-    const start = new Date(row.started_at).getTime();
-    const end = row.ended_at ? new Date(row.ended_at).getTime() : now;
-    totalMs += Math.max(0, end - start);
+  try {
+    const database = await getDb();
+    if (!database) return 0;
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const rows = await database.getAllAsync<{ started_at: string; ended_at: string | null }>(
+      `SELECT started_at, ended_at FROM focus_sessions WHERE started_at >= ? ORDER BY id DESC`,
+      [startOfDay.toISOString()],
+    );
+    let totalMs = 0;
+    const now = Date.now();
+    for (const row of rows) {
+      const start = new Date(row.started_at).getTime();
+      const end = row.ended_at ? new Date(row.ended_at).getTime() : now;
+      totalMs += Math.max(0, end - start);
+    }
+    return Math.floor(totalMs / 60000);
+  } catch (e) {
+    console.error('[database] dbGetTodayFocusMinutes failed:', e);
+    return 0;
   }
-  return Math.floor(totalMs / 60000);
 }
 
 // ─── Override Logging ─────────────────────────────────────────────────────────
 
 export async function dbLogFocusOverride(taskId: string, appName: string, reason?: string): Promise<void> {
-  const db = await getDb();
-  await db.runAsync(
-    `INSERT INTO focus_overrides (task_id, app_name, overridden_at, reason) VALUES (?, ?, ?, ?)`,
-    [taskId, appName, new Date().toISOString(), reason ?? null],
-  );
+  try {
+    const database = await getDb();
+    if (!database) { return; }
+    await database.runAsync(
+      `INSERT INTO focus_overrides (task_id, app_name, overridden_at, reason) VALUES (?, ?, ?, ?)`,
+      [taskId, appName, new Date().toISOString(), reason ?? null],
+    );
+  } catch (e) {
+    console.error('[database] dbLogFocusOverride failed:', e);
+  }
 }
 
 export async function dbGetTodayOverrideCount(): Promise<number> {
-  const db = await getDb();
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
-  const row = await db.getFirstAsync<{ count: number }>(
-    `SELECT COUNT(*) as count FROM focus_overrides WHERE overridden_at >= ?`,
-    [startOfDay.toISOString()],
-  );
-  return row?.count ?? 0;
+  try {
+    const database = await getDb();
+    if (!database) return 0;
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const row = await database.getFirstAsync<{ count: number }>(
+      `SELECT COUNT(*) as count FROM focus_overrides WHERE overridden_at >= ?`,
+      [startOfDay.toISOString()],
+    );
+    return row?.count ?? 0;
+  } catch (e) {
+    console.error('[database] dbGetTodayOverrideCount failed:', e);
+    return 0;
+  }
 }
 
 // ─── Daily Streak ─────────────────────────────────────────────────────────────
 
 export async function dbRecordDayCompletion(completed: number, total: number): Promise<void> {
-  const db = await getDb();
-  const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-  await db.runAsync(
-    `INSERT OR REPLACE INTO daily_completions (date, completed, total) VALUES (?, ?, ?)`,
-    [date, completed, total],
-  );
+  try {
+    const database = await getDb();
+    if (!database) { return; }
+    const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    await database.runAsync(
+      `INSERT OR REPLACE INTO daily_completions (date, completed, total) VALUES (?, ?, ?)`,
+      [date, completed, total],
+    );
+  } catch (e) {
+    console.error('[database] dbRecordDayCompletion failed:', e);
+  }
 }
 
 export async function dbGetStreak(): Promise<number> {
-  const db = await getDb();
-  const rows = await db.getAllAsync<{ date: string; completed: number; total: number }>(
-    `SELECT date, completed, total FROM daily_completions ORDER BY date DESC LIMIT 60`,
-  );
-  let streak = 0;
-  let checkDate = new Date();
-  checkDate.setHours(0, 0, 0, 0);
+  try {
+    const database = await getDb();
+    if (!database) return 0;
+    const rows = await database.getAllAsync<{ date: string; completed: number; total: number }>(
+      `SELECT date, completed, total FROM daily_completions ORDER BY date DESC LIMIT 60`,
+    );
+    let streak = 0;
+    let checkDate = new Date();
+    checkDate.setHours(0, 0, 0, 0);
 
-  for (const row of rows) {
-    const rowDate = new Date(row.date);
-    const diffDays = Math.round((checkDate.getTime() - rowDate.getTime()) / 86400000);
-    if (diffDays > 1) break; // gap in streak
-    // Count day as "active" if at least 50% completion
-    if (row.total > 0 && row.completed / row.total >= 0.5) {
-      streak++;
-      checkDate = rowDate;
-    } else {
-      break;
+    for (const row of rows) {
+      const rowDate = new Date(row.date);
+      const diffDays = Math.round((checkDate.getTime() - rowDate.getTime()) / 86400000);
+      if (diffDays > 1) break; // gap in streak
+      // Count day as "active" if at least 50% completion
+      if (row.total > 0 && row.completed / row.total >= 0.5) {
+        streak++;
+        checkDate = rowDate;
+      } else {
+        break;
+      }
     }
+    return streak;
+  } catch (e) {
+    console.error('[database] dbGetStreak failed:', e);
+    return 0;
   }
-  return streak;
 }

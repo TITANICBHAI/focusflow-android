@@ -49,12 +49,14 @@
     "zod-validation-error": "^3.4.0"
   },
   "dependencies": {
+    "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/datetimepicker": "8.4.4",
     "@react-navigation/bottom-tabs": "^7.3.14",
     "@react-navigation/native": "^7.1.14",
     "dayjs": "^1.11.20",
     "expo-background-fetch": "~14.0.9",
     "expo-build-properties": "~1.0.10",
+    "expo-file-system": "^19.0.21",
     "expo-notifications": "~0.32.16",
     "expo-sqlite": "~16.0.10",
     "expo-task-manager": "~14.0.9",

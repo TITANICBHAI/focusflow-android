@@ -26,12 +26,14 @@ import { GreyoutScheduleModal } from '@/components/GreyoutScheduleModal';
 import { WeeklyReportModal } from '@/components/WeeklyReportModal';
 import { OverlayAppearanceModal } from '@/components/OverlayAppearanceModal';
 import CustomNodeRulesModal from '@/components/CustomNodeRulesModal';
+import DiagnosticsModal from '@/components/DiagnosticsModal';
+import { withScreenErrorBoundary } from '@/components/withScreenErrorBoundary';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 import type { CustomNodeRule } from '@/data/types';
 
 const DURATION_OPTIONS = [30, 45, 60, 90, 120];
 
-export default function SettingsScreen() {
+function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { state, updateSettings, setStandaloneBlockAndAllowance, setDailyAllowanceEntries, setBlockedWords, refreshTasks, deleteTask } = useApp();
   const { settings } = state;
@@ -44,6 +46,7 @@ export default function SettingsScreen() {
   const [weeklyReportVisible, setWeeklyReportVisible] = useState(false);
   const [overlayAppearanceVisible, setOverlayAppearanceVisible] = useState(false);
   const [customNodeRulesVisible, setCustomNodeRulesVisible] = useState(false);
+  const [diagnosticsVisible, setDiagnosticsVisible] = useState(false);
 
   if (!state.isDbReady) {
     return (
@@ -401,6 +404,16 @@ export default function SettingsScreen() {
           />
         </Section>
 
+        {/* ── Diagnostics ── */}
+        <Section title="Diagnostics">
+          <SettingButton
+            icon="terminal-outline"
+            label="View Startup Logs"
+            description="Timestamped log of startup steps, warnings, and errors"
+            onPress={() => setDiagnosticsVisible(true)}
+          />
+        </Section>
+
         {/* ── Danger Zone ── */}
         <Section title="Data">
           <SettingButton
@@ -494,6 +507,11 @@ export default function SettingsScreen() {
         rules={settings.customNodeRules ?? []}
         onClose={() => setCustomNodeRulesVisible(false)}
         onSave={async (rules) => { await handleSaveCustomNodeRules(rules); }}
+      />
+
+      <DiagnosticsModal
+        visible={diagnosticsVisible}
+        onClose={() => setDiagnosticsVisible(false)}
       />
     </SafeAreaView>
   );
@@ -661,3 +679,5 @@ const styles = StyleSheet.create({
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   loadingText: { fontSize: FONT.md, color: COLORS.muted },
 });
+
+export default withScreenErrorBoundary(SettingsScreen, 'Settings');
