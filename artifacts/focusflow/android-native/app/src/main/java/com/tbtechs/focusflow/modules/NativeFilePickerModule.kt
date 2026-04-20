@@ -27,7 +27,7 @@ import com.facebook.react.bridge.ReactMethod
  *
  * Usage:
  *   pickFile("application/json")  — shows only JSON files
- *   pickFile("*\/*")              — shows all files
+ *   pickFile(allFilesMimeType)    — shows all files
  */
 class NativeFilePickerModule(private val ctx: ReactApplicationContext) :
     ReactContextBaseJavaModule(ctx) {
@@ -97,7 +97,7 @@ class NativeFilePickerModule(private val ctx: ReactApplicationContext) :
 
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
-            type = mimeType.ifBlank { "*/*" }
+            type = mimeType.ifBlank { "*".plus("/").plus("*") }
         }
 
         @Suppress("DEPRECATION")
