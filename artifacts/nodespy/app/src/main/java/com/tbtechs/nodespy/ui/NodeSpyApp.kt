@@ -10,13 +10,17 @@ import androidx.navigation.navArgument
 import com.tbtechs.nodespy.ui.screens.CaptureListScreen
 import com.tbtechs.nodespy.ui.screens.InspectorScreen
 import com.tbtechs.nodespy.ui.screens.PermissionsScreen
+import com.tbtechs.nodespy.ui.screens.WizardScreen
 
 @Composable
 fun NodeSpyApp(
+    showWizard: Boolean = false,
     initialCaptureId: String? = null,
-    onLaunchBubble: () -> Unit = {}
+    onLaunchBubble: () -> Unit = {},
+    onWizardDone: () -> Unit = {}
 ) {
     val nav = rememberNavController()
+    val start = if (showWizard) "wizard" else "captures"
 
     LaunchedEffect(initialCaptureId) {
         if (initialCaptureId != null) {
@@ -24,12 +28,13 @@ fun NodeSpyApp(
         }
     }
 
-    NavHost(navController = nav, startDestination = "captures") {
+    NavHost(navController = nav, startDestination = start) {
         composable("captures") {
             CaptureListScreen(
                 onOpenCapture = { id -> nav.navigate("inspector/$id") },
                 onLaunchBubble = onLaunchBubble,
-                onOpenPermissions = { nav.navigate("setup") }
+                onOpenPermissions = { nav.navigate("setup") },
+                onOpenWizard = { nav.navigate("wizard") }
             )
         }
         composable(
@@ -41,6 +46,22 @@ fun NodeSpyApp(
         }
         composable("setup") {
             PermissionsScreen(onBack = { nav.popBackStack() })
+        }
+        composable("wizard") {
+            WizardScreen(
+                onFinish = {
+                    onWizardDone()
+                    if (nav.previousBackStackEntry != null) {
+                        nav.popBackStack()
+                    } else {
+                        nav.navigate("captures") { popUpTo("wizard") { inclusive = true } }
+                    }
+                },
+                onOpenSetup = {
+                    onWizardDone()
+                    nav.navigate("setup") { popUpTo("wizard") { inclusive = true } }
+                }
+            )
         }
     }
 }

@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BubbleChart
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.FiberManualRecord
+import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shield
@@ -46,7 +47,8 @@ import java.util.*
 fun CaptureListScreen(
     onOpenCapture: (String) -> Unit,
     onLaunchBubble: () -> Unit = {},
-    onOpenPermissions: () -> Unit = {}
+    onOpenPermissions: () -> Unit = {},
+    onOpenWizard: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -94,6 +96,9 @@ fun CaptureListScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Surface),
                 actions = {
+                    IconButton(onClick = onOpenWizard) {
+                        Icon(Icons.Default.HelpOutline, "Guide", tint = Muted)
+                    }
                     IconButton(onClick = onOpenPermissions) {
                         Icon(
                             if (allPermissionsOk) Icons.Default.Shield else Icons.Default.ShieldMoon,

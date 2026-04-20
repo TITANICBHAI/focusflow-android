@@ -19,20 +19,26 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val ACTION_OPEN_CAPTURE = "com.tbtechs.nodespy.OPEN_CAPTURE"
         const val EXTRA_CAPTURE_ID = "capture_id"
+        private const val PREFS_NAME = "nodespy_prefs"
+        private const val KEY_WIZARD_SEEN = "wizard_seen"
     }
 
     private var pendingCaptureId: String? = null
 
     private val notifPermLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { /* result handled by PermissionsScreen refreshing on resume */ }
+    ) { /* PermissionsScreen refreshes on resume */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        pendingCaptureId = intent?.takeIf { it.action == ACTION_OPEN_CAPTURE }
+        pendingCaptureId = intent
+            ?.takeIf { it.action == ACTION_OPEN_CAPTURE }
             ?.getStringExtra(EXTRA_CAPTURE_ID)
+
+        val prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+        val showWizard = !prefs.getBoolean(KEY_WIZARD_SEEN, false) && pendingCaptureId == null
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -41,8 +47,12 @@ class MainActivity : ComponentActivity() {
         setContent {
             NodeSpyTheme {
                 NodeSpyApp(
+                    showWizard = showWizard,
                     initialCaptureId = pendingCaptureId,
-                    onLaunchBubble = { launchBubble() }
+                    onLaunchBubble = { launchBubble() },
+                    onWizardDone = {
+                        prefs.edit().putBoolean(KEY_WIZARD_SEEN, true).apply()
+                    }
                 )
             }
         }
