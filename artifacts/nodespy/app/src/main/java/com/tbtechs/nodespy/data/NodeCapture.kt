@@ -10,7 +10,9 @@ data class NodeCapture(
     val screenW: Int,
     val screenH: Int,
     val nodes: List<NodeEntry>,
-    val screenshotPath: String? = null
+    val screenshotPath: String? = null,
+    val starred: Boolean = false,
+    val autoPinnedIds: Set<String> = emptySet()
 )
 
 data class NodeEntry(

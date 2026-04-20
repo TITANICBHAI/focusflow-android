@@ -5,6 +5,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -12,24 +15,23 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BubbleChart
-import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.FiberManualRecord
-import androidx.compose.material.icons.filled.HelpOutline
-import androidx.compose.material.icons.filled.RadioButtonUnchecked
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.ShieldMoon
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -48,7 +50,9 @@ fun CaptureListScreen(
     onOpenCapture: (String) -> Unit,
     onLaunchBubble: () -> Unit = {},
     onOpenPermissions: () -> Unit = {},
-    onOpenWizard: () -> Unit = {}
+    onOpenWizard: () -> Unit = {},
+    onOpenPackageFilter: () -> Unit = {},
+    onOpenAutoPinRules: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -67,6 +71,15 @@ fun CaptureListScreen(
     val loggingOn by CaptureStore.loggingEnabled.collectAsState()
     val snapOn by CaptureStore.screenshotEnabled.collectAsState()
     val pinnedIds by CaptureStore.bubblePinnedIds.collectAsState()
+    val allowlist by CaptureStore.packageAllowlist.collectAsState()
+    val rules by CaptureStore.autoPinRules.collectAsState()
+
+    var searchQuery by remember { mutableStateOf("") }
+    var searchOpen by remember { mutableStateOf(false) }
+    var showExportHistory by remember { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
 
     val allPermissionsOk = remember(refreshTick, serviceRunning) {
         val overlayOk = Settings.canDrawOverlays(context)
@@ -75,6 +88,22 @@ fun CaptureListScreen(
                     PackageManager.PERMISSION_GRANTED
         } else true
         serviceRunning && overlayOk && notifOk
+    }
+
+    val filteredCaptures = remember(captures, searchQuery) {
+        if (searchQuery.isBlank()) captures
+        else {
+            val q = searchQuery.lowercase()
+            captures.filter { c ->
+                c.pkg.lowercase().contains(q) ||
+                        c.activityClass.lowercase().contains(q) ||
+                        c.nodes.any { n ->
+                            n.resId?.lowercase()?.contains(q) == true ||
+                                    n.text?.lowercase()?.contains(q) == true ||
+                                    n.cls.lowercase().contains(q)
+                        }
+            }
+        }
     }
 
     Scaffold(
@@ -92,10 +121,31 @@ fun CaptureListScreen(
                         )
                         Spacer(Modifier.width(10.dp))
                         ServiceBadge(running = serviceRunning)
+                        if (allowlist.isNotEmpty()) {
+                            Spacer(Modifier.width(6.dp))
+                            FilterBadge(count = allowlist.size)
+                        }
+                        if (rules.any { it.enabled }) {
+                            Spacer(Modifier.width(6.dp))
+                            AutoPinBadge(count = rules.count { it.enabled })
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Surface),
                 actions = {
+                    IconButton(onClick = {
+                        searchOpen = !searchOpen
+                        if (!searchOpen) {
+                            searchQuery = ""
+                            focusManager.clearFocus()
+                        }
+                    }) {
+                        Icon(
+                            if (searchOpen) Icons.Default.SearchOff else Icons.Default.Search,
+                            "Search",
+                            tint = if (searchOpen) AccentGreen else Muted
+                        )
+                    }
                     IconButton(onClick = onOpenWizard) {
                         Icon(Icons.Default.HelpOutline, "Guide", tint = Muted)
                     }
@@ -109,9 +159,63 @@ fun CaptureListScreen(
                     IconButton(onClick = onLaunchBubble) {
                         Icon(Icons.Default.BubbleChart, "Launch Bubble", tint = AccentBlue)
                     }
-                    if (captures.isNotEmpty()) {
-                        IconButton(onClick = { CaptureStore.clearAll() }) {
-                            Icon(Icons.Default.DeleteSweep, "Clear all", tint = Muted)
+                    Box {
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(Icons.Default.MoreVert, "More", tint = Muted)
+                        }
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false },
+                            containerColor = Surface
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    MenuRow(
+                                        icon = Icons.Default.FilterList,
+                                        label = "Package Filter",
+                                        badge = if (allowlist.isNotEmpty()) "${allowlist.size}" else null,
+                                        color = AccentGreen
+                                    )
+                                },
+                                onClick = { showMenu = false; onOpenPackageFilter() }
+                            )
+                            DropdownMenuItem(
+                                text = {
+                                    MenuRow(
+                                        icon = Icons.Default.PushPin,
+                                        label = "Auto-Pin Rules",
+                                        badge = if (rules.isNotEmpty()) "${rules.size}" else null,
+                                        color = AccentOrange
+                                    )
+                                },
+                                onClick = { showMenu = false; onOpenAutoPinRules() }
+                            )
+                            DropdownMenuItem(
+                                text = {
+                                    val histCount = CaptureStore.exportHistory.value.size
+                                    MenuRow(
+                                        icon = Icons.Default.History,
+                                        label = "Export History",
+                                        badge = if (histCount > 0) "$histCount" else null,
+                                        color = AccentBlue
+                                    )
+                                },
+                                onClick = { showMenu = false; showExportHistory = true }
+                            )
+                            if (captures.isNotEmpty()) {
+                                HorizontalDivider(color = SurfaceVar)
+                                DropdownMenuItem(
+                                    text = {
+                                        MenuRow(
+                                            icon = Icons.Default.DeleteSweep,
+                                            label = "Clear All",
+                                            badge = null,
+                                            color = AccentRed
+                                        )
+                                    },
+                                    onClick = { showMenu = false; CaptureStore.clearAll() }
+                                )
+                            }
                         }
                     }
                 }
@@ -124,14 +228,32 @@ fun CaptureListScreen(
                 .padding(padding)
                 .background(Background)
         ) {
+            AnimatedVisibility(
+                visible = searchOpen,
+                enter = expandVertically(),
+                exit = shrinkVertically()
+            ) {
+                SearchBar(
+                    query = searchQuery,
+                    onQueryChange = { searchQuery = it },
+                    focusRequester = focusRequester,
+                    onClose = {
+                        searchQuery = ""
+                        searchOpen = false
+                        focusManager.clearFocus()
+                    }
+                )
+                LaunchedEffect(searchOpen) {
+                    if (searchOpen) focusRequester.requestFocus()
+                }
+            }
+
             if (!serviceRunning) {
                 ServiceBanner(
                     message = "Accessibility service is off — NodeSpy cannot capture nodes",
                     actionLabel = "Enable",
                     color = AccentOrange
-                ) {
-                    context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                }
+                ) { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
             }
 
             if (!Settings.canDrawOverlays(context)) {
@@ -139,32 +261,157 @@ fun CaptureListScreen(
                     message = "Draw over apps permission missing — floating bubble disabled",
                     actionLabel = "Fix",
                     color = AccentRed
-                ) {
-                    onOpenPermissions()
-                }
+                ) { onOpenPermissions() }
             }
 
             if (loggingOn || snapOn || pinnedIds.isNotEmpty()) {
-                BubbleStatusBar(
-                    loggingOn = loggingOn,
-                    snapOn = snapOn,
-                    pinnedCount = pinnedIds.size
-                )
+                BubbleStatusBar(loggingOn = loggingOn, snapOn = snapOn, pinnedCount = pinnedIds.size)
             }
 
-            if (captures.isEmpty()) {
-                EmptyState(serviceRunning)
+            if (filteredCaptures.isEmpty()) {
+                if (searchQuery.isNotBlank()) {
+                    NoResultsState(query = searchQuery)
+                } else {
+                    EmptyState(serviceRunning)
+                }
             } else {
                 LazyColumn(
                     contentPadding = PaddingValues(12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(captures, key = { it.id }) { capture ->
-                        CaptureCard(capture, onClick = { onOpenCapture(capture.id) })
+                    items(filteredCaptures, key = { it.id }) { capture ->
+                        CaptureCard(
+                            capture = capture,
+                            onClick = { onOpenCapture(capture.id) },
+                            onStarToggle = { CaptureStore.toggleStar(capture.id) }
+                        )
                     }
                 }
             }
         }
+    }
+
+    if (showExportHistory) {
+        ExportHistorySheet(onDismiss = { showExportHistory = false })
+    }
+}
+
+@Composable
+private fun SearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    focusRequester: FocusRequester,
+    onClose: () -> Unit
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(Surface)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            modifier = Modifier
+                .weight(1f)
+                .focusRequester(focusRequester),
+            placeholder = {
+                Text(
+                    "Search pkg, activity, node ID, text…",
+                    color = Muted,
+                    fontSize = 13.sp
+                )
+            },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = {}),
+            leadingIcon = {
+                Icon(Icons.Default.Search, null, tint = AccentGreen, modifier = Modifier.size(18.dp))
+            },
+            trailingIcon = {
+                if (query.isNotEmpty()) {
+                    IconButton(onClick = { onQueryChange("") }, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.Close, "Clear", tint = Muted, modifier = Modifier.size(16.dp))
+                    }
+                }
+            },
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = AccentGreen,
+                unfocusedBorderColor = Muted.copy(alpha = 0.5f),
+                focusedTextColor = OnBackground,
+                unfocusedTextColor = OnBackground,
+                cursorColor = AccentGreen
+            ),
+            textStyle = LocalTextStyle.current.copy(fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+        )
+        IconButton(onClick = onClose, modifier = Modifier.size(36.dp)) {
+            Icon(Icons.Default.Close, "Close search", tint = Muted)
+        }
+    }
+}
+
+@Composable
+private fun MenuRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    badge: String?,
+    color: androidx.compose.ui.graphics.Color
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Icon(icon, null, tint = color, modifier = Modifier.size(18.dp))
+        Text(label, color = OnBackground, fontSize = 14.sp)
+        Spacer(Modifier.weight(1f))
+        if (badge != null) {
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(color.copy(alpha = 0.15f))
+                    .padding(horizontal = 6.dp, vertical = 1.dp)
+            ) {
+                Text(badge, color = color, fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilterBadge(count: Int) {
+    Box(
+        Modifier
+            .clip(RoundedCornerShape(3.dp))
+            .background(AccentGreen.copy(alpha = 0.15f))
+            .padding(horizontal = 5.dp, vertical = 1.dp)
+    ) {
+        Text(
+            "FILTER $count",
+            color = AccentGreen,
+            fontSize = 9.sp,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun AutoPinBadge(count: Int) {
+    Box(
+        Modifier
+            .clip(RoundedCornerShape(3.dp))
+            .background(AccentOrange.copy(alpha = 0.15f))
+            .padding(horizontal = 5.dp, vertical = 1.dp)
+    ) {
+        Text(
+            "PIN $count",
+            color = AccentOrange,
+            fontSize = 9.sp,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
@@ -236,8 +483,7 @@ private fun ServiceBadge(running: Boolean) {
             modifier = Modifier.size(8.dp)
         )
         Spacer(Modifier.width(4.dp))
-        Text(label, color = color, fontSize = 11.sp, fontFamily = FontFamily.Monospace,
-            fontWeight = FontWeight.Bold)
+        Text(label, color = color, fontSize = 11.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -267,8 +513,7 @@ private fun ServiceBanner(
 private fun EmptyState(serviceRunning: Boolean) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Default.Search, contentDescription = null,
-                tint = Muted, modifier = Modifier.size(56.dp))
+            Icon(Icons.Default.Search, contentDescription = null, tint = Muted, modifier = Modifier.size(56.dp))
             Spacer(Modifier.height(16.dp))
             Text(
                 if (serviceRunning) "Open any app to capture its node tree"
@@ -280,17 +525,43 @@ private fun EmptyState(serviceRunning: Boolean) {
 }
 
 @Composable
-private fun CaptureCard(capture: NodeCapture, onClick: () -> Unit) {
+private fun NoResultsState(query: String) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(Icons.Default.SearchOff, null, tint = Muted, modifier = Modifier.size(52.dp))
+            Spacer(Modifier.height(14.dp))
+            Text("No matches for \"$query\"", color = OnBackground, fontSize = 15.sp)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Try searching by package, activity, node ID or text",
+                color = Muted,
+                fontSize = 13.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 32.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun CaptureCard(
+    capture: NodeCapture,
+    onClick: () -> Unit,
+    onStarToggle: () -> Unit
+) {
     val fmt = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
     val shortPkg = capture.pkg.substringAfterLast('.')
     val shortCls = capture.activityClass.substringAfterLast('.')
     val hasScreenshot = capture.screenshotPath != null
+    val hasAutoPins = capture.autoPinnedIds.isNotEmpty()
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = Surface),
+        colors = CardDefaults.cardColors(
+            containerColor = if (capture.starred) AccentOrange.copy(alpha = 0.05f) else Surface
+        ),
         shape = RoundedCornerShape(10.dp)
     ) {
         Row(
@@ -333,22 +604,36 @@ private fun CaptureCard(capture: NodeCapture, onClick: () -> Unit) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                if (hasAutoPins) {
+                    Spacer(Modifier.height(4.dp))
+                    Box(
+                        Modifier
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(AccentOrange.copy(alpha = 0.12f))
+                            .padding(horizontal = 5.dp, vertical = 1.dp)
+                    ) {
+                        Text(
+                            "⚡ ${capture.autoPinnedIds.size} auto-pinned",
+                            color = AccentOrange,
+                            fontSize = 10.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
 
             Spacer(Modifier.width(8.dp))
 
             Column(horizontalAlignment = Alignment.End) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (hasScreenshot) {
                         Box(
                             Modifier
                                 .clip(RoundedCornerShape(4.dp))
                                 .background(AccentBlue.copy(alpha = 0.15f))
                                 .padding(horizontal = 5.dp, vertical = 2.dp)
-                        ) {
-                            Text("📷", fontSize = 10.sp)
-                        }
-                        Spacer(Modifier.width(4.dp))
+                        ) { Text("📷", fontSize = 10.sp) }
                     }
                     NodeCountBadge(capture.nodes.size)
                 }
@@ -359,6 +644,18 @@ private fun CaptureCard(capture: NodeCapture, onClick: () -> Unit) {
                     fontSize = 11.sp,
                     fontFamily = FontFamily.Monospace
                 )
+                Spacer(Modifier.height(4.dp))
+                IconButton(
+                    onClick = onStarToggle,
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        if (capture.starred) Icons.Default.Star else Icons.Default.StarBorder,
+                        contentDescription = if (capture.starred) "Unstar" else "Star",
+                        tint = if (capture.starred) AccentOrange else Muted,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
         }
     }

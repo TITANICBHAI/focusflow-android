@@ -58,7 +58,7 @@ fun InspectorScreen(captureId: String, onBack: () -> Unit) {
     }
 
     var selectedTab by remember { mutableIntStateOf(0) }
-    var pinnedIds by remember { mutableStateOf(emptySet<String>()) }
+    var pinnedIds by remember { mutableStateOf(capture.autoPinnedIds) }
     var showExport by remember { mutableStateOf(false) }
 
     fun togglePin(id: String) {
@@ -105,8 +105,14 @@ fun InspectorScreen(captureId: String, onBack: () -> Unit) {
             ExportBar(
                 pinnedCount = pinnedIds.size,
                 totalCount = capture.nodes.size,
-                onExportPinned = { copyAndShare(context, ExportBuilder.build(capture, pinnedIds), capture.pkg) },
-                onExportAll    = { copyAndShare(context, ExportBuilder.build(capture, emptySet()), capture.pkg) }
+                onExportPinned = {
+                    copyAndShare(context, ExportBuilder.build(capture, pinnedIds), capture.pkg)
+                    if (pinnedIds.isNotEmpty()) CaptureStore.recordExport(capture.id, capture.pkg, pinnedIds.size)
+                },
+                onExportAll = {
+                    copyAndShare(context, ExportBuilder.build(capture, emptySet()), capture.pkg)
+                    CaptureStore.recordExport(capture.id, capture.pkg, capture.nodes.size)
+                }
             )
         }
     ) { padding ->
@@ -460,12 +466,16 @@ private fun ExportDialog(
         },
         confirmButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { copyToClipboard(context, json); onDismiss() }) {
-                    Text("Copy", color = AccentBlue)
-                }
-                TextButton(onClick = { shareJson(context, json, capture.pkg); onDismiss() }) {
-                    Text("Share", color = AccentBlue)
-                }
+                TextButton(onClick = {
+                    copyToClipboard(context, json)
+                    CaptureStore.recordExport(capture.id, capture.pkg, pinnedIds.size)
+                    onDismiss()
+                }) { Text("Copy", color = AccentBlue) }
+                TextButton(onClick = {
+                    shareJson(context, json, capture.pkg)
+                    CaptureStore.recordExport(capture.id, capture.pkg, pinnedIds.size)
+                    onDismiss()
+                }) { Text("Share", color = AccentBlue) }
             }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Close", color = Muted) } }
