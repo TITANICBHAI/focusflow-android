@@ -11,6 +11,9 @@
  *   7. React component tree (providers + expo-router Stack)
  */
 
+// ─── 0. Polyfills — must run before any library import ───────────────────────
+import '@/src/polyfills';
+
 // ─── 1. Register all background tasks with the OS ────────────────────────────
 import '@/tasks/backgroundTasks';
 
