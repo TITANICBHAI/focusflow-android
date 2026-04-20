@@ -12,7 +12,7 @@
  */
 
 // ─── 0. Polyfills — must run before any library import ───────────────────────
-import '@/src/polyfills';
+import '@/polyfills';
 
 // ─── 1. Register all background tasks with the OS ────────────────────────────
 import '@/tasks/backgroundTasks';
