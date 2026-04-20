@@ -13,6 +13,14 @@ name: Build NodeSpy APK
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/build-nodespy.yml"
+      - "artifacts/nodespy/**"
+
+permissions:
+  contents: write
 
 env:
   GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m -Dorg.gradle.daemon=false"
@@ -97,3 +105,24 @@ jobs:
           name: nodespy-release-${{ github.run_number }}
           path: artifacts/nodespy/app/build/outputs/apk/release/*.apk
           retention-days: 30
+
+      - name: Prepare direct APK release assets
+        run: |
+          mkdir -p artifacts/nodespy/release-assets
+          cp artifacts/nodespy/app/build/outputs/apk/debug/*.apk artifacts/nodespy/release-assets/nodespy-debug.apk
+          if [ "${{ steps.keystore-check.outputs.available }}" = "true" ]; then
+            cp artifacts/nodespy/app/build/outputs/apk/release/*.apk artifacts/nodespy/release-assets/nodespy-release.apk
+          fi
+          ls -lh artifacts/nodespy/release-assets
+
+      - name: Create direct APK GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: NodeSpy APK ${{ github.run_number }}
+          tag_name: nodespy-${{ github.run_id }}
+          target_commitish: ${{ github.sha }}
+          draft: false
+          prerelease: true
+          generate_release_notes: false
+          body: Direct NodeSpy APK downloads from workflow run ${{ github.run_number }}.
+          files: artifacts/nodespy/release-assets/*.apk
