@@ -54,6 +54,7 @@ class FocusDayPackage : ReactPackage {
             NativeImagePickerModule(reactContext),
             NativeFilePickerModule(reactContext),
             SessionPinModule(reactContext),
+            TaskAlarmModule(reactContext),
         )
 
     override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> =

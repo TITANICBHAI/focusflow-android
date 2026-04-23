@@ -44,6 +44,7 @@ import {
 } from '@/services/focusService';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 import { ForegroundServiceModule } from '@/native-modules/ForegroundServiceModule';
+import { TaskAlarmModule } from '@/native-modules/TaskAlarmModule';
 import { EventBridge } from '@/services/eventBridge';
 import { AversionsModule } from '@/native-modules/AversionsModule';
 import { GreyoutModule } from '@/native-modules/GreyoutModule';
@@ -692,6 +693,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const updated = updateTaskStatus(task, 'completed');
         await dbUpdateTask(updated);
         await cancelTaskReminders(taskId);
+        // Dismiss the full-screen task-end alarm if it is currently ringing
+        // for this task — keeps the alarm UI in sync with in-app resolution.
+        void TaskAlarmModule.dismissAlarm(taskId);
         dispatch({ type: 'UPDATE_TASK', payload: updated });
         if (stateRef.current.focusSession?.taskId === taskId) {
           await stopFocusMode();
@@ -715,6 +719,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const updated = updateTaskStatus(task, 'skipped');
         await dbUpdateTask(updated);
         await cancelTaskReminders(taskId);
+        void TaskAlarmModule.dismissAlarm(taskId);
         dispatch({ type: 'UPDATE_TASK', payload: updated });
       } catch (e) {
         void logger.error('AppContext', `skipTask failed: ${String(e)}`);
@@ -754,6 +759,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         await cancelTaskReminders(taskId);
         await scheduleTaskReminders(extended);
+
+        // Dismiss the full-screen task-end alarm only after the extension has
+        // been persisted — keeps the alarm UI in sync with task state so a
+        // mid-flight failure leaves the alarm ringing for the user to retry.
+        void TaskAlarmModule.dismissAlarm(taskId);
 
         // If this task is the one currently in focus, update the foreground notification
         // with the new end time so the countdown shows the correct remaining time.

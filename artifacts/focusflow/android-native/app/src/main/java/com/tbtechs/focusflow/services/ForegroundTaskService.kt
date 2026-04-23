@@ -3,6 +3,7 @@ package com.tbtechs.focusflow.services
 import android.app.*
 import android.app.usage.UsageStatsManager
 import android.content.Context
+import android.media.AudioAttributes
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Build
@@ -77,6 +78,15 @@ class ForegroundTaskService : Service() {
         /** Notification channel for full-screen block-overlay intent. */
         private const val BLOCK_ALERT_CHANNEL  = "focusday_block_alert"
         private const val BLOCK_ALERT_NOTIF_ID = 9001
+
+        /**
+         * Notification channel for the full-screen task-end alarm.  Must be
+         * IMPORTANCE_HIGH with sound + vibration so the heads-up presents and
+         * the full-screen intent is honoured even on locked / asleep devices.
+         */
+        const val TASK_ALARM_CHANNEL   = "task_alarm"
+        const val TASK_ALARM_NOTIF_ID  = 9101
+        private const val PI_TASK_ALARM = 7
     }
 
     private var taskId: String    = ""
@@ -96,10 +106,17 @@ class ForegroundTaskService : Service() {
         override fun run() {
             val remaining = endTimeMs - System.currentTimeMillis()
             if (remaining <= 0) {
+                // Capture identity BEFORE clearing — goIdle() resets these fields.
+                val endedTaskId   = taskId
+                val endedTaskName = taskName
                 clearFocusActive()
                 sendBroadcast(Intent(ACTION_TASK_ENDED).apply {
                     `package` = applicationContext.packageName
                 })
+                // Wake the device with a full-screen alarm so the user doesn't
+                // miss the end of their task.  The task itself stays in the
+                // awaiting-decision state until the user picks Done / Extend / Skip.
+                triggerTaskAlarm(endedTaskId, endedTaskName, endTimeMs)
                 goIdle()
                 return
             }
@@ -370,7 +387,91 @@ class ForegroundTaskService : Service() {
             }
             val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             nm.createNotificationChannel(channel)
+            // Also create the high-importance task-alarm channel up front so the
+            // first task end is not delayed waiting for channel creation.
+            createTaskAlarmChannel(nm)
         }
+    }
+
+    /**
+     * High-importance task-alarm channel.  Must include sound + vibration so
+     * the heads-up notification presents and the full-screen-intent is honoured
+     * even when the screen is off.
+     */
+    private fun createTaskAlarmChannel(nm: NotificationManager) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val existing = nm.getNotificationChannel(TASK_ALARM_CHANNEL)
+        if (existing != null) return
+        val alarmUri = android.media.RingtoneManager.getDefaultUri(
+            android.media.RingtoneManager.TYPE_ALARM
+        )
+        val attrs = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ALARM)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+        val channel = NotificationChannel(
+            TASK_ALARM_CHANNEL,
+            "Task Alarm",
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "Wakes the screen with a full-screen alarm when a task ends"
+            enableVibration(true)
+            vibrationPattern = longArrayOf(0L, 600L, 600L, 600L)
+            enableLights(true)
+            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            setBypassDnd(true)
+            setShowBadge(true)
+            if (alarmUri != null) setSound(alarmUri, attrs)
+        }
+        nm.createNotificationChannel(channel)
+    }
+
+    /**
+     * Posts a high-importance heads-up notification with [setFullScreenIntent]
+     * pointing at [TaskAlarmActivity].  On modern Android the system uses the
+     * full-screen intent to launch the activity directly when the screen is
+     * off / locked, bypassing the background-activity-launch restrictions that
+     * apply to plain `startActivity()` from a service.
+     */
+    private fun triggerTaskAlarm(endedTaskId: String, endedTaskName: String, endedAtMs: Long) {
+        try {
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            createTaskAlarmChannel(nm)
+
+            val activityIntent = Intent(applicationContext, TaskAlarmActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_NO_HISTORY
+                putExtra(TaskAlarmActivity.EXTRA_TASK_ID,   endedTaskId)
+                putExtra(TaskAlarmActivity.EXTRA_TASK_NAME, endedTaskName)
+                putExtra(TaskAlarmActivity.EXTRA_END_MS,    endedAtMs)
+            }
+            val fullScreenPi = PendingIntent.getActivity(
+                applicationContext, PI_TASK_ALARM, activityIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val displayName = if (endedTaskName.isNotEmpty()) endedTaskName else "Your task"
+
+            val notif = NotificationCompat.Builder(this, TASK_ALARM_CHANNEL)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle("\u23F0 Time's up")
+                .setContentText("$displayName has ended — tap to choose")
+                .setContentIntent(fullScreenPi)
+                .setFullScreenIntent(fullScreenPi, true)
+                .setPriority(NotificationCompat.PRIORITY_MAX)
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setAutoCancel(true)
+                .setOngoing(true)
+                .build()
+            nm.notify(TASK_ALARM_NOTIF_ID, notif)
+
+            // Belt-and-braces: on some OEM ROMs the full-screen intent is
+            // delayed until the user unlocks.  Fire startActivity directly too
+            // — the system simply ignores it if the activity is already up.
+            try { applicationContext.startActivity(activityIntent) } catch (_: Exception) {}
+        } catch (_: Exception) { /* alarm is best-effort */ }
     }
 
     private fun buildIdleNotification(): Notification {
