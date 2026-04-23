@@ -10,6 +10,7 @@ import { Alert } from 'react-native';
 import type { Task, AppSettings, FocusSession, DailyAllowanceEntry, RecurringBlockSchedule, GreyoutWindow } from '@/data/types';
 import {
   dbGetTasksForDate,
+  dbGetRecentUnresolvedTasks,
   dbInsertTask,
   dbUpdateTask,
   dbDeleteTask,
@@ -22,6 +23,8 @@ import {
   getActiveTask,
   getCurrentTask,
   getAllActiveTasks,
+  getUpcomingTask,
+  isAwaitingDecision,
   extendTask,
   updateTaskStatus,
 } from '@/services/taskService';
@@ -191,6 +194,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const watchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Tracks which unresolved task IDs have already triggered a "did you finish
+  // your previous task?" alert so we don't show the same prompt twice.
+  const alertedUnresolvedRef = useRef<Set<string>>(new Set());
 
   // ── 12-second splash watchdog ─────────────────────────────────────────────
   // If SET_DB_READY hasn't fired within 12 s, force the app past the splash
@@ -260,8 +266,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       // ── Database / settings ────────────────────────────────────────────────
       void logger.info('AppContext', 'Loading settings from DB (timeout=8000ms)');
-      const settings = await withTimeout(dbGetSettings(), 8000, defaultSettings);
-      void logger.info('AppContext', 'Settings loaded — dispatching SET_SETTINGS + SET_DB_READY');
+      const rawSettings = await withTimeout(dbGetSettings(), 8000, defaultSettings);
+      void logger.info('AppContext', 'Settings loaded from DB');
+
+      // If the DB returned privacyAccepted=false (e.g. because it fell back to
+      // the recovery DB after OEM memory management wiped the DB file), cross-
+      // check with SharedPreferences — which survives DB file deletion — before
+      // concluding the user needs to re-accept the privacy policy. This stops
+      // the privacy policy screen from appearing randomly between sessions.
+      let settings = rawSettings;
+      if (!rawSettings.privacyAccepted) {
+        try {
+          const spValue = await SharedPrefsModule.getString('privacy_accepted');
+          if (spValue === 'true') {
+            void logger.info('AppContext', 'privacyAccepted restored from SharedPreferences backup');
+            settings = { ...rawSettings, privacyAccepted: true };
+            try { await dbSaveSettings(settings); } catch { /* non-fatal */ }
+          }
+        } catch (e) {
+          void logger.warn('AppContext', `SharedPrefs privacy backup check failed: ${String(e)}`);
+        }
+      }
+
+      void logger.info('AppContext', 'Dispatching SET_SETTINGS + SET_DB_READY');
       dispatch({ type: 'SET_SETTINGS', payload: settings });
       dispatch({ type: 'SET_DB_READY' });
 
@@ -532,8 +559,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       // Focus session owns the task_* keys + pushes widget itself — don't fight it.
       if (s.focusSession) return;
-      const active = getActiveTask(s.tasks);
+
+      const active   = getActiveTask(s.tasks);
+      const current  = getCurrentTask(s.tasks);   // includes ended-but-unresolved
+      const awaiting = current && isAwaitingDecision(current) ? current : null;
+
       if (active) {
+        // ── State 1: task running ────────────────────────────────────────────
         const endMs   = new Date(active.endTime).getTime();
         const startMs = new Date(active.startTime).getTime();
         const next    = s.tasks.find(
@@ -541,13 +573,43 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         );
         await SharedPrefsModule.setActiveTask(active.id, active.title, endMs, next?.title ?? null);
         await SharedPrefsModule.setActiveTaskColor(active.color ?? '');
-        // Use the task's real start time so widget progress reflects elapsed
-        // time, not "0%" each time AppContext re-syncs.
         await SharedPrefsModule.setActiveTaskStartMs(active.id, startMs);
+        // Clear awaiting-decision and next-upcoming so they don't bleed through
+        await SharedPrefsModule.putString('task_awaiting_decision', '');
+        await SharedPrefsModule.putString('next_upcoming_name', '');
+        await SharedPrefsModule.putString('next_upcoming_start_ms', '0');
+      } else if (awaiting) {
+        // ── State 2: task ended, user hasn't resolved it yet ─────────────────
+        // Keep task_name / task_end_ms in SharedPrefs so the widget can show
+        // "TIME'S UP · <task name> · Tap to resolve" without the app running.
+        const endMs   = new Date(awaiting.endTime).getTime();
+        const startMs = new Date(awaiting.startTime).getTime();
+        await SharedPrefsModule.setActiveTask(awaiting.id, awaiting.title, endMs, null);
+        await SharedPrefsModule.setActiveTaskColor(awaiting.color ?? '');
+        await SharedPrefsModule.setActiveTaskStartMs(awaiting.id, startMs);
+        await SharedPrefsModule.putString('task_awaiting_decision', 'true');
+        await SharedPrefsModule.putString('next_upcoming_name', '');
+        await SharedPrefsModule.putString('next_upcoming_start_ms', '0');
+        await SharedPrefsModule.pushWidgetUpdate();
       } else {
+        // ── State 3 / 4 / 5: idle ────────────────────────────────────────────
         await SharedPrefsModule.clearActiveTask();
-        // Standalone-block state may still be active — pushWidgetUpdate lets the
-        // widget switch to the standalone render without waiting for the system.
+        await SharedPrefsModule.putString('task_awaiting_decision', '');
+
+        // Show the next upcoming task in the widget if one exists today
+        const upcoming = getUpcomingTask(s.tasks);
+        if (upcoming) {
+          await SharedPrefsModule.putString('next_upcoming_name', upcoming.title);
+          await SharedPrefsModule.putString(
+            'next_upcoming_start_ms',
+            String(new Date(upcoming.startTime).getTime()),
+          );
+        } else {
+          await SharedPrefsModule.putString('next_upcoming_name', '');
+          await SharedPrefsModule.putString('next_upcoming_start_ms', '0');
+        }
+        // Standalone-block state may still be active — push so the widget
+        // re-renders to the standalone or idle state immediately.
         await SharedPrefsModule.pushWidgetUpdate();
       }
     } catch (e) {
@@ -616,6 +678,63 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.tasks]);
 
+  // ── Prompt user to resolve past unresolved tasks when a new task starts ──────
+  // When a new task becomes active while a previous task is still awaiting a
+  // decision (ended without Complete / Extend / Skip), show an Alert so the
+  // user is never silently moved on without resolving their work.
+
+  useEffect(() => {
+    if (!state.isDbReady) return;
+    const tasks = state.tasks;
+    const active = getActiveTask(tasks);
+    // Only prompt when there is a fresh active task — no active task means
+    // the user is between tasks or in idle, and we don't want to nag then.
+    if (!active) return;
+
+    const unresolved = tasks.filter(
+      (t) => t.id !== active.id && isAwaitingDecision(t),
+    );
+
+    for (const t of unresolved) {
+      if (alertedUnresolvedRef.current.has(t.id)) continue;
+      alertedUnresolvedRef.current.add(t.id);
+      Alert.alert(
+        'Previous Task Unresolved',
+        `"${t.title}" ended without being marked done or skipped.\n\nDid you complete it?`,
+        [
+          {
+            text: 'Mark Done',
+            onPress: () => {
+              void (async () => {
+                try {
+                  const updated = { ...t, status: 'completed' as const, updatedAt: new Date().toISOString() };
+                  await dbUpdateTask(updated);
+                  dispatch({ type: 'UPDATE_TASK', payload: updated });
+                } catch { /* non-fatal */ }
+              })();
+            },
+          },
+          {
+            text: 'Skip It',
+            style: 'destructive',
+            onPress: () => {
+              void (async () => {
+                try {
+                  const updated = { ...t, status: 'skipped' as const, updatedAt: new Date().toISOString() };
+                  await dbUpdateTask(updated);
+                  dispatch({ type: 'UPDATE_TASK', payload: updated });
+                } catch { /* non-fatal */ }
+              })();
+            },
+          },
+          { text: 'Keep Working', style: 'cancel' },
+        ],
+        { cancelable: false },
+      );
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.isDbReady, state.tasks]);
+
   // ── Native event subscriptions ───────────────────────────────────────────────
 
   useEffect(() => {
@@ -640,8 +759,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const refreshTasks = useCallback(async () => {
     try {
-      const tasks = await dbGetTasksForDate(new Date().toISOString());
-      dispatch({ type: 'SET_TASKS', payload: tasks });
+      const todayTasks = await dbGetTasksForDate(new Date().toISOString());
+      // Also include tasks from the last 24 hours that are still unresolved so
+      // they stay visible on the Focus tab after midnight. The user will be
+      // prompted to resolve them when a new task or block session starts.
+      const recentUnresolved = await dbGetRecentUnresolvedTasks();
+      const todayIds = new Set(todayTasks.map((t) => t.id));
+      const merged = [
+        ...todayTasks,
+        ...recentUnresolved.filter((t) => !todayIds.has(t.id)),
+      ];
+      dispatch({ type: 'SET_TASKS', payload: merged });
     } catch (e) {
       void logger.warn('AppContext', `refreshTasks failed: ${String(e)}`);
     }
@@ -743,7 +871,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         const extended = extendTask(task, extraMinutes);
 
-        const { updatedSchedule, needsUserConfirm, skipped } = rebalanceAfterOverrun(extended, extraMinutes, tasks);
+        const { updatedSchedule, needsUserConfirm, skipped, shifted } = rebalanceAfterOverrun(extended, extraMinutes, tasks);
 
         await dbUpdateTask(extended);
         for (const t of updatedSchedule) {
@@ -757,8 +885,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         });
         dispatch({ type: 'SET_TASKS', payload: finalTasks });
 
+        // Reschedule the extended task at its new end time
         await cancelTaskReminders(taskId);
         await scheduleTaskReminders(extended);
+
+        // Reschedule every task that was shifted to new times — their old
+        // pre-start / mid-session / end notifications would fire at wrong times.
+        for (const t of shifted) {
+          await cancelTaskReminders(t.id);
+          await scheduleTaskReminders(t);
+        }
+
+        // Cancel notifications for tasks the scheduler auto-skipped — they
+        // are no longer going to run so their reminders should not fire.
+        for (const t of skipped) {
+          await cancelTaskReminders(t.id);
+        }
 
         // Dismiss the full-screen task-end alarm only after the extension has
         // been persisted — keeps the alarm UI in sync with task state so a

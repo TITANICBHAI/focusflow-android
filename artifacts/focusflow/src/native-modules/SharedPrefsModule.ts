@@ -123,6 +123,17 @@ export const SharedPrefsModule = {
   },
 
   /**
+   * Reads a string value from SharedPreferences by key.
+   * Returns null if the key is absent or the native module is unavailable.
+   * Used by AppContext to cross-check critical flags (e.g. privacy_accepted)
+   * that are backed up in SharedPreferences in case the SQLite DB is wiped.
+   */
+  async getString(key: string): Promise<string | null> {
+    if (!hasSharedPrefsMethod('getString')) return null;
+    return SharedPrefs.getString(key);
+  },
+
+  /**
    * Writes the custom node rules (imported from NodeSpy NodeSpyCaptureV1 exports)
    * to SharedPreferences as a JSON string.
    * The AccessibilityService reads this to enforce per-node blocking rules.

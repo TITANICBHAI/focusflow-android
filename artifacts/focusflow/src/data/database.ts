@@ -161,6 +161,34 @@ export async function dbGetAllTasks(): Promise<Task[]> {
   }
 }
 
+/**
+ * Returns tasks from the last 24 hours that ended before now but are still
+ * unresolved (status is not 'completed' or 'skipped').
+ *
+ * Used by AppContext.refreshTasks() to keep yesterday's unresolved tasks
+ * visible on the Focus tab even after midnight, so the user is prompted to
+ * resolve them when a new task or block session starts.
+ */
+export async function dbGetRecentUnresolvedTasks(): Promise<Task[]> {
+  try {
+    const database = await getDb();
+    if (!database) return [];
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const now = new Date().toISOString();
+    const rows = await database.getAllAsync<Record<string, unknown>>(
+      `SELECT * FROM tasks
+       WHERE end_time >= ? AND end_time < ?
+         AND status NOT IN ('completed', 'skipped')
+       ORDER BY end_time DESC`,
+      [cutoff, now],
+    );
+    return rows.map(rowToTask);
+  } catch (e) {
+    console.error('[database] dbGetRecentUnresolvedTasks failed:', e);
+    return [];
+  }
+}
+
 export async function dbGetTasksForDate(dateISO: string): Promise<Task[]> {
   try {
     const database = await getDb();

@@ -112,7 +112,11 @@ export function AppPickerSheet({
   const applyPreset = useCallback(
     (preset: AllowedAppPreset) => {
       if (preset.packages.length === 0) {
+        // [] sentinel → all apps allowed
         setSelected(new Set(apps.map((a) => a.packageName)));
+      } else if (preset.packages.includes('__block_all__')) {
+        // '__block_all__' sentinel → block everything (none selected)
+        setSelected(new Set());
       } else {
         setSelected(new Set(preset.packages));
       }
@@ -134,21 +138,28 @@ export function AppPickerSheet({
     const name = presetName.trim();
     if (!name) return;
     const allChecked = apps.length > 0 && selected.size === apps.length;
-    const packages = allChecked ? [] : Array.from(selected);
+    const noneSelected = apps.length > 0 && selected.size === 0;
+    const packages = allChecked ? [] : noneSelected ? ['__block_all__'] : Array.from(selected);
     onSavePreset({ id: Date.now().toString(), name, packages });
     setShowPresetInput(false);
     setPresetName('');
   }, [presetName, selected, apps, onSavePreset]);
 
   const handleSave = useCallback(() => {
-    // If every app is checked → use [] sentinel (all allowed)
+    // all checked  → [] sentinel (all apps allowed, no blocking)
+    // none checked → ['__block_all__'] sentinel (all apps blocked)
+    //   The AccessibilityService checks: allowedList.isNotEmpty() && pkg not in allowedList → block.
+    //   '__block_all__' is not a real package so every real app gets blocked.
+    // some checked → explicit allow-list (only those apps pass through during Focus)
     const allChecked = apps.length > 0 && selected.size === apps.length;
-    const packages = allChecked ? [] : Array.from(selected);
+    const noneSelected = apps.length > 0 && selected.size === 0;
+    const packages = allChecked ? [] : noneSelected ? ['__block_all__'] : Array.from(selected);
     onSave(packages);
     onClose();
   }, [selected, apps, onSave, onClose]);
 
   const allChecked = apps.length > 0 && selected.size === apps.length;
+  const noneSelected = apps.length > 0 && selected.size === 0;
 
   const renderApp = ({ item }: { item: InstalledApp }) => {
     const checked = selected.has(item.packageName);
@@ -267,6 +278,8 @@ export function AppPickerSheet({
         <Text style={styles.countText}>
           {allChecked
             ? `All ${apps.length} apps allowed`
+            : noneSelected
+            ? 'All apps blocked'
             : `${selected.size} of ${apps.length} allowed`}
         </Text>
         <TouchableOpacity
@@ -298,7 +311,7 @@ export function AppPickerSheet({
         />
       </View>
 
-      <Text style={styles.hint}>Checked apps are allowed during Focus Mode</Text>
+      <Text style={styles.hint}>Checked apps are allowed during Focus Mode · Uncheck all to block every app</Text>
 
       {loading && (
         <View style={styles.loadingRow}>

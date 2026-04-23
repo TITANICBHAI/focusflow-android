@@ -1,21 +1,38 @@
-import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useNavigation } from 'expo-router';
 import { useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/useTheme';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
+import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 
 export default function PrivacyPolicyScreen() {
   const { state, updateSettings } = useApp();
   const { theme } = useTheme();
   const navigation = useNavigation();
   const isRevisit = navigation.canGoBack();
+  const [accepting, setAccepting] = useState(false);
 
   const handleAccept = async () => {
-    await updateSettings({ ...state.settings, privacyAccepted: true });
-    router.replace('/onboarding');
+    if (accepting) return;
+    setAccepting(true);
+    try {
+      const updated = { ...state.settings, privacyAccepted: true };
+      await updateSettings(updated);
+      // Back up the acceptance to SharedPreferences so the app doesn't show
+      // this screen again even if the SQLite database is wiped by Android's
+      // OEM memory manager or file cleaner.
+      try {
+        await SharedPrefsModule.putString('privacy_accepted', 'true');
+      } catch {
+        // Non-fatal — the DB save above is the primary path.
+      }
+      router.replace('/onboarding');
+    } finally {
+      setAccepting(false);
+    }
   };
 
   return (
@@ -39,7 +56,7 @@ export default function PrivacyPolicyScreen() {
         </View>
 
         <PolicyCard title="Local-first data" icon="phone-portrait-outline">
-          Tasks, schedules, app block lists, daily allowances, and settings are stored locally in FocusFlow’s on-device database and Android preferences.
+          Tasks, schedules, app block lists, daily allowances, and settings are stored locally in FocusFlow's on-device database and Android preferences.
         </PolicyCard>
 
         <PolicyCard title="Android permissions" icon="shield-checkmark-outline">
@@ -55,8 +72,19 @@ export default function PrivacyPolicyScreen() {
         </PolicyCard>
 
         <PolicyCard title="Your control" icon="settings-outline">
-          You can change permissions in Android Settings and manage FocusFlow’s app settings at any time. Removing app data deletes your local FocusFlow data.
+          You can change permissions in Android Settings and manage FocusFlow's app settings at any time. Removing app data deletes your local FocusFlow data.
         </PolicyCard>
+
+        {/* Terms of Service link */}
+        <TouchableOpacity
+          style={styles.tosRow}
+          onPress={() => router.push('/terms-of-service')}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="document-text-outline" size={16} color={COLORS.primary} />
+          <Text style={styles.tosText}>View Terms of Service</Text>
+          <Ionicons name="chevron-forward" size={14} color={COLORS.primary} />
+        </TouchableOpacity>
 
         {isRevisit ? (
           <TouchableOpacity style={styles.backBtnBottom} onPress={() => router.back()} activeOpacity={0.8}>
@@ -64,9 +92,20 @@ export default function PrivacyPolicyScreen() {
             <Text style={styles.backBtnText}>Back to Settings</Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity style={styles.acceptBtn} onPress={handleAccept} activeOpacity={0.85}>
-            <Text style={styles.acceptText}>I Understand and Continue</Text>
-            <Ionicons name="arrow-forward" size={18} color="#fff" />
+          <TouchableOpacity
+            style={[styles.acceptBtn, accepting && styles.acceptBtnDisabled]}
+            onPress={handleAccept}
+            activeOpacity={0.85}
+            disabled={accepting}
+          >
+            {accepting ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <Text style={styles.acceptText}>I Understand and Continue</Text>
+                <Ionicons name="arrow-forward" size={18} color="#fff" />
+              </>
+            )}
           </TouchableOpacity>
         )}
       </ScrollView>
@@ -179,6 +218,23 @@ const styles = StyleSheet.create({
     fontSize: FONT.sm,
     lineHeight: 21,
   },
+  tosRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.xs,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    borderRadius: RADIUS.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.primary + '55',
+    backgroundColor: COLORS.primaryLight,
+  },
+  tosText: {
+    color: COLORS.primary,
+    fontSize: FONT.sm,
+    fontWeight: '700',
+  },
   acceptBtn: {
     marginTop: SPACING.sm,
     backgroundColor: COLORS.primary,
@@ -188,6 +244,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: SPACING.sm,
+    minHeight: 52,
+  },
+  acceptBtnDisabled: {
+    opacity: 0.7,
   },
   acceptText: {
     color: '#fff',

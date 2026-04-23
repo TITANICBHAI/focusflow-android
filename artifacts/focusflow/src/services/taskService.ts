@@ -61,6 +61,8 @@ export function shiftTasksAfter(
   return tasks.map((t) => {
     if (
       t.id !== afterTask.id &&
+      t.status !== 'completed' &&
+      t.status !== 'skipped' &&
       dayjs(t.startTime).isAfter(dayjs(afterTask.startTime))
     ) {
       return {

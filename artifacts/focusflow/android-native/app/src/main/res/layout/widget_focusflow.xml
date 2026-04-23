@@ -1,88 +1,112 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  4 × 1 home-screen widget layout.
+
+  Three render states (all share the same view IDs — visibility toggled in Kotlin):
+
+    ACTIVE TASK      header=accent "ACTIVE TASK"  |  task name (bold)  |  "Nm remaining" + mini progress bar
+    STANDALONE BLOCK header=accent "BLOCK ACTIVE"  |  "Blocking N apps · until HH:MM"  |  (no progress)
+    IDLE             header=indigo "FOCUSFLOW"     |  "No active task"  |  "+ Add Task" pill button
+
+  Outer root is a horizontal LinearLayout so everything sits in a single row.
+  The right column stacks the time label above a thin progress bar (only visible
+  during ACTIVE TASK) and the "+ Add Task" pill (only visible when IDLE).
+-->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="16dp"
+    android:orientation="horizontal"
+    android:paddingStart="14dp"
+    android:paddingEnd="14dp"
+    android:paddingTop="8dp"
+    android:paddingBottom="8dp"
     android:background="@drawable/widget_background"
     android:gravity="center_vertical">
 
-    <!-- Header row: label + app name -->
+    <!-- Left column: brand label + task name stacked vertically -->
     <LinearLayout
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
+        android:layout_weight="1"
+        android:orientation="vertical"
         android:gravity="center_vertical"
-        android:layout_marginBottom="6dp">
+        android:paddingEnd="8dp">
 
         <TextView
             android:id="@+id/widget_header_label"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="FOCUSFLOW"
-            android:textSize="10sp"
-            android:textColor="#6366f1"
-            android:textStyle="bold"
-            android:letterSpacing="0.12" />
-
-        <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="FocusFlow"
-            android:textSize="10sp"
-            android:textColor="#9ca3af"
-            android:textStyle="bold" />
+            android:text="FOCUSFLOW"
+            android:textSize="9sp"
+            android:textColor="#6366f1"
+            android:textStyle="bold"
+            android:letterSpacing="0.10" />
+
+        <TextView
+            android:id="@+id/widget_task_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="No active task"
+            android:textSize="13sp"
+            android:textColor="#1e1b4b"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:layout_marginTop="1dp" />
+
     </LinearLayout>
 
-    <!-- Task name -->
-    <TextView
-        android:id="@+id/widget_task_name"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="No active task"
-        android:textSize="15sp"
-        android:textColor="#1e1b4b"
-        android:textStyle="bold"
-        android:maxLines="2"
-        android:ellipsize="end"
-        android:layout_marginBottom="8dp" />
+    <!-- Right column: time remaining + progress bar (active) OR "+ Add Task" pill (idle) -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center_vertical|end"
+        android:minWidth="80dp">
 
-    <!-- Time remaining / status sub-line -->
-    <TextView
-        android:id="@+id/widget_time_remaining"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Tap to open FocusFlow"
-        android:textSize="13sp"
-        android:textColor="#6366f1"
-        android:textStyle="bold"
-        android:layout_marginBottom="8dp" />
+        <!-- Time remaining — shown during ACTIVE TASK and hidden in standalone/idle -->
+        <TextView
+            android:id="@+id/widget_time_remaining"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textSize="12sp"
+            android:textColor="#6366f1"
+            android:textStyle="bold"
+            android:gravity="end"
+            android:visibility="gone" />
 
-    <!-- Progress bar (active task) -->
-    <ProgressBar
-        android:id="@+id/widget_progress"
-        style="@android:style/Widget.ProgressBar.Horizontal"
-        android:layout_width="match_parent"
-        android:layout_height="4dp"
-        android:max="100"
-        android:progress="0"
-        android:progressTint="#6366f1"
-        android:progressBackgroundTint="#e0e7ff" />
+        <!-- Thin progress bar — shown only during ACTIVE TASK -->
+        <ProgressBar
+            android:id="@+id/widget_progress"
+            style="@android:style/Widget.ProgressBar.Horizontal"
+            android:layout_width="80dp"
+            android:layout_height="3dp"
+            android:layout_marginTop="4dp"
+            android:max="100"
+            android:progress="0"
+            android:progressTint="#6366f1"
+            android:progressBackgroundTint="#e0e7ff"
+            android:visibility="gone" />
 
-    <!-- Add Task CTA (visible only when idle) -->
-    <TextView
-        android:id="@+id/widget_add_task_btn"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="+ Add Task"
-        android:textSize="12sp"
-        android:textColor="#ffffff"
-        android:textStyle="bold"
-        android:gravity="center"
-        android:padding="8dp"
-        android:background="@drawable/widget_add_task_bg"
-        android:visibility="gone" />
+        <!-- "+ Add Task" pill — shown only when IDLE (no task, no block) -->
+        <TextView
+            android:id="@+id/widget_add_task_btn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="+ Add Task"
+            android:textSize="11sp"
+            android:textColor="#ffffff"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="5dp"
+            android:paddingBottom="5dp"
+            android:background="@drawable/widget_add_task_bg"
+            android:visibility="gone" />
+
+    </LinearLayout>
 
 </LinearLayout>

@@ -334,6 +334,20 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
         promise.resolve(null)
     }
 
+    /**
+     * Generic key/value string getter — lets JS read arbitrary config keys from
+     * SharedPreferences. Used by AppContext to cross-check critical flags (e.g.
+     * privacy_accepted) that are backed up here in case the SQLite DB is wiped.
+     *
+     * Returns null (resolves with JS null) when the key is absent.
+     *
+     * @param key  SharedPreferences key
+     */
+    @ReactMethod
+    fun getString(key: String, promise: Promise) {
+        promise.resolve(prefs().getString(key, null))
+    }
+
     @ReactMethod
     fun resetDailyAllowanceUsage(packageName: String?, promise: Promise) {
         val editor = prefs().edit()
