@@ -21,9 +21,10 @@ const CHANGELOG: Entry[] = [
         heading: 'Block-list Safety',
         icon: 'shield-checkmark-outline',
         items: [
-          'Sensitive system apps (home launcher, dialer, Settings, Google Play Services, package installer, wallets, FocusFlow itself) are no longer silently force-allowed during Focus',
-          'Trying to block a sensitive app now opens a confirmation dialog explaining the risk — you can still proceed',
-          '"Sensitive" badge replaces the old "System" lock icon so you can see at a glance which apps need extra care',
+          'Sensitive system apps (home launcher, dialer, Settings, Google Play Services, package installer, wallets, FocusFlow itself) now show a "Sensitive" badge and a confirmation dialog when you try to block them',
+          'Added Truecaller (com.truecaller, com.truecaller.pro) to both the warning list and the native never-block list — caller ID stays active during focus',
+          'Added "Education essentials" warning category for PhysicsWallah (PW), Allen Digital, and Gurukripa (GCI) — these were already hard-protected at the native layer; the UI now also surfaces a warning if you try to block them',
+          'Native never-block list (apps that pass through unconditionally regardless of UI selection) still includes: all OEM dialer/in-call UIs, Telecom service, WhatsApp, WhatsApp Business, Truecaller, VLC, system clock/alarm apps, and your education essentials (PW / Allen / GCI). Home launchers and Settings are protected by the always-allowed list at the same native layer',
           '"Block all" deselect now warns once with a count of sensitive apps that would be blocked',
         ],
       },

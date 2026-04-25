@@ -79,6 +79,25 @@ const SENSITIVE_CATEGORIES: SensitiveCategory[] = [
     ],
   },
   {
+    category: 'Caller ID / spam protection',
+    warning:
+      'Blocking Truecaller (or your caller-ID app) means spam and unknown calls will not be screened during the session — and you may miss the caller name on legitimate incoming calls.',
+    pkgs: [
+      'com.truecaller',                       // Truecaller
+      'com.truecaller.pro',                   // Truecaller Premium
+    ],
+  },
+  {
+    category: 'Education essentials',
+    warning:
+      'You marked this as a learning app you rely on. Blocking it during focus sessions usually defeats the purpose.',
+    pkgs: [
+      'xyz.penpencil.physicswala',            // PhysicsWallah (PW)
+      'digital.allen.study',                  // Allen Digital
+      'com.gurukripa.publicapp',              // Gurukripa (GCI)
+    ],
+  },
+  {
     category: 'Android Settings',
     warning:
       'Blocking Settings means you may not be able to change device settings (including disabling FocusFlow) until the session ends.',

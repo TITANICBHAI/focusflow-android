@@ -202,10 +202,14 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             // ── WhatsApp (messaging / calls) ─────────────────────────────────
             "com.whatsapp",
             "com.whatsapp.w4b",                        // WhatsApp Business
+            // ── Caller ID / spam-call protection ─────────────────────────────
+            "com.truecaller",                          // Truecaller — caller ID + spam block
+            "com.truecaller.pro",                      // Truecaller Premium variant
+            // ── Media / education / clock (legacy never-block list) ──────────
             "org.videolan.vlc",
-            "com.gurukripa.publicapp",
-            "xyz.penpencil.physicswala",
-            "digital.allen.study",
+            "com.gurukripa.publicapp",                 // Gurukripa (GCI) public app
+            "xyz.penpencil.physicswala",               // PhysicsWallah (PW)
+            "digital.allen.study",                     // Allen Digital
             "com.sec.android.app.clockpackage",
             "com.samsung.android.clockpackage",
             "com.android.deskclock",
