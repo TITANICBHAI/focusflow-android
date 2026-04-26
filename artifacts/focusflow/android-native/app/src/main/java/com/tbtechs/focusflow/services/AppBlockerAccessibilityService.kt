@@ -2539,10 +2539,13 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         )
         val root = event.source ?: return false
         return try {
-            if (containsAnyResId(root, shortsResIds)) return@try true
-            val nodeText = collectNodeText(root).lowercase()
-            // "Remix" + "Subscribe" + "Shorts" together = Shorts player UI signature.
-            ("shorts" in nodeText && ("remix" in nodeText || "shorts player" in nodeText))
+            if (containsAnyResId(root, shortsResIds)) {
+                true
+            } else {
+                val nodeText = collectNodeText(root).lowercase()
+                // "Remix" + "Subscribe" + "Shorts" together = Shorts player UI signature.
+                ("shorts" in nodeText && ("remix" in nodeText || "shorts player" in nodeText))
+            }
         } finally {
             root.recycle()
         }
@@ -2582,11 +2585,14 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         )
         val root = event.source ?: return false
         return try {
-            if (containsAnyResId(root, reelsResIds)) return@try true
-            // Final fallback: Reels-only tab/header text combined with a video-player
-            // contentDescription — avoids matching "Reels" mentions on the home feed.
-            val nodeText = collectNodeText(root).lowercase()
-            ("clips" in nodeText && ("video player" in nodeText || "reel" in nodeText))
+            if (containsAnyResId(root, reelsResIds)) {
+                true
+            } else {
+                // Final fallback: Reels-only tab/header text combined with a video-player
+                // contentDescription — avoids matching "Reels" mentions on the home feed.
+                val nodeText = collectNodeText(root).lowercase()
+                ("clips" in nodeText && ("video player" in nodeText || "reel" in nodeText))
+            }
         } finally {
             root.recycle()
         }
