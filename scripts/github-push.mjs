@@ -10,7 +10,10 @@ const OWNER = 'TITANICBHAI';
 const REPO = 'FocusFlow';
 const BRANCH = 'main';
 const BASE = '/home/runner/workspace';
-const CONCURRENCY = 10;
+// GitHub's secondary rate limit triggers around ~10 parallel POSTs to /git/blobs.
+// Keep concurrency low and rely on retries to absorb the occasional 403/429.
+const CONCURRENCY = 4;
+const MAX_RETRIES = 6;
 
 const EXCLUDE_PATTERNS = [
   /node_modules/,
@@ -54,6 +57,8 @@ function collectFiles(dir, files = []) {
   return files;
 }
 
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
 async function ghFetch(path, method = 'GET', body = null) {
   const opts = {
     method,
@@ -65,10 +70,28 @@ async function ghFetch(path, method = 'GET', body = null) {
     },
   };
   if (body) opts.body = JSON.stringify(body);
-  const resp = await fetch(`https://api.github.com${path}`, opts);
-  const txt = await resp.text();
-  if (!resp.ok) throw new Error(`GitHub ${method} ${path} → ${resp.status}: ${txt.slice(0, 200)}`);
-  return JSON.parse(txt);
+
+  // Retry on secondary rate limit (403) and primary rate limit (429).
+  // GitHub's body for these contains "secondary rate limit" / "abuse" / "rate limit".
+  // We honor Retry-After when present; otherwise exponential backoff.
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const resp = await fetch(`https://api.github.com${path}`, opts);
+    const txt = await resp.text();
+    if (resp.ok) return JSON.parse(txt);
+
+    const isRateLimited =
+      resp.status === 429 ||
+      (resp.status === 403 && /rate limit|abuse|secondary/i.test(txt));
+
+    if (isRateLimited && attempt < MAX_RETRIES) {
+      const retryAfter = parseInt(resp.headers.get('retry-after') || '0', 10);
+      const backoffMs = retryAfter > 0 ? retryAfter * 1000 : Math.min(60_000, 1000 * 2 ** attempt);
+      await sleep(backoffMs);
+      continue;
+    }
+    throw new Error(`GitHub ${method} ${path} → ${resp.status}: ${txt.slice(0, 200)}`);
+  }
+  throw new Error(`GitHub ${method} ${path} → exhausted retries`);
 }
 
 async function createBlob(content, encoding) {
@@ -111,14 +134,23 @@ async function run() {
   console.log(`\nCreating ${fileMetas.length} blobs in parallel (batch size ${CONCURRENCY})...`);
 
   const treeItems = [];
+  const failures = [];
   await processInBatches(fileMetas, CONCURRENCY, async (meta) => {
     try {
       const sha = await createBlob(meta.content, meta.encoding);
       treeItems.push({ path: meta.path, mode: '100644', type: 'blob', sha });
     } catch (e) {
-      console.warn(`  SKIP: ${meta.path} — ${e.message.slice(0, 60)}`);
+      console.warn(`  SKIP: ${meta.path} — ${e.message.slice(0, 200)}`);
+      failures.push({ path: meta.path, message: e.message });
     }
   });
+
+  if (failures.length > 0) {
+    console.error(`\n${failures.length} file(s) failed to upload after retries — aborting to avoid pushing a half-broken tree:`);
+    for (const f of failures.slice(0, 20)) console.error(`  - ${f.path}`);
+    if (failures.length > 20) console.error(`  ... and ${failures.length - 20} more`);
+    process.exit(1);
+  }
 
   console.log(`\nGetting current branch ref...`);
   const refData = await ghFetch(`/repos/${OWNER}/${REPO}/git/ref/heads/${BRANCH}`);
