@@ -13,6 +13,7 @@ import { SchedulableTriggerInputTypes } from 'expo-notifications';
 import { Platform } from 'react-native';
 import type { Task, UserProfile } from '@/data/types';
 import { formatTime, formatDuration, getRemainingMinutes } from './taskService';
+import { TaskAlarmModule } from '@/native-modules/TaskAlarmModule';
 
 type AndroidContent = Notifications.NotificationContentInput & {
   channelId?: string;
@@ -170,6 +171,20 @@ export async function scheduleTaskReminders(task: Task): Promise<void> {
       trigger: { type: SchedulableTriggerInputTypes.DATE, date: new Date(endMs) },
     });
   }
+
+  // Native AlarmManager backup — the *only* mechanism that survives Doze /
+  // app standby / foreground-service kill. expo-notifications schedules above
+  // are best-effort and the in-process Handler tick inside ForegroundTaskService
+  // is throttled when the screen has been off for ~10 minutes. AlarmManager
+  // (via setAlarmClock) is exempt from those restrictions and fires the
+  // full-screen TaskAlarmActivity even if the JS context has been torn down.
+  //
+  // Schedule for endMs (and only when in the future — the native side will
+  // post immediately if the trigger is in the past, which can happen if the
+  // user reschedules a task after its end time).
+  if (Platform.OS === 'android') {
+    void TaskAlarmModule.scheduleAlarm(task.id, task.title, endMs);
+  }
 }
 
 // ─── Cancel helpers ───────────────────────────────────────────────────────────
@@ -181,6 +196,12 @@ export async function cancelTaskReminders(taskId: string): Promise<void> {
       .filter((n) => n.identifier.startsWith(taskId))
       .map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier))
   );
+  // Cancel the AlarmManager registration too — without this, a task that the
+  // user completes early or deletes still fires its full-screen alarm at the
+  // original end time, which feels broken.
+  if (Platform.OS === 'android') {
+    void TaskAlarmModule.cancelAlarm(taskId);
+  }
 }
 
 export async function cancelAllReminders(): Promise<void> {

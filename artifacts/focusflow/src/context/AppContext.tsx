@@ -274,6 +274,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         void logger.warn('AppContext', `Notification permission request failed: ${String(e)}`);
       }
 
+      // ── Exact alarm permission (Android 12+) ───────────────────────────────
+      // Without this permission, AlarmManager.setAlarmClock() fires up to 10
+      // minutes late even with USE_EXACT_ALARM declared on certain OEM ROMs,
+      // which defeats the entire purpose of an alarm. We only LOG the state
+      // here so we don't interrupt boot — a banner in Settings (handled by
+      // the Settings screen) takes the user to the system grant screen on
+      // demand. The probe itself is a no-op on Android < 12 and on iOS.
+      try {
+        const exactOk = await TaskAlarmModule.canScheduleExactAlarms();
+        void logger.info(
+          'AppContext',
+          `Exact alarm permission: ${exactOk ? 'granted' : 'denied'}`,
+        );
+      } catch (e) {
+        void logger.warn('AppContext', `Exact alarm probe failed: ${String(e)}`);
+      }
+
       // ── Foreground service (idle mode) ─────────────────────────────────────
       // Isolated: failure here must NOT prevent DB readiness
       try {
