@@ -102,6 +102,23 @@ class AppBlockerAccessibilityService : AccessibilityService() {
          */
         const val PREF_CUSTOM_NODE_RULES = "custom_node_rules"
 
+        /**
+         * Always-on block enforcement — independent of any timed session.
+         *
+         * PREF_ALWAYS_BLOCK: Boolean — when true the AccessibilityService enforces
+         *   the PREF_ALWAYS_BLOCK_PKGS list and daily allowance rules at all times,
+         *   without requiring focus_active or standalone_block_active.
+         *
+         * PREF_ALWAYS_BLOCK_PKGS: String — JSON array of package names to block
+         *   whenever PREF_ALWAYS_BLOCK is true.  Stored separately from
+         *   standalone_blocked_packages so timed-session expiry never clears it.
+         *
+         * The UI "locked" state is NOT affected by these flags — the user can
+         * freely change their block list when no timed session is running.
+         */
+        const val PREF_ALWAYS_BLOCK      = "always_block_active"
+        const val PREF_ALWAYS_BLOCK_PKGS = "always_block_packages"
+
         /** Notification channel used to launch the block overlay via full-screen intent. */
         private const val BLOCK_ALERT_CHANNEL  = "focusday_block_alert"
         private const val BLOCK_ALERT_NOTIF_ID = 9001
@@ -410,6 +427,12 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 saActive = false
             }
         }
+        // ── Always-on enforcement (session-independent) ───────────────────────
+        // When true, standalone block list + daily allowance are enforced even
+        // without an active focus task or timed standalone block session.
+        // Does NOT affect the UI lock — settings can be changed when no timed
+        // session is running (focusActive == false && saActive == false).
+        val alwaysBlockActive = prefs.getBoolean(PREF_ALWAYS_BLOCK, false)
         val systemGuardEnabled = prefs.getBoolean(PREF_SYSTEM_GUARD_ENABLED, true)
         val blockInstallActions = prefs.getBoolean(PREF_BLOCK_INSTALL_ACTIONS, false)
         val blockYoutubeShorts  = prefs.getBoolean(PREF_BLOCK_YT_SHORTS, false)
@@ -518,16 +541,18 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             // If the user deliberately added an ALWAYS_ALLOWED package (e.g. Settings)
             // to their standalone blocked list or excluded it from their focus allowed
             // list, honour that choice and bypass the protection entirely.
-            if (saActive) {
+            if (saActive || alwaysBlockActive) {
                 val saJson = prefs.getString(PREF_SA_PKGS, "[]") ?: "[]"
-                if (parseJsonArray(saJson).any { it.equals(pkg, ignoreCase = true) }) {
+                val alwaysJson = prefs.getString(PREF_ALWAYS_BLOCK_PKGS, "[]") ?: "[]"
+                val combinedList = parseJsonArray(saJson) + parseJsonArray(alwaysJson)
+                if (combinedList.any { it.equals(pkg, ignoreCase = true) }) {
                     val samePackage = pkg == lastBlockedPkg
                     val cooldownExpired = (now - lastBlockedAtMs) > 2_000L
                     if (!samePackage || cooldownExpired) {
                         lastBlockedPkg = pkg
                         lastBlockedAtMs = now
                         handleBlockedApp(pkg)
-                        scheduleRetryCheck(pkg, 1, focusActive, saActive)
+                        scheduleRetryCheck(pkg, 1, focusActive, saActive, alwaysBlockActive)
                     }
                     return
                 }
@@ -542,7 +567,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                         lastBlockedPkg = pkg
                         lastBlockedAtMs = now
                         handleBlockedApp(pkg)
-                        scheduleRetryCheck(pkg, 1, focusActive, saActive)
+                        scheduleRetryCheck(pkg, 1, focusActive, saActive, alwaysBlockActive)
                     }
                     return
                 }
@@ -714,8 +739,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             return
         }
 
-        // If neither session is active, nothing further to enforce.
-        if (!focusActive && !saActive) {
+        // If neither session nor always-on enforcement is active, nothing to enforce.
+        if (!focusActive && !saActive && !alwaysBlockActive) {
             lastBlockedPkg = null
             return
         }
@@ -726,7 +751,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // immediately — daily allowance does NOT override an explicit block.
         // This must run BEFORE the daily allowance check so that an app in both
         // the block list and the allowance list is always blocked, never let through.
-        val explicitlyBlocked = isPackageBlocked(pkg, focusActive, saActive)
+        val explicitlyBlocked = isPackageBlocked(pkg, focusActive, saActive, alwaysBlockActive)
         if (explicitlyBlocked) {
             val samePackage = pkg == lastBlockedPkg
             val cooldownExpired = (now - lastBlockedAtMs) > 2_000L
@@ -734,7 +759,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 lastBlockedPkg = pkg
                 lastBlockedAtMs = now
                 handleBlockedApp(pkg)
-                scheduleRetryCheck(pkg, 1, focusActive, saActive)
+                scheduleRetryCheck(pkg, 1, focusActive, saActive, alwaysBlockActive)
             }
             return
         }
@@ -770,19 +795,19 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 lastBlockedPkg = null
                 return // Allowed — within allowance
             }
-            // Allowance exhausted — block during any active session.
+            // Allowance exhausted — block during any active session or always-on mode.
             val samePackage = pkg == lastBlockedPkg
             val cooldownExpired = (now - lastBlockedAtMs) > 2_000L
             if (!samePackage || cooldownExpired) {
                 lastBlockedPkg = pkg
                 lastBlockedAtMs = now
                 handleBlockedApp(pkg)
-                scheduleRetryCheck(pkg, 1, focusActive, saActive)
+                scheduleRetryCheck(pkg, 1, focusActive, saActive, alwaysBlockActive)
             }
             return
         }
 
-        val isBlocked = isPackageBlocked(pkg, focusActive, saActive)
+        val isBlocked = isPackageBlocked(pkg, focusActive, saActive, alwaysBlockActive)
 
         if (isBlocked) {
             val samePackage = pkg == lastBlockedPkg
@@ -791,7 +816,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 lastBlockedPkg = pkg
                 lastBlockedAtMs = now
                 handleBlockedApp(pkg)
-                scheduleRetryCheck(pkg, 1, focusActive, saActive)
+                scheduleRetryCheck(pkg, 1, focusActive, saActive, alwaysBlockActive)
             }
         } else {
             lastBlockedPkg = null
@@ -812,17 +837,24 @@ class AppBlockerAccessibilityService : AccessibilityService() {
      * Each retry re-shows the block overlay AND presses BACK+HOME so the blocked
      * app is forcefully removed from the foreground even on slow devices.
      */
-    private fun scheduleRetryCheck(pkg: String, attempt: Int, focusWasActive: Boolean, saWasActive: Boolean) {
+    private fun scheduleRetryCheck(
+        pkg: String,
+        attempt: Int,
+        focusWasActive: Boolean,
+        saWasActive: Boolean,
+        alwaysBlockWasActive: Boolean = false,
+    ) {
         if (attempt > MAX_RETRY_ATTEMPTS) return
         handler.postDelayed({
-            val focusActive = prefs.getBoolean(PREF_FOCUS_ON, false)
-            val saActive = prefs.getBoolean(PREF_SA_ACTIVE, false)
-            if (!focusActive && !saActive) return@postDelayed
+            val focusActive  = prefs.getBoolean(PREF_FOCUS_ON, false)
+            val saActive     = prefs.getBoolean(PREF_SA_ACTIVE, false)
+            val alwaysBlock  = prefs.getBoolean(PREF_ALWAYS_BLOCK, false)
+            if (!focusActive && !saActive && !alwaysBlock) return@postDelayed
             // Guard: only act if the blocked package is still in the foreground.
             // Without this check, retries would press Home even after the user has
             // already navigated to a legitimate allowed app, causing false kicks.
             if (lastSeenPkg != pkg) return@postDelayed
-            val isBlocked = isPackageBlocked(pkg, focusActive, saActive)
+            val isBlocked = isPackageBlocked(pkg, focusActive, saActive, alwaysBlock)
             val allowanceExhausted = run {
                 val entry = findAllowanceEntry(pkg)
                 entry != null && !isAllowanceAvailable(pkg, entry)
@@ -832,7 +864,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 // then kick the app out again.
                 launchBlockOverlay(pkg)
                 dismissPackage(pkg)
-                scheduleRetryCheck(pkg, attempt + 1, focusActive, saActive)
+                scheduleRetryCheck(pkg, attempt + 1, focusActive, saActive, alwaysBlock)
             }
         }, RETRY_INTERVAL_MS * attempt)
     }
@@ -1605,10 +1637,15 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
     // ─── Block determination ──────────────────────────────────────────────────
 
-    private fun isPackageBlocked(pkg: String, focusActive: Boolean, saActive: Boolean): Boolean {
+    private fun isPackageBlocked(
+        pkg: String,
+        focusActive: Boolean,
+        saActive: Boolean,
+        alwaysBlockActive: Boolean = false,
+    ): Boolean {
         if (ALWAYS_BLOCKED.any { pkg.equals(it, ignoreCase = true) }) return true
 
-        if (focusActive || saActive) {
+        if (focusActive || saActive || alwaysBlockActive) {
             if (INSTALLER_PACKAGES.any { pkg.equals(it, ignoreCase = true) }) return true
         }
 
@@ -1644,6 +1681,13 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             val saJson = prefs.getString(PREF_SA_PKGS, "[]") ?: "[]"
             val saList = parseJsonArray(saJson)
             if (saList.any { b -> pkg.equals(b, ignoreCase = true) }) return true
+        }
+
+        // Always-on block — enforced even without a timed session.
+        if (alwaysBlockActive) {
+            val alwaysJson = prefs.getString(PREF_ALWAYS_BLOCK_PKGS, "[]") ?: "[]"
+            val alwaysList = parseJsonArray(alwaysJson)
+            if (alwaysList.any { b -> pkg.equals(b, ignoreCase = true) }) return true
         }
 
         return false
@@ -2087,13 +2131,19 @@ class AppBlockerAccessibilityService : AccessibilityService() {
      * a new channel that the user would need to configure.
      */
     private fun postHomeScreenReminder() {
-        val focusActive = prefs.getBoolean(PREF_FOCUS_ON, false)
-        val saActive    = prefs.getBoolean(PREF_SA_ACTIVE, false)
-        if (!focusActive && !saActive) return
+        val focusActive      = prefs.getBoolean(PREF_FOCUS_ON, false)
+        val saActive         = prefs.getBoolean(PREF_SA_ACTIVE, false)
+        val alwaysBlockActive = prefs.getBoolean(PREF_ALWAYS_BLOCK, false)
+        if (!focusActive && !saActive && !alwaysBlockActive) return
 
         val taskName = prefs.getString("task_name", null)
-        val title    = "Session still active"
-        val text     = if (!taskName.isNullOrBlank()) "Working on: $taskName" else "Focus session is running"
+        val title    = "Block enforcement active"
+        val text     = when {
+            !taskName.isNullOrBlank() -> "Working on: $taskName"
+            focusActive               -> "Focus session is running"
+            saActive                  -> "Standalone block is running"
+            else                      -> "App blocking is always on"
+        }
 
         try {
             val nm = getSystemService(android.app.NotificationManager::class.java) ?: return

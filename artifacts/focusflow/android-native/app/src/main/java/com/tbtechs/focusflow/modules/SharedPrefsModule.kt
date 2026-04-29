@@ -22,6 +22,7 @@ import com.tbtechs.focusflow.widget.FocusFlowWidget
  *   - setAllowedPackages(packages)                    → Promise<null>
  *   - setActiveTask(name, endMs, nextName?)            → Promise<null>
  *   - setStandaloneBlock(active, packages, untilMs)   → Promise<null>
+ *   - setAlwaysBlockActive(active, packages)          → Promise<null>
  */
 class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
@@ -220,6 +221,31 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
         // Standalone block changes are independent of focus mode, so the widget
         // needs an explicit nudge to re-read prefs and switch render mode.
         FocusFlowWidget.pushWidgetUpdate(reactContext)
+        promise.resolve(null)
+    }
+
+    /**
+     * Enables or disables always-on block enforcement — independent of any timed session.
+     *
+     * When active = true, AppBlockerAccessibilityService will enforce the provided
+     * package list even when no focus task or standalone block timer is running.
+     * Daily allowance rules are also enforced in always-on mode.
+     *
+     * This is separate from setStandaloneBlock — it does not start or stop any timed
+     * session, and the UI "locked" state is not affected (settings remain editable when
+     * no timed session is running, regardless of this flag).
+     *
+     * @param active    Whether always-on enforcement is enabled
+     * @param packages  ReadableArray of package names to always block
+     */
+    @ReactMethod
+    fun setAlwaysBlockActive(active: Boolean, packages: ReadableArray, promise: Promise) {
+        val list = (0 until packages.size()).map { "\"${packages.getString(it)}\"" }
+        val json = "[${list.joinToString(",")}]"
+        prefs().edit()
+            .putBoolean(AppBlockerAccessibilityService.PREF_ALWAYS_BLOCK, active)
+            .putString(AppBlockerAccessibilityService.PREF_ALWAYS_BLOCK_PKGS, json)
+            .apply()
         promise.resolve(null)
     }
 

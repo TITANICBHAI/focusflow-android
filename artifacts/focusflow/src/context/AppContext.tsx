@@ -364,6 +364,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
+        void logger.info('AppContext', 'Syncing always-on block');
+        await _syncAlwaysBlock(settings);
+        void logger.info('AppContext', 'Always-on block synced');
+      } catch (e) {
+        void logger.warn('AppContext', `Always-on block sync failed: ${String(e)}`);
+      }
+
+      try {
         void logger.info('AppContext', 'Syncing blocked words');
         await _syncBlockedWords(settings);
         void logger.info('AppContext', 'Blocked words synced');
@@ -455,6 +463,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await SharedPrefsModule.setDailyAllowanceConfig(entries);
     } catch (e) {
       void logger.warn('AppContext', `daily allowance sync failed: ${String(e)}`);
+    }
+  }
+
+  /**
+   * Syncs always-on block enforcement flag into SharedPreferences.
+   *
+   * Always-on enforcement is active when the user has configured any standalone
+   * blocked packages OR any daily allowance entries — so those rules are
+   * enforced at all times, not just during a timed session.
+   *
+   * This is separate from the "locked" UI state: the UI remains editable when
+   * no timed session (focus task or standalone block with expiry) is running.
+   */
+  async function _syncAlwaysBlock(settings: AppSettings): Promise<void> {
+    const packages = settings.standaloneBlockPackages ?? [];
+    const allowanceEntries = settings.dailyAllowanceEntries ?? [];
+    const active = packages.length > 0 || allowanceEntries.length > 0;
+    try {
+      await SharedPrefsModule.setAlwaysBlockActive(active, packages);
+    } catch (e) {
+      void logger.warn('AppContext', `always block sync failed: ${String(e)}`);
     }
   }
 
@@ -1207,6 +1236,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           : Promise.resolve(),
         _syncStandaloneBlock(settings),
         _syncDailyAllowance(settings),
+        _syncAlwaysBlock(settings),
         _syncAversions(settings),
         GreyoutModule.setSchedule(_recurringSchedulesToGreyoutWindows(settings)).catch((e) =>
           void logger.warn('AppContext', `greyout sync failed: ${String(e)}`),
@@ -1234,6 +1264,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await dbSaveSettings(newSettings);
     dispatch({ type: 'SET_SETTINGS', payload: newSettings });
     await SharedPrefsModule.setDailyAllowanceConfig(entries);
+    // Enable always-on enforcement whenever allowance entries are configured.
+    const packages = newSettings.standaloneBlockPackages ?? [];
+    const alwaysActive = packages.length > 0 || entries.length > 0;
+    await SharedPrefsModule.setAlwaysBlockActive(alwaysActive, packages).catch(() => {});
   }, [state.settings]);
 
   const setBlockedWords = useCallback(async (words: string[]) => {
@@ -1272,6 +1306,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_SETTINGS', payload: newSettings });
     const active = packages.length > 0 && untilMs !== null && untilMs > Date.now();
     await SharedPrefsModule.setStandaloneBlock(active, packages, untilMs ?? 0);
+    // Always enforce the block list even without an active timed session.
+    const allowanceEntries = newSettings.dailyAllowanceEntries ?? [];
+    const alwaysActive = packages.length > 0 || allowanceEntries.length > 0;
+    await SharedPrefsModule.setAlwaysBlockActive(alwaysActive, packages).catch(() => {});
     // Schedule or cancel the expiry warning notification
     if (active && untilMs) {
       void scheduleStandaloneBlockExpiry(untilMs, packages.length).catch(() => {});
@@ -1306,6 +1344,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const active = packages.length > 0 && untilMs !== null && untilMs > Date.now();
     await SharedPrefsModule.setStandaloneBlock(active, packages, untilMs ?? 0);
     await SharedPrefsModule.setDailyAllowanceConfig(allowanceEntries);
+    // Always enforce both lists even without an active timed session.
+    const alwaysActive = packages.length > 0 || allowanceEntries.length > 0;
+    await SharedPrefsModule.setAlwaysBlockActive(alwaysActive, packages).catch(() => {});
     // Schedule or cancel the expiry warning notification
     if (active && untilMs) {
       void scheduleStandaloneBlockExpiry(untilMs, packages.length).catch(() => {});

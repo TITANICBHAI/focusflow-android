@@ -92,6 +92,22 @@ export const SharedPrefsModule = {
   },
 
   /**
+   * Enables or disables always-on block enforcement, independent of any timed session.
+   *
+   * When active=true, the AccessibilityService enforces the provided package list
+   * and all configured daily allowance rules even when no focus task or standalone
+   * block timer is running.  The UI "locked" state is NOT affected — settings can
+   * still be changed when no timed session is active.
+   *
+   * @param active    Whether always-on enforcement is enabled
+   * @param packages  Package names to always block (empty list = only allowance enforced)
+   */
+  async setAlwaysBlockActive(active: boolean, packages: string[]): Promise<void> {
+    if (!hasSharedPrefsMethod('setAlwaysBlockActive')) return;
+    return SharedPrefs.setAlwaysBlockActive(active, packages);
+  },
+
+  /**
    * Writes the rich daily allowance config (DailyAllowanceEntry[]) to SharedPreferences
    * as a JSON string. The AccessibilityService reads this to enforce per-app allowance modes.
    *

@@ -4,9 +4,12 @@
  * Export & import the user's full FocusFlow state — settings, profile, tasks,
  * presets, schedules, custom rules — as a portable .focusflow file.
  *
- * Export: builds the envelope, writes it as a .focusflow file, and shares it
- *         as a file URI (not raw text) so Android shows Drive / Files / email
- *         in the chooser rather than copy-to-clipboard apps.
+ * Export: builds the envelope, then uses the native "Save to" dialog
+ *         (ACTION_CREATE_DOCUMENT) so Android shows real storage targets —
+ *         Downloads, Google Drive, Files — and the user picks where to save.
+ *         This replaces the old Share.share({ url: 'file://...' }) approach
+ *         which never worked on Android (file:// URIs are private-app-storage
+ *         only and cannot be opened by other apps).
  *
  * Import: opens the Android file picker accepting any file type so .focusflow
  *         files are visible, validates the JSON envelope, then restores.
@@ -18,8 +21,7 @@
  * MIME type for sharing: application/octet-stream (no registered MIME for .focusflow)
  */
 
-import { Platform, Share } from 'react-native';
-import * as FileSystem from 'expo-file-system';
+import { Platform } from 'react-native';
 import { dbGetAllTasks } from '@/data/database';
 import { NativeFilePickerModule } from '@/native-modules/NativeFilePickerModule';
 import type { AppSettings, Task } from '@/data/types';
@@ -90,13 +92,19 @@ export async function buildBackupJson(settings: AppSettings, appVersion?: string
   return JSON.stringify(envelope, null, 2);
 }
 
-// ─── Export — write .focusflow file and share as file URI ────────────────────
+// ─── Export — save via ACTION_CREATE_DOCUMENT ────────────────────────────────
 //
-// Key change vs. previous version:
-//   • File extension is now .focusflow (not .json).
-//   • We share the file's URI, not the raw JSON text.
-//     This causes Android to show "file sharing" targets (Drive, Files, email)
-//     rather than "text sharing" targets (clipboard, messaging apps).
+// On Android, the "Save to" dialog (ACTION_CREATE_DOCUMENT) is the correct
+// way to let the user choose where to store a file.  The system handles all
+// permission and FileProvider concerns automatically — the app never touches
+// the file path; it only writes to the content URI that Android provides.
+//
+// UX flow:
+//   1. Build backup JSON
+//   2. Open system "Save to" dialog with suggested filename
+//   3. User picks destination (Downloads, Drive, Files, …)
+//   4. Kotlin writes the content to the chosen URI
+//   5. Resolve ok: true with the chosen URI as the path
 
 export async function exportBackup(
   settings: AppSettings,
@@ -109,36 +117,25 @@ export async function exportBackup(
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const filename = `focusflow-${stamp}${BACKUP_FILE_EXT}`;
 
-    const fs = FileSystem as unknown as {
-      documentDirectory?: string;
-      writeAsStringAsync?: (p: string, c: string) => Promise<void>;
-    };
-
-    const dir = fs.documentDirectory ?? '';
-    const path = `${dir}${filename}`;
-
-    if (dir && fs.writeAsStringAsync) {
-      await fs.writeAsStringAsync(path, json);
+    if (Platform.OS !== 'android') {
+      // Web / non-Android: return the raw JSON for the caller to handle.
+      return { ok: true, path: filename };
     }
 
-    if (Platform.OS === 'web') {
-      // Web: nothing to do here — caller handles the result.
-      return { ok: true, path };
-    }
-
-    // Share as a file URI so the Android chooser shows storage/cloud targets.
-    // "url" shares a file; "message" shares raw text. We want file sharing.
-    await Share.share(
-      {
-        title: `FocusFlow backup — ${new Date().toLocaleDateString()}`,
-        url: `file://${path}`,
-        // message is a fallback for apps that don't accept file URIs
-        message: `FocusFlow backup file (${filename})`,
-      },
-      { dialogTitle: 'Save your FocusFlow backup' },
+    // Open the system "Save to" dialog. Returns the content URI on success,
+    // null if the user cancelled.
+    const savedUri = await NativeFilePickerModule.saveFile(
+      json,
+      filename,
+      'application/octet-stream',
     );
 
-    return { ok: true, path };
+    if (savedUri === null) {
+      // User dismissed the dialog — not an error.
+      return { ok: false, error: 'cancelled' };
+    }
+
+    return { ok: true, path: savedUri };
   } catch (e) {
     return { ok: false, error: String(e) };
   }
