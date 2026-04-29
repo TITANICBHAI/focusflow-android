@@ -147,7 +147,9 @@ interface Props {
   title?: string;
   // [] = "all apps allowed" sentinel (all apps pre-checked on open)
   // [...pkgs] = specific allowed list (only those pre-checked)
+  // When noneWhenEmpty=true: [] = "block all" (nothing pre-checked)
   initialSelected: string[];
+  noneWhenEmpty?: boolean;
   presets: AllowedAppPreset[];
   onSave: (packages: string[]) => void;
   onSavePreset: (preset: AllowedAppPreset) => void;
@@ -159,6 +161,7 @@ export function AppPickerSheet({
   visible,
   title = 'Allowed Apps',
   initialSelected,
+  noneWhenEmpty = false,
   presets,
   onSave,
   onSavePreset,
@@ -192,8 +195,13 @@ export function AppPickerSheet({
 
         const allPkgs = new Set(sorted.map((a) => a.packageName));
         if (initialSelected.length === 0) {
-          // [] sentinel → check ALL apps (all allowed by default)
-          setSelected(new Set(allPkgs));
+          if (noneWhenEmpty) {
+            // Focus-mode context: [] = block all → start with nothing checked
+            setSelected(new Set());
+          } else {
+            // Standalone-block context: [] = all allowed sentinel → check ALL apps
+            setSelected(new Set(allPkgs));
+          }
         } else {
           // Honour the user's saved selection exactly — sensitive apps are
           // surfaced with a warning at toggle time, not auto-added here.

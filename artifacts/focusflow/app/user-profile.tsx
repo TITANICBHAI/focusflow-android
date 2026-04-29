@@ -8,6 +8,7 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -144,6 +145,7 @@ export default function UserProfileScreen() {
   const [wakeTime, setWakeTime]   = useState(existing.wakeUpTime ?? '');
   const [goals, setGoals]         = useState<string[]>(existing.focusGoals ?? []);
   const [saving, setSaving]       = useState(false);
+  const [usageVisible, setUsageVisible] = useState(false);
 
   // ── Deeper-profile state ────────────────────────────────────────────────────
   const [sleepTime, setSleepTime]                 = useState(existing.sleepTime ?? '');
@@ -720,126 +722,47 @@ export default function UserProfileScreen() {
           </View>
           {/* /editable-form-wrapper */}
 
-          {/* "How your profile is used" — shows the user exactly which parts
-              of the app react to each profile field, so the form doesn't feel
-              like a black hole of preferences. Always rendered. */}
-          <View style={[styles.usageCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <View style={styles.usageHeader}>
-              <Ionicons name="sparkles-outline" size={16} color={COLORS.primary} />
-              <Text style={[styles.usageTitle, { color: theme.text }]}>How your profile is used</Text>
+          {/* "How your profile is used" — tappable link that opens a detail sheet */}
+          <TouchableOpacity
+            style={[styles.usageLink, { borderColor: theme.border }]}
+            onPress={() => setUsageVisible(true)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="sparkles-outline" size={16} color={COLORS.primary} />
+            <Text style={[styles.usageLinkText, { color: theme.text }]}>How your information is used</Text>
+            <Ionicons name="chevron-forward" size={16} color={theme.muted} />
+          </TouchableOpacity>
+
+          {/* Usage detail modal */}
+          <Modal visible={usageVisible} animationType="slide" transparent onRequestClose={() => setUsageVisible(false)}>
+            <View style={styles.usageModalBackdrop}>
+              <View style={[styles.usageModalSheet, { backgroundColor: theme.card }]}>
+                <View style={[styles.usageModalHeader, { borderBottomColor: theme.border }]}>
+                  <View style={styles.usageHeader}>
+                    <Ionicons name="sparkles-outline" size={16} color={COLORS.primary} />
+                    <Text style={[styles.usageTitle, { color: theme.text }]}>How your profile is used</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setUsageVisible(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="close" size={22} color={theme.muted} />
+                  </TouchableOpacity>
+                </View>
+                <ScrollView contentContainerStyle={{ paddingBottom: 32, paddingHorizontal: SPACING.md }}>
+                  <UsageRow icon="time-outline" label="Daily focus goal" value={`${goalHours}h`} detail="Tracked on the Stats screen and on your home-screen widget." theme={theme} />
+                  <UsageRow icon="sunny-outline" label="Wake-up time" value={wakeTime ? formatWake(wakeTime) : 'Not set'} detail={wakeTime ? "A morning digest notification fires at this time with today's plan." : 'Set a wake-up time to get a morning plan notification.'} theme={theme} />
+                  <UsageRow icon="briefcase-outline" label="Occupation" value={occupation ? labelFor(OCCUPATIONS, occupation) : 'Not set'} detail={occupation ? 'Helps tailor your morning digest tone and stats labels to your work pattern.' : 'Pick one so we can tailor the app to your routine.'} theme={theme} />
+                  <UsageRow icon="flag-outline" label="Focus goals" value={goals.length > 0 ? `${goals.length} selected` : 'None'} detail={goals.length > 0 ? `Used to label your focus blocks in stats and recaps.` : 'Add goals so we can group and label your focus time.'} theme={theme} />
+                  <UsageRow icon="person-circle-outline" label="Name" value={name || 'Not set'} detail={name ? 'Used in your morning digest greeting and journey panel.' : 'Add a name to personalise your morning digest.'} theme={theme} />
+                  <UsageRow icon="moon-outline" label="Sleep time" value={sleepTime ? formatTimeId(sleepTime) : 'Not set'} detail={sleepTime ? "Defines your available focus window with wake time." : "Add a sleep time to define your day's focus window."} theme={theme} />
+                  <UsageRow icon="sunny-outline" label="Best focus time" value={chronotype ? labelForChronotype(chronotype) : 'Not set'} detail={chronotype ? 'Used to suggest the best slots when you create new tasks.' : 'Tell us when you focus best for smarter task scheduling.'} theme={theme} />
+                  <UsageRow icon="hourglass-outline" label="Ideal focus block" value={focusLength ? `${focusLength} min` : 'Not set'} detail={focusLength ? 'Used as the default duration for new tasks and Pomodoro sessions.' : "Pick a length and we'll use it as your default for new tasks."} theme={theme} />
+                  <UsageRow icon="pause-circle-outline" label="Break style" value={breakStyle ? (BREAK_STYLES.find((b) => b.id === breakStyle)?.label ?? '') : 'Not set'} detail={breakStyle ? `Sets your Pomodoro break length (${BREAK_STYLES.find((b) => b.id === breakStyle)?.mins ?? 0} min).` : 'Pick a style to set your default Pomodoro break length.'} theme={theme} />
+                  <UsageRow icon="ban-outline" label="Distraction triggers" value={triggers.length > 0 ? `${triggers.length} selected` : 'None'} detail={triggers.length > 0 ? 'Recorded so future features can reference what derails you most.' : 'Pick what derails you most so the app can adapt over time.'} theme={theme} />
+                  <UsageRow icon="trophy-outline" label="Motivation style" value={motivation.length > 0 ? `${motivation.length} selected` : 'None'} detail={motivation.length > 0 ? 'Drives which gamification we surface most.' : 'Pick what motivates you so we lean into it across the app.'} theme={theme} />
+                  <UsageRow icon="calendar-outline" label="Weekly review day" value={reviewDay ? labelForDay(reviewDay) : 'Not set'} detail={reviewDay ? 'A weekly recap notification will fire on this day.' : 'Pick a day to receive your weekly recap.'} theme={theme} isLast />
+                </ScrollView>
+              </View>
             </View>
-            <UsageRow
-              icon="time-outline"
-              label="Daily focus goal"
-              value={`${goalHours}h`}
-              detail="Tracked on the Stats screen and on your home-screen widget."
-              theme={theme}
-            />
-            <UsageRow
-              icon="sunny-outline"
-              label="Wake-up time"
-              value={wakeTime ? formatWake(wakeTime) : 'Not set'}
-              detail={
-                wakeTime
-                  ? 'A morning digest notification fires at this time with today\'s plan.'
-                  : 'Set a wake-up time to get a morning plan notification.'
-              }
-              theme={theme}
-            />
-            <UsageRow
-              icon="briefcase-outline"
-              label="Occupation"
-              value={occupation ? labelFor(OCCUPATIONS, occupation) : 'Not set'}
-              detail={
-                occupation
-                  ? 'Helps tailor your morning digest tone and stats labels to your work pattern.'
-                  : 'Pick one so we can tailor the app to your routine.'
-              }
-              theme={theme}
-            />
-            <UsageRow
-              icon="flag-outline"
-              label="Focus goals"
-              value={goals.length > 0 ? `${goals.length} selected` : 'None'}
-              detail={
-                goals.length > 0
-                  ? `Used to label your focus blocks ("${goals.map((g) => labelFor(FOCUS_GOALS, g)).slice(0, 2).join(', ')}${goals.length > 2 ? '…' : ''}") in stats and recaps.`
-                  : 'Add goals so we can group and label your focus time.'
-              }
-              theme={theme}
-            />
-            <UsageRow
-              icon="person-circle-outline"
-              label="Name"
-              value={name || 'Not set'}
-              detail={name ? 'Used in your morning digest greeting and journey panel.' : 'Add a name to personalise your morning digest.'}
-              theme={theme}
-            />
-            <UsageRow
-              icon="moon-outline"
-              label="Sleep time"
-              value={sleepTime ? formatTimeId(sleepTime) : 'Not set'}
-              detail={sleepTime
-                ? 'Defines your available focus window with wake time, and powers a future wind-down nudge.'
-                : 'Add a sleep time to define your day\'s focus window.'}
-              theme={theme}
-            />
-            <UsageRow
-              icon="sunny-outline"
-              label="Best focus time"
-              value={chronotype ? labelForChronotype(chronotype) : 'Not set'}
-              detail={chronotype
-                ? 'Used to suggest the best slots when you create new tasks.'
-                : 'Tell us when you focus best for smarter task scheduling.'}
-              theme={theme}
-            />
-            <UsageRow
-              icon="hourglass-outline"
-              label="Ideal focus block"
-              value={focusLength ? `${focusLength} min` : 'Not set'}
-              detail={focusLength
-                ? 'Used as the default duration for new tasks and Pomodoro sessions.'
-                : 'Pick a length and we\'ll use it as your default for new tasks.'}
-              theme={theme}
-            />
-            <UsageRow
-              icon="pause-circle-outline"
-              label="Break style"
-              value={breakStyle ? (BREAK_STYLES.find((b) => b.id === breakStyle)?.label ?? '') : 'Not set'}
-              detail={breakStyle
-                ? `Sets your Pomodoro break length (${BREAK_STYLES.find((b) => b.id === breakStyle)?.mins ?? 0} min).`
-                : 'Pick a style to set your default Pomodoro break length.'}
-              theme={theme}
-            />
-            <UsageRow
-              icon="ban-outline"
-              label="Distraction triggers"
-              value={triggers.length > 0 ? `${triggers.length} selected` : 'None'}
-              detail={triggers.length > 0
-                ? 'Recorded so future features (insights, weekly recap) can reference what derails you most.'
-                : 'Pick what derails you most so the app can adapt over time.'}
-              theme={theme}
-            />
-            <UsageRow
-              icon="trophy-outline"
-              label="Motivation style"
-              value={motivation.length > 0 ? `${motivation.length} selected` : 'None'}
-              detail={motivation.length > 0
-                ? 'Drives which gamification (streaks, charts, milestones, quotes) we surface most.'
-                : 'Pick what motivates you so we lean into it across the app.'}
-              theme={theme}
-            />
-            <UsageRow
-              icon="calendar-outline"
-              label="Weekly review day"
-              value={reviewDay ? labelForDay(reviewDay) : 'Not set'}
-              detail={reviewDay
-                ? 'A weekly recap notification will fire on this day.'
-                : 'Pick a day to receive your weekly recap.'}
-              theme={theme}
-              isLast
-            />
-          </View>
+          </Modal>
 
           {/* Save button — only shown while the form is editable.  In view
               mode (opened from Settings, Edit pencil not yet tapped) we hide
@@ -1104,18 +1027,38 @@ const styles = StyleSheet.create({
   goalBarFill: { height: 6, borderRadius: 3 },
   goalCaption: { fontSize: 11, fontWeight: '600' },
 
-  // ── "How your profile is used" card ────────────────────────────────────
-  usageCard: {
-    borderRadius: RADIUS.lg,
+  // ── "How your profile is used" link + modal ─────────────────────────────
+  usageLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
     borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: RADIUS.md,
     paddingHorizontal: SPACING.md,
-    paddingTop: SPACING.md,
+    paddingVertical: SPACING.sm + 2,
+  },
+  usageLinkText: { flex: 1, fontSize: FONT.sm, fontWeight: '600' },
+  usageModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-end',
+  },
+  usageModalSheet: {
+    borderTopLeftRadius: RADIUS.xl,
+    borderTopRightRadius: RADIUS.xl,
+    maxHeight: '88%',
+  },
+  usageModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: SPACING.lg,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   usageHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: SPACING.sm,
   },
   usageTitle: { fontSize: FONT.md, fontWeight: '800' },
   usageRow: {

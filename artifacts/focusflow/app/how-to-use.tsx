@@ -108,6 +108,16 @@ export default function HowToUseScreen() {
       </View>
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 40 + insets.bottom }]}>
+        {/* Info banner */}
+        <View style={[styles.noticeBanner, { backgroundColor: `${COLORS.primary}12`, borderColor: `${COLORS.primary}28` }]}>
+          <Ionicons name="information-circle-outline" size={16} color={COLORS.primary} style={{ flexShrink: 0, marginTop: 1 }} />
+          <Text style={[styles.noticeText, { color: theme.text }]}>
+            These guide sections are fixed — they cannot be changed or removed. You can always{' '}
+            <Text style={{ fontWeight: '700' }}>add more</Text>
+            {' '}tasks, blocked apps, greyout schedules, and presets from the main app.
+          </Text>
+        </View>
+
         {GUIDE.map((section, i) => {
           const isOpen = expanded === i;
           return (
@@ -215,5 +225,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: FONT.xs,
     paddingVertical: SPACING.md,
+  },
+  noticeBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.xs,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: RADIUS.md,
+    padding: SPACING.sm,
+  },
+  noticeText: {
+    flex: 1,
+    fontSize: FONT.xs,
+    lineHeight: 18,
   },
 });

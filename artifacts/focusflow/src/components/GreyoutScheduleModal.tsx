@@ -10,7 +10,10 @@ import {
   Alert,
   ActivityIndicator,
   Image,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
@@ -44,6 +47,7 @@ type SelectedApp = { pkg: string; name: string };
 
 export function GreyoutScheduleModal({ visible, windows, onSave, onClose }: Props) {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const [localWindows, setLocalWindows] = useState<GreyoutWindow[]>([]);
   const [mode, setMode] = useState<Mode>('list');
   const [draft, setDraft] = useState<GreyoutWindow>(BLANK_WINDOW);
@@ -216,8 +220,13 @@ export function GreyoutScheduleModal({ visible, windows, onSave, onClose }: Prop
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
+      >
       <View style={styles.backdrop}>
-        <View style={[styles.sheet, { backgroundColor: theme.card }]}>
+        <View style={[styles.sheet, { backgroundColor: theme.card, paddingBottom: insets.bottom }]}>
 
           {/* Header */}
           <View style={[styles.header, { borderBottomColor: theme.border }]}>
@@ -489,6 +498,7 @@ export function GreyoutScheduleModal({ visible, windows, onSave, onClose }: Prop
           )}
         </View>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
