@@ -164,6 +164,12 @@ export interface AppSettings {
   blockInstallActionsEnabled: boolean;   // Intercept Play Store / packageinstaller install/update/uninstall confirmation dialogs
   blockYoutubeShortsEnabled: boolean;    // Intercept the YouTube Shorts player (YouTube itself stays usable)
   blockInstagramReelsEnabled: boolean;   // Intercept the Instagram Reels player / clips viewer (Instagram itself stays usable)
+  // Focus session behaviour
+  // When true, finishing a task before its scheduled end time keeps the focus session
+  // running until the original end time (the task is marked done in your stats, but
+  // app-blocking and the persistent notification stay active). Default false: completing
+  // a task stops focus immediately (the existing behaviour).
+  keepFocusActiveUntilTaskEnd: boolean;
   // Block overlay appearance
   overlayWallpaper?: string;        // Absolute path to custom background image (empty = use gradient)
   overlayQuotes?: string[];         // Custom quote pool (empty = use built-in quotes)

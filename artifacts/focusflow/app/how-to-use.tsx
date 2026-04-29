@@ -52,9 +52,23 @@ const GUIDE: GuideSection[] = [
     title: 'Enforce the Block',
     color: COLORS.orange,
     steps: [
+      { heading: 'What\'s blocking right now', body: 'The top of the Block Enforcement screen shows three lights: Focus session, Timed Standalone Block, and Always-on enforcement. Glance there any time you\'re unsure why an app is blocked.' },
+      { heading: 'Always-on enforcement', body: 'Any app left in your Standalone Block list (or any Daily Allowance rule) is enforced 24/7 — no timer needed. To turn it off, empty the list (Side menu → Standalone Block).' },
       { heading: 'Keyword Blocker', body: 'Add words to the Keyword Blocker (side menu → Block Enforcement). If any of those words appear on screen, FocusFlow redirects you home immediately.' },
       { heading: 'Aversion Deterrents', body: 'Turn on Vibration Harassment, Screen Dimmer, or Sound Alert. Each one applies the instant a blocked app opens — building a negative reflex over time.' },
       { heading: 'System Protection', body: 'Prevents power-menu tricks, install bypasses, and YouTube Shorts / Instagram Reels from sneaking through.' },
+      { heading: 'Keep focus running for full duration', body: 'In Block Enforcement → Focus Session Behaviour. Off by default — completing a task ends the focus session right away. Turn it on if you want app-blocking to stay on until the task\'s original end time even when you finish early.' },
+    ],
+  },
+  {
+    icon: 'download-outline',
+    title: 'Coming from Another Blocker?',
+    color: COLORS.purple,
+    steps: [
+      { heading: 'Open the import flow', body: 'Settings → "Import from another blocker", or tap the banner during onboarding. Works with Stay Focused, AppBlock, StayFree, ActionDash, Digital Wellbeing, Lock Me Out and others.' },
+      { heading: 'File path', body: 'If your old blocker has an Export feature, tap "Browse & Import file" and pick the file. JSON, CSV and plain-text exports are auto-detected.' },
+      { heading: 'Paste / type names path', body: 'For Stay Focused (no public export) and similar: tap "Type or paste app names" and enter the names one per line. They\'re fuzzy-matched against your installed apps so capitalisation and small typos are forgiven.' },
+      { heading: 'What import does and doesn\'t do', body: 'Import only adds the apps to your Standalone Block list. It never starts a focus session and never starts a new timed block — it preserves any timer you already have. Your existing tasks, stats, and presets are kept untouched.' },
     ],
   },
   {

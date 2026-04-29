@@ -132,6 +132,7 @@ const defaultSettings: AppSettings = {
   blockInstallActionsEnabled: false,
   blockYoutubeShortsEnabled: false,
   blockInstagramReelsEnabled: false,
+  keepFocusActiveUntilTaskEnd: false,
   overlayWallpaper: '',
   overlayQuotes: [],
   customNodeRules: [],
@@ -644,6 +645,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Safety net: if the precise focus-mode timer was cleared by an unmount
       // or a hot-reload, the tick still catches the activation within 30 s.
       tryAutoStartFocusRef.current?.();
+      // "Keep focus active until task end" enforcement —
+      // when the user completed (or skipped) a task BEFORE its scheduled end
+      // and chose to keep focus running, we don't stop focus inside completeTask.
+      // Instead this tick stops it once we cross task.endTime. Robust across
+      // app restarts because the focus session and tasks both live in the DB.
+      if (s.focusSession) {
+        const linkedTask = s.tasks.find((t) => t.id === s.focusSession?.taskId);
+        if (
+          linkedTask &&
+          (linkedTask.status === 'completed' || linkedTask.status === 'skipped') &&
+          new Date(linkedTask.endTime).getTime() <= Date.now()
+        ) {
+          void stopFocusMode().catch((e) => {
+            void logger.warn('AppContext', `tick stopFocusMode failed: ${String(e)}`);
+          });
+        }
+      }
     }, 30000);
     return () => {
       if (tickRef.current) clearInterval(tickRef.current);
@@ -1015,7 +1033,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         void TaskAlarmModule.dismissAlarm(taskId);
         dispatch({ type: 'UPDATE_TASK', payload: updated });
         if (stateRef.current.focusSession?.taskId === taskId) {
-          await stopFocusMode();
+          // If the user has opted in to "keep focus running for the full
+          // duration", and we're still before the task's scheduled end time,
+          // leave the focus session running. The 30 s tick below will stop it
+          // automatically once we cross task.endTime — robust across app
+          // restarts because both the task (with its endTime) and the focus
+          // session live in the DB.
+          const keepUntilEnd = stateRef.current.settings.keepFocusActiveUntilTaskEnd ?? false;
+          const taskEndMs = new Date(updated.endTime).getTime();
+          if (keepUntilEnd && taskEndMs > Date.now()) {
+            void logger.info(
+              'AppContext',
+              `task ${taskId} marked done early; keeping focus active until ${new Date(taskEndMs).toISOString()}`,
+            );
+          } else {
+            await stopFocusMode();
+          }
         }
       } catch (e) {
         void logger.error('AppContext', `completeTask failed: ${String(e)}`);

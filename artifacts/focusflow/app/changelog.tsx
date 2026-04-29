@@ -14,6 +14,42 @@ type Entry = {
 
 const CHANGELOG: Entry[] = [
   {
+    version: 'c1.0.9',
+    date: 'April 2026',
+    sections: [
+      {
+        heading: 'Import from Another Blocker',
+        icon: 'download-outline',
+        items: [
+          'New "Import from another blocker" flow — bring your block list across from Stay Focused, AppBlock, StayFree, ActionDash, Digital Wellbeing, Lock Me Out and others without redoing the picking',
+          'Two paths in one screen: pick an exported file (JSON / CSV / plain text) OR paste / type the app names yourself for blockers like Stay Focused that don\'t expose an export — names are fuzzy-matched against your installed apps so capitalisation and small typos still resolve',
+          'Stay Focused is featured first because it has no public export — paste path is the recommended route for it',
+          'One-tap "Switching from another blocker?" entry on the onboarding screen so new users land directly in the import flow',
+          'Import is purely additive: it merges the apps into your existing Standalone Block list, never starts a focus session, never starts a new timed standalone session, and preserves any timer that is already running',
+        ],
+      },
+      {
+        heading: 'Block Enforcement Clarity',
+        icon: 'analytics-outline',
+        items: [
+          'New "What\'s blocking right now" panel at the top of Block Enforcement — three-light status showing whether a Focus session is running, whether a Timed Standalone Block is running, and whether Always-on enforcement is active (and why)',
+          'Always-on enforcement explainer: any app left in your Standalone Block list (or any Daily Allowance rule) is enforced 24/7 even with no timer running — the new panel makes this visible at a glance and tells you how to clear it',
+          'No behaviour change here — this just surfaces what was already happening so it stops feeling like the app is "stuck on"',
+        ],
+      },
+      {
+        heading: 'Focus Session Behaviour Toggle',
+        icon: 'hourglass-outline',
+        items: [
+          'New toggle in Block Enforcement → Focus Session Behaviour: "Keep focus active for the full duration"',
+          'Default OFF (existing behaviour) — completing a task immediately ends the focus session',
+          'When ON — completing or skipping a task BEFORE its scheduled end time keeps app-blocking and the persistent notification running until the original end time. The task still goes into your stats as completed; only the focus session sticks around',
+          'Stop happens automatically once the task\'s end time passes (checked every 30 s; survives app restarts because tasks live in the DB)',
+        ],
+      },
+    ],
+  },
+  {
     version: 'c1.0.8',
     date: 'April 2026',
     sections: [

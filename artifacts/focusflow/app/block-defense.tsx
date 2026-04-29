@@ -56,6 +56,26 @@ export default function BlockDefenseScreen() {
   })();
   const blockProtectionActive = focusActive || standaloneActive;
 
+  // Always-on enforcement is active whenever standalone packages OR allowance
+  // entries exist — those rules are enforced even with no timed session running.
+  // Mirrors the logic in AppContext._syncAlwaysBlock so the banner reflects
+  // exactly what the AccessibilityService is doing right now.
+  const standalonePkgCount = (settings.standaloneBlockPackages ?? []).length;
+  const allowanceEntryCount = (settings.dailyAllowanceEntries ?? []).length;
+  const alwaysOnActive = standalonePkgCount > 0 || allowanceEntryCount > 0;
+
+  const focusTaskTitle =
+    state.focusSession
+      ? state.tasks.find((t) => t.id === state.focusSession?.taskId)?.title ?? null
+      : null;
+  const standaloneEndsLabel = (() => {
+    if (!standaloneActive || !settings.standaloneBlockUntil) return null;
+    const d = new Date(settings.standaloneBlockUntil);
+    const hh = d.getHours().toString().padStart(2, '0');
+    const mm = d.getMinutes().toString().padStart(2, '0');
+    return `${hh}:${mm}`;
+  })();
+
   useEffect(() => {
     const tab = params.tab;
     if (!tab) return;
@@ -133,12 +153,83 @@ export default function BlockDefenseScreen() {
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingBottom: 40 + insets.bottom }]}
       >
+        {/* What's currently enforcing — read-only status panel */}
+        <View style={[styles.statusCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={[styles.statusTitle, { color: theme.text }]}>What&apos;s blocking right now</Text>
+          <StatusRow
+            label="Focus session"
+            on={focusActive}
+            detail={
+              focusActive
+                ? focusTaskTitle
+                  ? `Active for "${focusTaskTitle}"`
+                  : 'Active'
+                : 'No focus session running'
+            }
+            theme={theme}
+          />
+          <StatusRow
+            label="Timed standalone block"
+            on={standaloneActive}
+            detail={
+              standaloneActive
+                ? `${standalonePkgCount} app${standalonePkgCount !== 1 ? 's' : ''} blocked until ${standaloneEndsLabel}`
+                : 'No timer running'
+            }
+            theme={theme}
+          />
+          <StatusRow
+            label="Always-on enforcement"
+            on={alwaysOnActive}
+            detail={
+              alwaysOnActive
+                ? `${standalonePkgCount} blocked app${standalonePkgCount !== 1 ? 's' : ''}` +
+                  (allowanceEntryCount > 0
+                    ? ` + ${allowanceEntryCount} daily-allowance rule${allowanceEntryCount !== 1 ? 's' : ''}`
+                    : '') +
+                  ' enforced 24/7 (no timer needed)'
+                : 'Empty block list — nothing enforced outside of timed sessions'
+            }
+            theme={theme}
+            isLast
+          />
+          {alwaysOnActive && (
+            <Text style={[styles.statusFootnote, { color: theme.muted }]}>
+              Empty your standalone block list (Side menu → Standalone Block) to stop always-on enforcement.
+            </Text>
+          )}
+        </View>
+
         {/* Intro banner */}
         <View style={[styles.introBanner, { backgroundColor: COLORS.primary + '12', borderColor: COLORS.primary + '33' }]}>
           <Ionicons name="shield-checkmark" size={20} color={COLORS.primary} />
           <Text style={[styles.introText, { color: theme.text }]}>
             These tools run continuously in the background whenever they are switched on — they do not need a Focus session or standalone block to be active. While a block IS running, the toggles below stay locked on so they can&apos;t be disabled mid-session.
           </Text>
+        </View>
+
+        {/* ── Focus Session Behaviour ──────────────────────────────── */}
+        <View collapsable={false}>
+          <SectionHeader
+            icon="hourglass-outline"
+            title="Focus Session Behaviour"
+            description="Controls what happens to a running focus session when you finish or skip a task early."
+            theme={theme}
+          />
+          <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <SwitchRow
+              label="Keep focus active for the full duration"
+              description={
+                (settings.keepFocusActiveUntilTaskEnd ?? false)
+                  ? 'On — completing a task early keeps app-blocking running until the original end time'
+                  : 'Off — completing a task immediately ends the focus session (default)'
+              }
+              value={settings.keepFocusActiveUntilTaskEnd ?? false}
+              onValueChange={(v) => update({ keepFocusActiveUntilTaskEnd: v })}
+              theme={theme}
+              isLast
+            />
+          </View>
         </View>
 
         {/* ── Keyword Blocker ──────────────────────────────────────── */}
@@ -326,6 +417,37 @@ function SectionHeader({
   );
 }
 
+function StatusRow({
+  label,
+  on,
+  detail,
+  theme,
+  isLast = false,
+}: {
+  label: string;
+  on: boolean;
+  detail: string;
+  theme: ReturnType<typeof useTheme>['theme'];
+  isLast?: boolean;
+}) {
+  return (
+    <View
+      style={[
+        styles.statusRow,
+        !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border },
+      ]}
+    >
+      <View style={[styles.statusDot, { backgroundColor: on ? COLORS.green : theme.muted + '55' }]} />
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={[styles.statusRowLabel, { color: theme.text }]}>
+          {label} <Text style={{ color: on ? COLORS.green : theme.muted, fontWeight: '700' }}>{on ? 'ON' : 'OFF'}</Text>
+        </Text>
+        <Text style={[styles.statusRowDetail, { color: theme.muted }]}>{detail}</Text>
+      </View>
+    </View>
+  );
+}
+
 function SwitchRow({
   label,
   description,
@@ -382,6 +504,41 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   introText: { flex: 1, fontSize: FONT.sm, lineHeight: 20 },
+  statusCard: {
+    borderRadius: RADIUS.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+  },
+  statusTitle: {
+    fontSize: FONT.sm,
+    fontWeight: '700',
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.xs,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm + 2,
+  },
+  statusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginTop: 5,
+  },
+  statusRowLabel: { fontSize: FONT.sm, fontWeight: '600' },
+  statusRowDetail: { fontSize: FONT.xs, lineHeight: 16 },
+  statusFootnote: {
+    fontSize: FONT.xs,
+    lineHeight: 16,
+    paddingHorizontal: SPACING.md,
+    paddingBottom: SPACING.md,
+    paddingTop: SPACING.xs,
+    fontStyle: 'italic',
+  },
   sectionHeader: {
     gap: 4,
     marginBottom: SPACING.xs,
