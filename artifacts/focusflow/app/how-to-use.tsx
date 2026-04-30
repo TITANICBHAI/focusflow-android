@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 
 import { useTheme } from '@/hooks/useTheme';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
@@ -105,6 +105,10 @@ const GUIDE: GuideSection[] = [
 export default function HowToUseScreen() {
   const insets = useSafeAreaInsets();
   const { theme, isDark } = useTheme();
+  const params = useLocalSearchParams<{ onboarding?: string }>();
+  // When opened as part of the first-run flow, hide the back arrow and show
+  // a prominent "Get Started" CTA at the bottom that drops the user on /.
+  const isOnboarding = params.onboarding === '1';
   const [expanded, setExpanded] = useState<number | null>(0);
 
   const toggle = (i: number) => setExpanded((prev) => (prev === i ? null : i));
@@ -112,13 +116,28 @@ export default function HowToUseScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Ionicons name="chevron-back" size={24} color={theme.text} />
-        </TouchableOpacity>
-        <View style={{ marginLeft: SPACING.sm }}>
-          <Text style={[styles.title, { color: theme.text }]}>How to Use FocusFlow</Text>
-          <Text style={[styles.subtitle, { color: theme.muted }]}>Your discipline operating system — explained</Text>
+        {!isOnboarding && (
+          <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Ionicons name="chevron-back" size={24} color={theme.text} />
+          </TouchableOpacity>
+        )}
+        <View style={{ marginLeft: isOnboarding ? 0 : SPACING.sm, flex: 1 }}>
+          <Text style={[styles.title, { color: theme.text }]}>
+            {isOnboarding ? 'Welcome to FocusFlow' : 'How to Use FocusFlow'}
+          </Text>
+          <Text style={[styles.subtitle, { color: theme.muted }]}>
+            {isOnboarding ? 'A quick tour before you get started' : 'Your discipline operating system — explained'}
+          </Text>
         </View>
+        {isOnboarding && (
+          <TouchableOpacity
+            onPress={() => router.replace('/')}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={styles.skipLink}
+          >
+            <Text style={[styles.skipText, { color: theme.muted }]}>Skip</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 40 + insets.bottom }]}>
@@ -180,6 +199,17 @@ export default function HowToUseScreen() {
         <Text style={[styles.tip, { color: theme.muted }]}>
           All data stays on your device — nothing is sent to any server.
         </Text>
+
+        {isOnboarding && (
+          <TouchableOpacity
+            style={[styles.ctaBtn, { backgroundColor: COLORS.primary }]}
+            onPress={() => router.replace('/')}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.ctaText}>Got it — let&apos;s start</Text>
+            <Ionicons name="arrow-forward" size={18} color="#fff" />
+          </TouchableOpacity>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -253,4 +283,16 @@ const styles = StyleSheet.create({
     fontSize: FONT.xs,
     lineHeight: 18,
   },
+  skipLink: { paddingHorizontal: SPACING.sm, paddingVertical: 4 },
+  skipText: { fontSize: FONT.sm, fontWeight: '600' },
+  ctaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.xs,
+    paddingVertical: SPACING.md,
+    borderRadius: RADIUS.md,
+    marginTop: SPACING.sm,
+  },
+  ctaText: { color: '#fff', fontSize: FONT.md, fontWeight: '700' },
 });

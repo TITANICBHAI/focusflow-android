@@ -10,7 +10,7 @@
  *   • BLOCK CONTROLS — Standalone Block | Task Focus | Daily Allowance
  *   • BLOCK ENFORCEMENT — Keyword Blocker | System Protection | Aversion Deterrents | Block Schedules
  *   • INSIGHTS — Reports
- *   • Footer — Privacy Policy | How to Use
+ *   • Footer — Privacy | Terms of Service | How to Use
  */
 
 import React, { useRef, useCallback, useEffect } from 'react';
@@ -306,17 +306,17 @@ export function SideMenu({ visible, onOpen, onClose, tabBarHeight }: SideMenuPro
         <View style={[styles.footer, { borderTopColor: isDark ? COLORS.darkBorder : COLORS.border }]}>
           <TouchableOpacity style={styles.footerBtn} onPress={() => navigate('/privacy-policy')}>
             <Ionicons name="shield-outline" size={14} color={isDark ? COLORS.muted : COLORS.textSecondary} />
-            <Text style={[styles.footerText, { color: isDark ? COLORS.muted : COLORS.textSecondary }]}>Privacy Policy</Text>
+            <Text style={[styles.footerText, { color: isDark ? COLORS.muted : COLORS.textSecondary }]}>Privacy</Text>
+          </TouchableOpacity>
+          <View style={[styles.footerDivider, { backgroundColor: isDark ? COLORS.darkBorder : COLORS.border }]} />
+          <TouchableOpacity style={styles.footerBtn} onPress={() => navigate('/terms-of-service')}>
+            <Ionicons name="document-text-outline" size={14} color={isDark ? COLORS.muted : COLORS.textSecondary} />
+            <Text style={[styles.footerText, { color: isDark ? COLORS.muted : COLORS.textSecondary }]}>Terms of Service</Text>
           </TouchableOpacity>
           <View style={[styles.footerDivider, { backgroundColor: isDark ? COLORS.darkBorder : COLORS.border }]} />
           <TouchableOpacity style={styles.footerBtn} onPress={() => navigate('/how-to-use')}>
             <Ionicons name="help-circle-outline" size={14} color={isDark ? COLORS.muted : COLORS.textSecondary} />
             <Text style={[styles.footerText, { color: isDark ? COLORS.muted : COLORS.textSecondary }]}>How to Use</Text>
-          </TouchableOpacity>
-          <View style={[styles.footerDivider, { backgroundColor: isDark ? COLORS.darkBorder : COLORS.border }]} />
-          <TouchableOpacity style={styles.footerBtn} onPress={() => navigate('/terms-of-service')}>
-            <Ionicons name="document-text-outline" size={14} color={isDark ? COLORS.muted : COLORS.textSecondary} />
-            <Text style={[styles.footerText, { color: isDark ? COLORS.muted : COLORS.textSecondary }]}>Terms</Text>
           </TouchableOpacity>
         </View>
       </Animated.View>

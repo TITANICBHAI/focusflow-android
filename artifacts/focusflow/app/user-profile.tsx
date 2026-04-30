@@ -264,7 +264,9 @@ export default function UserProfileScreen() {
       if (isEditMode) {
         router.back();
       } else {
-        router.replace('/');
+        // First-run flow: show the How-to-Use guide before dropping the user
+        // on the home screen. The guide's "Get started" button takes them to /.
+        router.replace('/how-to-use?onboarding=1');
       }
     } finally {
       setSaving(false);
@@ -276,7 +278,9 @@ export default function UserProfileScreen() {
     // Mark onboarding done but don't save a profile
     await updateSettings({ ...state.settings, onboardingComplete: true });
     try { await SharedPrefsModule.putString('onboarding_complete', 'true'); } catch { /* non-fatal */ }
-    router.replace('/');
+    // Even when skipping the questionnaire, show the How-to-Use guide so the
+    // brand-new user understands what the app does before landing on home.
+    router.replace('/how-to-use?onboarding=1');
   };
 
   // ── Returning-user import shortcut ───────────────────────────────────────
@@ -307,7 +311,7 @@ export default function UserProfileScreen() {
       Alert.alert(
         'Welcome back',
         `Settings ${result.settings ? 'restored' : 'unchanged'}.\nTasks imported: ${result.tasksImported}`,
-        [{ text: 'OK', onPress: () => { if (!isEditMode) router.replace('/'); } }],
+        [{ text: 'OK', onPress: () => { if (!isEditMode) router.replace('/how-to-use?onboarding=1'); } }],
       );
     } finally {
       setImportBusy(false);
