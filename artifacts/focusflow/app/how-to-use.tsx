@@ -4,13 +4,14 @@
  * In-app guide that walks users through FocusFlow's core features.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -112,6 +113,18 @@ export default function HowToUseScreen() {
   const [expanded, setExpanded] = useState<number | null>(0);
 
   const toggle = (i: number) => setExpanded((prev) => (prev === i ? null : i));
+
+  // In onboarding mode, intercept the Android hardware back button so it
+  // doesn't pop back to the already-completed user-profile screen. Instead,
+  // pressing back drops the user on home (same as the Skip / CTA links).
+  useEffect(() => {
+    if (!isOnboarding) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      router.replace('/');
+      return true;
+    });
+    return () => sub.remove();
+  }, [isOnboarding]);
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>

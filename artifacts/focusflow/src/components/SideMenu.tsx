@@ -251,7 +251,6 @@ export function SideMenu({ visible, onOpen, onClose, tabBarHeight }: SideMenuPro
             <MenuItem
               icon="text-outline"
               label="Keyword Blocker"
-              key="keyword-blocker-link"
               description={
                 (settings.blockedWords ?? []).length > 0
                   ? `${(settings.blockedWords ?? []).length} keywords active`
