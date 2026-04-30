@@ -64,18 +64,6 @@ export default function BlockDefenseScreen() {
   const allowanceEntryCount = (settings.dailyAllowanceEntries ?? []).length;
   const alwaysOnActive = standalonePkgCount > 0 || allowanceEntryCount > 0;
 
-  const focusTaskTitle =
-    state.focusSession
-      ? state.tasks.find((t) => t.id === state.focusSession?.taskId)?.title ?? null
-      : null;
-  const standaloneEndsLabel = (() => {
-    if (!standaloneActive || !settings.standaloneBlockUntil) return null;
-    const d = new Date(settings.standaloneBlockUntil);
-    const hh = d.getHours().toString().padStart(2, '0');
-    const mm = d.getMinutes().toString().padStart(2, '0');
-    return `${hh}:${mm}`;
-  })();
-
   useEffect(() => {
     const tab = params.tab;
     if (!tab) return;
@@ -153,52 +141,20 @@ export default function BlockDefenseScreen() {
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingBottom: 40 + insets.bottom }]}
       >
-        {/* What's currently enforcing — read-only status panel */}
-        <View style={[styles.statusCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.statusTitle, { color: theme.text }]}>What&apos;s blocking right now</Text>
-          <StatusRow
-            label="Focus session"
-            on={focusActive}
-            detail={
-              focusActive
-                ? focusTaskTitle
-                  ? `Active for "${focusTaskTitle}"`
-                  : 'Active'
-                : 'No focus session running'
-            }
-            theme={theme}
-          />
-          <StatusRow
-            label="Timed standalone block"
-            on={standaloneActive}
-            detail={
-              standaloneActive
-                ? `${standalonePkgCount} app${standalonePkgCount !== 1 ? 's' : ''} blocked until ${standaloneEndsLabel}`
-                : 'No timer running'
-            }
-            theme={theme}
-          />
-          <StatusRow
-            label="Always-on enforcement"
-            on={alwaysOnActive}
-            detail={
-              alwaysOnActive
-                ? `${standalonePkgCount} blocked app${standalonePkgCount !== 1 ? 's' : ''}` +
-                  (allowanceEntryCount > 0
-                    ? ` + ${allowanceEntryCount} daily-allowance rule${allowanceEntryCount !== 1 ? 's' : ''}`
-                    : '') +
-                  ' enforced 24/7 (no timer needed)'
-                : 'Empty block list — nothing enforced outside of timed sessions'
-            }
-            theme={theme}
-            isLast
-          />
-          {alwaysOnActive && (
-            <Text style={[styles.statusFootnote, { color: theme.muted }]}>
-              Empty your standalone block list (Side menu → Standalone Block) to stop always-on enforcement.
+        {/* Slight inline hint when nothing is blocking — points to Active page */}
+        {!blockProtectionActive && !alwaysOnActive && (
+          <TouchableOpacity
+            style={[styles.hintBanner, { backgroundColor: COLORS.primary + '0E', borderColor: COLORS.primary + '33' }]}
+            onPress={() => router.push('/active')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="pulse-outline" size={16} color={COLORS.primary} />
+            <Text style={[styles.hintBannerText, { color: theme.text }]}>
+              Nothing is blocking right now. See live status on the Active page.
             </Text>
-          )}
-        </View>
+            <Ionicons name="chevron-forward" size={14} color={COLORS.primary} />
+          </TouchableOpacity>
+        )}
 
         {/* Intro banner */}
         <View style={[styles.introBanner, { backgroundColor: COLORS.primary + '12', borderColor: COLORS.primary + '33' }]}>
@@ -417,37 +373,6 @@ function SectionHeader({
   );
 }
 
-function StatusRow({
-  label,
-  on,
-  detail,
-  theme,
-  isLast = false,
-}: {
-  label: string;
-  on: boolean;
-  detail: string;
-  theme: ReturnType<typeof useTheme>['theme'];
-  isLast?: boolean;
-}) {
-  return (
-    <View
-      style={[
-        styles.statusRow,
-        !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border },
-      ]}
-    >
-      <View style={[styles.statusDot, { backgroundColor: on ? COLORS.green : theme.muted + '55' }]} />
-      <View style={{ flex: 1, gap: 2 }}>
-        <Text style={[styles.statusRowLabel, { color: theme.text }]}>
-          {label} <Text style={{ color: on ? COLORS.green : theme.muted, fontWeight: '700' }}>{on ? 'ON' : 'OFF'}</Text>
-        </Text>
-        <Text style={[styles.statusRowDetail, { color: theme.muted }]}>{detail}</Text>
-      </View>
-    </View>
-  );
-}
-
 function SwitchRow({
   label,
   description,
@@ -504,41 +429,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   introText: { flex: 1, fontSize: FONT.sm, lineHeight: 20 },
-  statusCard: {
-    borderRadius: RADIUS.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    overflow: 'hidden',
-  },
-  statusTitle: {
-    fontSize: FONT.sm,
-    fontWeight: '700',
-    paddingHorizontal: SPACING.md,
-    paddingTop: SPACING.md,
-    paddingBottom: SPACING.xs,
-  },
-  statusRow: {
+  hintBanner: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: SPACING.sm,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm + 2,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
   },
-  statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginTop: 5,
-  },
-  statusRowLabel: { fontSize: FONT.sm, fontWeight: '600' },
-  statusRowDetail: { fontSize: FONT.xs, lineHeight: 16 },
-  statusFootnote: {
-    fontSize: FONT.xs,
-    lineHeight: 16,
-    paddingHorizontal: SPACING.md,
-    paddingBottom: SPACING.md,
-    paddingTop: SPACING.xs,
-    fontStyle: 'italic',
-  },
+  hintBannerText: { flex: 1, fontSize: FONT.xs, lineHeight: 17 },
   sectionHeader: {
     gap: 4,
     marginBottom: SPACING.xs,

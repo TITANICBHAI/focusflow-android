@@ -239,6 +239,24 @@ function FocusScreen() {
     }
 
     // ── State 2: Nothing active — prompt to create a task ─────────────────────
+    const alwaysOnPkgs = settings.standaloneBlockPackages ?? [];
+    const alwaysOnActive = alwaysOnPkgs.length > 0;
+    const handleClearAlwaysOn = () => {
+      Alert.alert(
+        'Clear standalone block list?',
+        `This removes ${alwaysOnPkgs.length} app${alwaysOnPkgs.length !== 1 ? 's' : ''} from the always-on block list. Daily allowance rules are not affected.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Clear',
+            style: 'destructive',
+            onPress: () => {
+              void setStandaloneBlockAndAllowance([], null, settings.dailyAllowanceEntries ?? []);
+            },
+          },
+        ],
+      );
+    };
     return (
       <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]}>
         <ScrollView
@@ -259,6 +277,52 @@ function FocusScreen() {
             <Ionicons name="add-circle-outline" size={20} color="#fff" />
             <Text style={styles.createTaskBtnText}>Create a Task</Text>
           </TouchableOpacity>
+
+          {/* Always-on enforcement card — toggle/clear without opening the modal */}
+          <View style={[styles.alwaysOnCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <View style={styles.alwaysOnRow}>
+              <Ionicons
+                name={alwaysOnActive ? 'shield-checkmark' : 'shield-outline'}
+                size={18}
+                color={alwaysOnActive ? COLORS.orange : theme.muted}
+              />
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={[styles.alwaysOnTitle, { color: theme.text }]}>Always-on block list</Text>
+                <Text style={[styles.alwaysOnDesc, { color: theme.muted }]}>
+                  {alwaysOnActive
+                    ? `${alwaysOnPkgs.length} app${alwaysOnPkgs.length !== 1 ? 's' : ''} blocked 24/7 — even with no timer running`
+                    : 'Empty — add apps to keep them blocked even outside focus or timed sessions'}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.alwaysOnActions}>
+              <TouchableOpacity
+                style={[styles.alwaysOnBtn, { backgroundColor: COLORS.primary + '14', borderColor: COLORS.primary + '44' }]}
+                onPress={() => setBlockModalVisible(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.alwaysOnBtnText, { color: COLORS.primary }]}>
+                  {alwaysOnActive ? 'Edit list' : 'Add apps'}
+                </Text>
+              </TouchableOpacity>
+              {alwaysOnActive && (
+                <TouchableOpacity
+                  style={[styles.alwaysOnBtn, { backgroundColor: COLORS.red + '14', borderColor: COLORS.red + '44' }]}
+                  onPress={handleClearAlwaysOn}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.alwaysOnBtnText, { color: COLORS.red }]}>Clear list</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          {/* Tips card — auto-fades after 7 days, can also be dismissed */}
+          <TipsCard
+            theme={theme}
+            settings={settings}
+            updateSettings={updateSettings}
+          />
 
           {/* Quick-Block preset shortcuts */}
           {blockPresets.length > 0 && (
@@ -303,6 +367,18 @@ function FocusScreen() {
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={COLORS.border} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.activeLink, { borderColor: theme.border }]}
+            onPress={() => router.push('/active')}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="pulse-outline" size={14} color={COLORS.primary} />
+            <Text style={[styles.activeLinkText, { color: COLORS.primary }]}>
+              See live status on the Active page
+            </Text>
+            <Ionicons name="chevron-forward" size={12} color={COLORS.primary} />
           </TouchableOpacity>
         </ScrollView>
 
@@ -761,6 +837,60 @@ function SecondaryBtn({
   );
 }
 
+const TIPS = [
+  'Use the side menu (›) to reach Active, Stats, Block Schedules and more.',
+  'Standalone Block keeps apps blocked 24/7 even after the timer ends — clear the list to stop.',
+  'Set a Block Schedule to silence distractions during recurring time windows automatically.',
+  'Daily Allowance lets you cap a single app at N opens or N minutes per day.',
+  'Long-press the focus tab to extend a running session if you need more time.',
+];
+
+function TipsCard({
+  theme,
+  settings,
+  updateSettings,
+}: {
+  theme: ReturnType<typeof useTheme>['theme'];
+  settings: import('@/data/types').AppSettings;
+  updateSettings: (s: import('@/data/types').AppSettings) => Promise<void>;
+}) {
+  const dismissed = settings.tipsCardDismissed === true;
+  const firstShown = settings.tipsCardFirstShownAt;
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const fadedOut = !!firstShown && new Date(firstShown).getTime() < sevenDaysAgo;
+
+  React.useEffect(() => {
+    if (!firstShown && !dismissed) {
+      void updateSettings({ ...settings, tipsCardFirstShownAt: new Date().toISOString() });
+    }
+    // Only run once on mount when no first-shown timestamp exists.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (dismissed || fadedOut) return null;
+
+  // Rotate tips by day-of-year so it changes once per day.
+  const dayIdx = Math.floor(Date.now() / 86400000) % TIPS.length;
+  const tip = TIPS[dayIdx];
+
+  const handleDismiss = () => {
+    void updateSettings({ ...settings, tipsCardDismissed: true });
+  };
+
+  return (
+    <View style={[styles.tipsCard, { backgroundColor: COLORS.primary + '0E', borderColor: COLORS.primary + '33' }]}>
+      <View style={styles.tipsHeader}>
+        <Ionicons name="bulb-outline" size={14} color={COLORS.primary} />
+        <Text style={[styles.tipsTitle, { color: COLORS.primary }]}>TIP</Text>
+        <TouchableOpacity onPress={handleDismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Text style={[styles.tipsDismissText, { color: theme.muted }]}>Dismiss</Text>
+        </TouchableOpacity>
+      </View>
+      <Text style={[styles.tipsBody, { color: theme.text }]}>{tip}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.background },
   emptyContainer: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl, gap: SPACING.md },
@@ -850,6 +980,50 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.lg,
     width: '100%',
   },
+  alwaysOnCard: {
+    width: '100%',
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    padding: SPACING.md,
+    gap: SPACING.sm,
+    marginTop: SPACING.md,
+  },
+  alwaysOnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm },
+  alwaysOnTitle: { fontSize: FONT.sm, fontWeight: '700' },
+  alwaysOnDesc: { fontSize: FONT.xs, lineHeight: 17 },
+  alwaysOnActions: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.xs },
+  alwaysOnBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+  },
+  alwaysOnBtnText: { fontSize: FONT.xs, fontWeight: '700' },
+  tipsCard: {
+    width: '100%',
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    padding: SPACING.md,
+    gap: SPACING.xs,
+    marginTop: SPACING.md,
+  },
+  tipsHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  tipsTitle: { fontSize: FONT.xs, fontWeight: '800', letterSpacing: 0.6, flex: 1 },
+  tipsBody: { fontSize: FONT.sm, lineHeight: 20 },
+  tipsDismissText: { fontSize: 11, fontWeight: '600' },
+  activeLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.xs,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    borderRadius: RADIUS.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: SPACING.sm,
+  },
+  activeLinkText: { fontSize: FONT.xs, fontWeight: '600' },
   createTaskBtnText: {
     fontSize: FONT.md,
     fontWeight: '700',

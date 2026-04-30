@@ -201,6 +201,18 @@ export function SideMenu({ visible, onOpen, onClose, tabBarHeight }: SideMenuPro
             <Ionicons name="chevron-forward" size={16} color={isDark ? COLORS.muted : COLORS.border} />
           </TouchableOpacity>
 
+          {/* ── Live status ─────────────────────────────────────────── */}
+          <MenuSection label="Live">
+            <MenuItem
+              icon="pulse-outline"
+              label="Active"
+              description="Live status of every block running now"
+              onPress={() => navigate('/active')}
+              isDark={isDark}
+              isLast
+            />
+          </MenuSection>
+
           {/* ── Block Controls ───────────────────────────────────────── */}
           <MenuSection label="Block Controls">
             <MenuItem
@@ -299,6 +311,11 @@ export function SideMenu({ visible, onOpen, onClose, tabBarHeight }: SideMenuPro
           <TouchableOpacity style={styles.footerBtn} onPress={() => navigate('/how-to-use')}>
             <Ionicons name="help-circle-outline" size={14} color={isDark ? COLORS.muted : COLORS.textSecondary} />
             <Text style={[styles.footerText, { color: isDark ? COLORS.muted : COLORS.textSecondary }]}>How to Use</Text>
+          </TouchableOpacity>
+          <View style={[styles.footerDivider, { backgroundColor: isDark ? COLORS.darkBorder : COLORS.border }]} />
+          <TouchableOpacity style={styles.footerBtn} onPress={() => navigate('/terms-of-service')}>
+            <Ionicons name="document-text-outline" size={14} color={isDark ? COLORS.muted : COLORS.textSecondary} />
+            <Text style={[styles.footerText, { color: isDark ? COLORS.muted : COLORS.textSecondary }]}>Terms</Text>
           </TouchableOpacity>
         </View>
       </Animated.View>

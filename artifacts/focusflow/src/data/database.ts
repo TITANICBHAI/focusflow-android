@@ -36,6 +36,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   keepFocusActiveUntilTaskEnd: false,
   customNodeRules: [],
   recurringBlockSchedules: [],
+  beginnerMode: true,
+  tipsCardDismissed: false,
 };
 
 /**
@@ -474,7 +476,7 @@ export async function dbGetTodayOverrideCount(): Promise<number> {
 export async function dbRecordDayCompletion(completed: number, total: number): Promise<void> {
   try {
     await runWithDb('dbRecordDayCompletion', (database) => {
-      const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+      const date = localDateString(new Date());
       return database.runAsync(
         `INSERT OR REPLACE INTO daily_completions (date, completed, total) VALUES (?, ?, ?)`,
         [date, completed, total],
@@ -483,6 +485,53 @@ export async function dbRecordDayCompletion(completed: number, total: number): P
   } catch (e) {
     console.error('[database] dbRecordDayCompletion failed:', e);
   }
+}
+
+/**
+ * Backfill the `daily_completions` table from the actual `tasks` table for the
+ * last `daysBack` days. Useful on app start so the streak isn't broken just
+ * because the user never opened the Stats screen on a given day. Only writes
+ * rows for days that have at least one task. Existing rows are overwritten so
+ * the derived value always reflects the current task statuses.
+ */
+export async function dbBackfillDayCompletions(daysBack: number = 30): Promise<void> {
+  try {
+    await runWithDb('dbBackfillDayCompletions', async (database) => {
+      const cutoff = new Date();
+      cutoff.setHours(0, 0, 0, 0);
+      cutoff.setDate(cutoff.getDate() - daysBack + 1);
+      const cutoffIso = cutoff.toISOString();
+      const rows = await database.getAllAsync<{ start_time: string; status: string }>(
+        `SELECT start_time, status FROM tasks WHERE start_time >= ?`,
+        [cutoffIso],
+      );
+      const buckets = new Map<string, { completed: number; total: number }>();
+      for (const r of rows) {
+        const d = localDateString(new Date(r.start_time));
+        const b = buckets.get(d) ?? { completed: 0, total: 0 };
+        b.total += 1;
+        if (r.status === 'completed') b.completed += 1;
+        buckets.set(d, b);
+      }
+      for (const [date, b] of buckets) {
+        await database.runAsync(
+          `INSERT OR REPLACE INTO daily_completions (date, completed, total) VALUES (?, ?, ?)`,
+          [date, b.completed, b.total],
+        );
+      }
+    });
+  } catch (e) {
+    console.error('[database] dbBackfillDayCompletions failed:', e);
+  }
+}
+
+function localDateString(d: Date): string {
+  // Local YYYY-MM-DD — must match what dbGetStreak expects so streak math
+  // doesn't break across UTC midnight for users in non-UTC timezones.
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 export async function dbGetStreak(): Promise<number> {

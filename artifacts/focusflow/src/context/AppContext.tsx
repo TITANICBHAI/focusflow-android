@@ -19,6 +19,8 @@ import {
   dbGetActiveFocusSession,
   dbGetTodayFocusMinutes,
   dbGetStreak,
+  dbBackfillDayCompletions,
+  dbRecordDayCompletion,
 } from '@/data/database';
 import {
   getTodayTasks,
@@ -346,6 +348,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       void logger.info('AppContext', 'Dispatching SET_SETTINGS + SET_DB_READY');
       dispatch({ type: 'SET_SETTINGS', payload: settings });
       dispatch({ type: 'SET_DB_READY' });
+
+      // Backfill the daily_completions table from real task history so the
+      // streak banner is correct even if the user never opened the Stats tab
+      // on a given day. Fire-and-forget — non-fatal if it fails.
+      void dbBackfillDayCompletions(30).catch((e) =>
+        void logger.warn('AppContext', `dbBackfillDayCompletions failed: ${String(e)}`),
+      );
 
       // ── Native module syncs — each isolated ───────────────────────────────
       try {
@@ -1036,6 +1045,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // for this task — keeps the alarm UI in sync with in-app resolution.
         void TaskAlarmModule.dismissAlarm(taskId);
         dispatch({ type: 'UPDATE_TASK', payload: updated });
+
+        // Record/refresh today's daily-completion row immediately so the
+        // streak survives even if the user never opens the Stats tab today.
+        try {
+          const refreshed = stateRef.current.tasks.map((t) => (t.id === taskId ? updated : t));
+          const today = getTodayTasks(refreshed);
+          if (today.length > 0) {
+            const done = today.filter((t) => t.status === 'completed').length;
+            void dbRecordDayCompletion(done, today.length);
+          }
+        } catch (e) {
+          void logger.warn('AppContext', `dbRecordDayCompletion in completeTask failed: ${String(e)}`);
+        }
         if (stateRef.current.focusSession?.taskId === taskId) {
           // If the user has opted in to "keep focus running for the full
           // duration", and we're still before the task's scheduled end time,

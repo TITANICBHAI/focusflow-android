@@ -351,16 +351,29 @@ function StatsScreen() {
         </View>
       </View>
 
-      {/* ── Tab pills ─────────────────────────────────────────────────── */}
+      {/* ── Tab pills (sticky, high-contrast) ────────────────────────── */}
       <View style={[styles.filterRow, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
-        {(['yesterday', 'today', 'week', 'alltime'] as const).map((f) => (
-          <TouchableOpacity key={f} style={[styles.filterPill, filter === f && { backgroundColor: COLORS.primary }]}
-            onPress={() => setFilter(f)}>
-            <Text style={[styles.filterLabel, { color: filter === f ? '#fff' : theme.textSecondary }]}>
-              {f === 'yesterday' ? 'Yesterday' : f === 'today' ? 'Today' : f === 'week' ? 'Week' : 'All Time'}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {(['yesterday', 'today', 'week', 'alltime'] as const).map((f) => {
+          const isActive = filter === f;
+          return (
+            <TouchableOpacity
+              key={f}
+              style={[
+                styles.filterPill,
+                {
+                  backgroundColor: isActive ? COLORS.primary : COLORS.primary + '12',
+                  borderColor: isActive ? COLORS.primary : COLORS.primary + '33',
+                },
+              ]}
+              onPress={() => setFilter(f)}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.filterLabel, { color: isActive ? '#fff' : COLORS.primary }]}>
+                {f === 'yesterday' ? 'Yesterday' : f === 'today' ? 'Today' : f === 'week' ? 'Week' : 'All Time'}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {/* ════════════════ YESTERDAY ═════════════════════════════════════ */}
@@ -1006,9 +1019,20 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: FONT.sm, marginTop: 2 },
   iconBtn:  { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
 
-  filterRow: { flexDirection: 'row', padding: SPACING.xs, gap: SPACING.xs, borderBottomWidth: StyleSheet.hairlineWidth },
-  filterPill: { flex: 1, paddingVertical: SPACING.sm, borderRadius: RADIUS.md, alignItems: 'center' },
-  filterLabel: { fontSize: FONT.xs, fontWeight: '700' },
+  filterRow: {
+    flexDirection: 'row',
+    padding: SPACING.sm,
+    gap: SPACING.xs,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  filterPill: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: RADIUS.full,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  filterLabel: { fontSize: FONT.sm, fontWeight: '800', letterSpacing: 0.3 },
 
   card: { borderRadius: RADIUS.lg, padding: SPACING.md, gap: SPACING.sm },
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

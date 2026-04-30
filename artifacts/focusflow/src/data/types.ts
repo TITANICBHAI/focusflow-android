@@ -178,6 +178,50 @@ export interface AppSettings {
   // Recurring block schedules — blocks a group of apps on a repeating daily/weekly timetable
   recurringBlockSchedules: RecurringBlockSchedule[];
   userProfile?: UserProfile;
+
+  /**
+   * Beginner mode hides advanced surfaces (Custom Node Rules, Recurring
+   * Schedules, Aversion Deterrents, Custom Wallpaper). Default true so new
+   * users land in the friendlier UI.
+   */
+  beginnerMode?: boolean;
+
+  /**
+   * Tips card on the idle Focus tab — auto-fades after 7 days from
+   * `tipsCardFirstShownAt` (ISO). User can also dismiss manually.
+   */
+  tipsCardDismissed?: boolean;
+  tipsCardFirstShownAt?: string;
+
+  /**
+   * `.focusflow` imports land here as TEMPORARY presets — never overwrites
+   * live settings. Each affected screen surfaces an "Apply / Dismiss" banner
+   * to commit or drop the preset. Cleared per-category once applied/dismissed.
+   */
+  pendingPresets?: PendingPresets;
+}
+
+/** Preset payload from a `.focusflow` import that has not been applied yet. */
+export interface PendingPresets {
+  blockApps?: { packages: string[]; sourceName?: string; importedAt: string };
+  dailyAllowance?: { entries: DailyAllowanceEntry[]; sourceName?: string; importedAt: string };
+  deterrents?: {
+    aversionDimmerEnabled?: boolean;
+    aversionVibrateEnabled?: boolean;
+    aversionSoundEnabled?: boolean;
+    sourceName?: string;
+    importedAt: string;
+  };
+  enforcement?: {
+    systemGuardEnabled?: boolean;
+    blockInstallActionsEnabled?: boolean;
+    blockYoutubeShortsEnabled?: boolean;
+    blockInstagramReelsEnabled?: boolean;
+    blockedWords?: string[];
+    sourceName?: string;
+    importedAt: string;
+  };
+  profile?: { profile: Partial<UserProfile>; sourceName?: string; importedAt: string };
 }
 
 /**
