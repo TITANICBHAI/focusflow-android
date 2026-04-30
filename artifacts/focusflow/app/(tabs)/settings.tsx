@@ -18,7 +18,7 @@ import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { cancelAllReminders, requestPermissions } from '@/services/notificationService';
 import { exportBackup, pickAndImportBackup } from '@/services/backupService';
-import { mergeIntoStandaloneBlockList } from '@/services/blockListImport';
+import { mergeIntoBlockPreset } from '@/services/blockListImport';
 import { formatDuration } from '@/services/taskService';
 import { AllowedAppsModal } from '@/components/AllowedAppsModal';
 import { StandaloneBlockModal } from '@/components/StandaloneBlockModal';
@@ -208,18 +208,15 @@ function SettingsScreen() {
   };
 
   const handleImportFromOtherApp = async (packages: string[]) => {
-    const result = await mergeIntoStandaloneBlockList(
-      packages,
-      settings,
-      setStandaloneBlockAndAllowance,
-    );
+    const result = mergeIntoBlockPreset(packages, settings);
     if (result.added === 0) {
-      Alert.alert('Nothing new', 'All detected apps are already in your block list.');
+      Alert.alert('Nothing imported', 'No valid app names were found.');
       return;
     }
+    await update({ blockPresets: result.allPresets });
     Alert.alert(
-      'Import complete',
-      `${result.added} new app${result.added !== 1 ? 's' : ''} added to your block list.`,
+      'Saved as a preset',
+      `${result.added} app${result.added !== 1 ? 's' : ''} saved as the preset "${result.preset.name}".\n\nNothing is being blocked yet — open Standalone Block, a Block Schedule batch, or Daily Allowance to use this preset whenever you're ready.`,
     );
   };
 

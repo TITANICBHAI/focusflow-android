@@ -31,7 +31,7 @@ import { Alert } from 'react-native';
 import { useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/useTheme';
 import { requestPermissions } from '@/services/notificationService';
-import { mergeIntoStandaloneBlockList } from '@/services/blockListImport';
+import { mergeIntoBlockPreset } from '@/services/blockListImport';
 import { ForegroundServiceModule } from '@/native-modules/ForegroundServiceModule';
 import { UsageStatsModule } from '@/native-modules/UsageStatsModule';
 import { ForegroundLaunchModule } from '@/native-modules/ForegroundLaunchModule';
@@ -178,7 +178,7 @@ async function checkStatus(id: string): Promise<PermStatus> {
 }
 
 export default function OnboardingScreen() {
-  const { state, updateSettings, setStandaloneBlockAndAllowance } = useApp();
+  const { state, updateSettings } = useApp();
   const { theme } = useTheme();
   const [statuses, setStatuses] = useState<Record<string, PermStatus>>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -188,23 +188,22 @@ export default function OnboardingScreen() {
 
   /**
    * One-tap entry for users switching from another blocker (Stay Focused,
-   * AppBlock, Lock Me Out, etc). Imported packages are merged into the
-   * always-on standalone block list so enforcement starts as soon as the
-   * required permissions are granted.
+   * AppBlock, Lock Me Out, etc). Imported packages are saved as a NEW
+   * BlockPreset rather than dumped into the always-on block list, so the
+   * user explicitly chooses when to start enforcement (and no alarm or
+   * focus session fires automatically). The new preset shows up in
+   * Standalone Block, Block Schedules, and Daily Allowance.
    */
   const handleImportFromOnboarding = async (packages: string[]) => {
-    const result = await mergeIntoStandaloneBlockList(
-      packages,
-      state.settings,
-      setStandaloneBlockAndAllowance,
-    );
+    const result = mergeIntoBlockPreset(packages, state.settings);
     if (result.added === 0) {
-      Alert.alert('Nothing new', 'All matched apps are already in your block list.');
+      Alert.alert('Nothing imported', 'No valid app names were found.');
       return;
     }
+    await updateSettings({ ...state.settings, blockPresets: result.allPresets });
     Alert.alert(
-      'Block list ready',
-      `${result.added} app${result.added !== 1 ? 's' : ''} added. Once you finish granting the permissions below, FocusFlow will start blocking them.`,
+      'Saved as a preset',
+      `${result.added} app${result.added !== 1 ? 's' : ''} saved as the preset "${result.preset.name}".\n\nFinish granting the permissions below, then open Standalone Block from the side menu and pick this preset whenever you're ready to start blocking.`,
     );
   };
 

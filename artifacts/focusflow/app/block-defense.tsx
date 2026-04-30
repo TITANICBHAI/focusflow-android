@@ -289,17 +289,17 @@ export default function BlockDefenseScreen() {
           <SectionHeader
             icon="time-outline"
             title="Block Schedules"
-            description="Block specific apps during recurring time windows — independent of any focus session."
+            description="Create one or more batches — each batch picks a group of apps and the hours/days they should be blocked. Set once, runs forever, no focus session needed."
             theme={theme}
           />
           <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
             <TouchableOpacity style={styles.cardButton} onPress={() => setGreyoutModalVisible(true)}>
               <View style={styles.cardButtonContent}>
-                <Text style={[styles.cardButtonLabel, { color: theme.text }]}>Manage Time-Window Blocks</Text>
+                <Text style={[styles.cardButtonLabel, { color: theme.text }]}>Manage Schedule Batches</Text>
                 <Text style={[styles.cardButtonDesc, { color: theme.muted }]}>
                   {(settings.greyoutSchedule ?? []).length === 0
-                    ? 'No windows set — tap to configure'
-                    : `${(settings.greyoutSchedule ?? []).length} window${(settings.greyoutSchedule ?? []).length !== 1 ? 's' : ''} active`}
+                    ? 'No batches set — tap to add your first one'
+                    : `${(settings.greyoutSchedule ?? []).length} batch${(settings.greyoutSchedule ?? []).length !== 1 ? 'es' : ''} active`}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={theme.border} />

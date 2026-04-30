@@ -251,7 +251,7 @@ export function GreyoutScheduleModal({ visible, windows, onSave, onClose }: Prop
                   <View style={styles.emptyBox}>
                     <Ionicons name="time-outline" size={32} color={theme.muted} />
                     <Text style={[styles.emptyText, { color: theme.muted }]}>
-                      No block windows yet.{'\n'}Add one to block apps during specific hours.
+                      No batches yet.{'\n'}Add a batch to block specific apps during specific hours and days.
                     </Text>
                   </View>
                 )}
@@ -300,7 +300,7 @@ export function GreyoutScheduleModal({ visible, windows, onSave, onClose }: Prop
                   onPress={openAdd}
                 >
                   <Ionicons name="add" size={18} color={COLORS.primary} />
-                  <Text style={[styles.addBtnText, { color: COLORS.primary }]}>Add Window</Text>
+                  <Text style={[styles.addBtnText, { color: COLORS.primary }]}>Add Batch</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.saveBtn, { backgroundColor: COLORS.primary }]}
