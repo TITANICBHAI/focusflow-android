@@ -597,12 +597,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     const untilMs = new Date(standaloneBlockUntil).getTime();
     if (untilMs <= Date.now()) {
+      // Timer expired: end the timed session but RETAIN the package list so
+      // always-on enforcement keeps blocking those apps 24/7. The user
+      // explicitly wipes the list via the "Clear list" action on the Focus tab
+      // / Standalone Block modal, never automatically.
       try {
-        await SharedPrefsModule.setStandaloneBlock(false, [], 0);
+        await SharedPrefsModule.setStandaloneBlock(false, packages, 0);
       } catch (e) {
         void logger.warn('AppContext', `expired standalone block clear failed: ${String(e)}`);
       }
-      const cleared = { ...settings, standaloneBlockPackages: [], standaloneBlockUntil: null };
+      const cleared = { ...settings, standaloneBlockUntil: null };
       await dbSaveSettings(cleared);
       dispatch({ type: 'SET_SETTINGS', payload: cleared });
     } else {

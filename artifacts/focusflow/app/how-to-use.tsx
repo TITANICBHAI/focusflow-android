@@ -76,7 +76,7 @@ const GUIDE: GuideSection[] = [
     title: 'Scheduled Blocks',
     color: COLORS.purple,
     steps: [
-      { heading: 'Greyout Schedule', body: 'Block specific apps during recurring hours (e.g. no Instagram 9–17 Mon–Fri). Set once, runs forever.' },
+      { heading: 'Block Schedules', body: 'Create one or more time-window batches — pick apps and the hours/days they should be blocked (e.g. no Instagram 9–17 Mon–Fri). Each batch runs independently. Set once, runs forever.' },
       { heading: 'Focus Mode tied to tasks', body: 'Enable "Auto-enable Focus Mode" in Settings so blocking starts and stops automatically with each task.' },
     ],
   },
@@ -128,7 +128,7 @@ export default function HowToUseScreen() {
           <Text style={[styles.noticeText, { color: theme.text }]}>
             These guide sections are fixed — they cannot be changed or removed. You can always{' '}
             <Text style={{ fontWeight: '700' }}>add more</Text>
-            {' '}tasks, blocked apps, greyout schedules, and presets from the main app.
+            {' '}tasks, blocked apps, block schedules, and presets from the main app.
           </Text>
         </View>
 

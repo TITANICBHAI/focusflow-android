@@ -478,8 +478,8 @@ function SettingsScreen() {
           </SettingRow>
         </Section>
 
-        {/* ── Greyout Schedule ── */}
-        <Section title="Greyout Schedule">
+        {/* ── Block Schedules ── */}
+        <Section title="Block Schedules">
           <SettingButton
             icon="time-outline"
             label="Manage Time-Window Blocks"
@@ -492,8 +492,8 @@ function SettingsScreen() {
           />
         </Section>
 
-        {/* ── Block Schedule ── */}
-        <Section title="Block Schedule">
+        {/* ── Standalone Block ── */}
+        <Section title="Standalone Block">
           {standaloneActive ? (
             <View style={styles.blockActiveCard}>
               <View style={styles.blockActiveRow}>
@@ -514,8 +514,8 @@ function SettingsScreen() {
           )}
           <SettingButton
             icon={standaloneActive ? 'lock-closed-outline' : 'ban-outline'}
-            label={standaloneActive ? 'Add More Apps to Block' : 'Set Block Schedule'}
-            description={standaloneActive ? 'Block is locked — you can add apps but not remove any until it expires' : 'Block specific apps until a date and time — regardless of tasks'}
+            label={standaloneActive ? 'Add More Apps to Block' : 'Set Standalone Block'}
+            description={standaloneActive ? 'Block is locked — you can add apps but not remove any until it expires' : 'Block specific apps until a date and time — regardless of tasks. Apps stay retained for always-on enforcement after the timer ends.'}
             onPress={() => setBlockModalVisible(true)}
           />
         </Section>

@@ -29,7 +29,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   aversionSoundEnabled: false,
   weeklyReportEnabled: false,
   greyoutSchedule: [],
-  systemGuardEnabled: true,
+  systemGuardEnabled: false,
   blockInstallActionsEnabled: false,
   blockYoutubeShortsEnabled: false,
   blockInstagramReelsEnabled: false,

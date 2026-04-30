@@ -610,11 +610,18 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                     pkg == "com.sec.android.app.systemui" ||
                     pkg == "com.samsung.android.systemui"
                 if (isSystemUiPkg) {
+                    // FIX: notification shade events from SystemUI were being
+                    // misclassified as power-menu when notification text happened
+                    // to contain words like "restart" / "reboot" / "shut down".
+                    // Detect the notification panel FIRST and bail — only fall
+                    // through to power-menu detection when the shade is closed.
+                    if (isNotificationPanelExpanded(ev)) {
+                        return
+                    }
                     if (isPowerMenu(ev)) {
                         handlePowerMenuIntercepted()
                         return
                     }
-                    // Notification bar is intentionally NOT blocked — users need it
                     return
                 }
 
@@ -931,22 +938,21 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         if (powerKeywords.any { classLower.contains(it) }) return true
 
         val textLower = getEventAndNodeText(event, maxDepth = 5).lowercase()
+        // Pruned text-keyword fallback: removed single ambiguous words like
+        // "restart", "reboot", "shut down", "side key settings" because they
+        // appear inside common notifications (system updates, download prompts,
+        // app names) and were causing the notification shade to be misread as
+        // the power menu. Kept only high-signal full phrases.
         val powerTextKeywords = listOf(
             "power off",
             "power down",
             "tap again to turn off",         // Samsung One UI Home confirmation text
             "tap again to power off",
             "press again to power off",
-            "restart",
-            "reboot",
-            "emergency mode",
             "emergency mode saves battery power",
             "providing only essential apps",
             "turning off mobile data when the screen is off",
             "emergency call",
-            "safe mode",
-            "shut down",
-            "side key settings",
         )
         return powerTextKeywords.any { it in textLower }
     }

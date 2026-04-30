@@ -350,11 +350,11 @@ export default function BlockDefenseScreen() {
           </View>
         </View>
 
-        {/* ── Greyout Schedule ─────────────────────────────────────── */}
+        {/* ── Block Schedules ─────────────────────────────────────── */}
         <View ref={sectionRefs.greyout} collapsable={false}>
           <SectionHeader
             icon="time-outline"
-            title="Greyout Schedule"
+            title="Block Schedules"
             description="Block specific apps during recurring time windows — independent of any focus session."
             theme={theme}
           />

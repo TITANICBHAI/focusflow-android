@@ -8,7 +8,7 @@
  * Structure (top → bottom):
  *   • Profile header — avatar initials, name, occupation, daily goal
  *   • BLOCK CONTROLS — Standalone Block | Task Focus | Daily Allowance
- *   • BLOCK ENFORCEMENT — Keyword Blocker | System Protection | Aversion Deterrents | Greyout Schedule
+ *   • BLOCK ENFORCEMENT — Keyword Blocker | System Protection | Aversion Deterrents | Block Schedules
  *   • INSIGHTS — Reports
  *   • Footer — Privacy Policy | How to Use
  */
@@ -264,7 +264,7 @@ export function SideMenu({ visible, onOpen, onClose, tabBarHeight }: SideMenuPro
             />
             <MenuItem
               icon="time-outline"
-              label="Greyout Schedule"
+              label="Block Schedules"
               description={
                 (settings.greyoutSchedule ?? []).length > 0
                   ? `${(settings.greyoutSchedule ?? []).length} time window${(settings.greyoutSchedule ?? []).length !== 1 ? 's' : ''}`

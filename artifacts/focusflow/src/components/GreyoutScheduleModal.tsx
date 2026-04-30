@@ -179,7 +179,7 @@ export function GreyoutScheduleModal({ visible, windows, onSave, onClose }: Prop
   const deleteWindow = (idx: number) => {
     const w = localWindows[idx];
     const label = windowDisplayLabel(w);
-    Alert.alert('Remove Window', `Remove greyout window for ${label}?`, [
+    Alert.alert('Remove Window', `Remove block window for ${label}?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove',
@@ -236,7 +236,7 @@ export function GreyoutScheduleModal({ visible, windows, onSave, onClose }: Prop
                 <Text style={[styles.headerTitle, { color: theme.text }]}>Back</Text>
               </TouchableOpacity>
             ) : (
-              <Text style={[styles.headerTitle, { color: theme.text }]}>Greyout Schedule</Text>
+              <Text style={[styles.headerTitle, { color: theme.text }]}>Block Schedules</Text>
             )}
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
               <Ionicons name="close" size={22} color={theme.muted} />
@@ -251,7 +251,7 @@ export function GreyoutScheduleModal({ visible, windows, onSave, onClose }: Prop
                   <View style={styles.emptyBox}>
                     <Ionicons name="time-outline" size={32} color={theme.muted} />
                     <Text style={[styles.emptyText, { color: theme.muted }]}>
-                      No greyout windows yet.{'\n'}Add one to grey out apps during specific hours.
+                      No block windows yet.{'\n'}Add one to block apps during specific hours.
                     </Text>
                   </View>
                 )}
