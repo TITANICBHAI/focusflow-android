@@ -11,6 +11,7 @@ import {
   Platform,
   AppState,
   ScrollView,
+  Switch,
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,6 +24,7 @@ import { formatTime, isAwaitingDecision } from '@/services/taskService';
 import { dbLogFocusOverride } from '@/data/database';
 import { UsageStatsModule } from '@/native-modules/UsageStatsModule';
 import { StandaloneBlockModal } from '@/components/StandaloneBlockModal';
+import { DailyAllowanceModal } from '@/components/DailyAllowanceModal';
 import ExtendModal from '@/components/ExtendModal';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
@@ -36,6 +38,7 @@ function FocusScreen() {
   const isFocusing = state.focusSession !== null && state.focusSession.isActive;
   const [hasAccessibilityPermission, setHasAccessibilityPermission] = useState<boolean | null>(null);
   const [blockModalVisible, setBlockModalVisible] = useState(false);
+  const [dailyAllowanceModalVisible, setDailyAllowanceModalVisible] = useState(false);
   const [showExtendModal, setShowExtendModal] = useState(false);
 
   const { settings } = state;
@@ -240,7 +243,17 @@ function FocusScreen() {
 
     // ── State 2: Nothing active — prompt to create a task ─────────────────────
     const alwaysOnPkgs = settings.standaloneBlockPackages ?? [];
-    const alwaysOnActive = alwaysOnPkgs.length > 0;
+    const alwaysOnHasList = alwaysOnPkgs.length > 0;
+    // Master enforcement switch — defaults to ON when undefined.
+    const enforcementOn = settings.alwaysOnEnforcementEnabled !== false;
+    // "Active" = list has packages AND enforcement is on (drives icon colour).
+    const alwaysOnActive = alwaysOnHasList && enforcementOn;
+    const handleToggleEnforcement = (next: boolean) => {
+      void updateSettings({ ...settings, alwaysOnEnforcementEnabled: next });
+    };
+    // Slim hint counts shown below the card — quick at-a-glance status.
+    const allowanceCount = (settings.dailyAllowanceEntries ?? []).length;
+    const scheduleCount  = (settings.recurringBlockSchedules ?? []).filter((s) => s.enabled).length;
     const handleClearAlwaysOn = () => {
       Alert.alert(
         'Clear standalone block list?',
@@ -278,7 +291,8 @@ function FocusScreen() {
             <Text style={styles.createTaskBtnText}>Create a Task</Text>
           </TouchableOpacity>
 
-          {/* Always-on enforcement card — toggle/clear without opening the modal */}
+          {/* Always-on enforcement card — explicit Switch lets the user pause
+              enforcement without losing the package list. */}
           <View style={[styles.alwaysOnCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
             <View style={styles.alwaysOnRow}>
               <Ionicons
@@ -289,11 +303,19 @@ function FocusScreen() {
               <View style={{ flex: 1, gap: 2 }}>
                 <Text style={[styles.alwaysOnTitle, { color: theme.text }]}>Always-on block list</Text>
                 <Text style={[styles.alwaysOnDesc, { color: theme.muted }]}>
-                  {alwaysOnActive
-                    ? `${alwaysOnPkgs.length} app${alwaysOnPkgs.length !== 1 ? 's' : ''} blocked 24/7 — even with no timer running`
-                    : 'Empty — add apps to keep them blocked even outside focus or timed sessions'}
+                  {!alwaysOnHasList
+                    ? 'Empty — add apps to keep them blocked even outside focus or timed sessions'
+                    : enforcementOn
+                      ? `${alwaysOnPkgs.length} app${alwaysOnPkgs.length !== 1 ? 's' : ''} blocked 24/7 — even with no timer running`
+                      : `${alwaysOnPkgs.length} app${alwaysOnPkgs.length !== 1 ? 's' : ''} on the list — enforcement is PAUSED`}
                 </Text>
               </View>
+              <Switch
+                value={enforcementOn}
+                onValueChange={handleToggleEnforcement}
+                trackColor={{ false: theme.border, true: COLORS.orange + '88' }}
+                thumbColor={enforcementOn ? COLORS.orange : theme.muted}
+              />
             </View>
             <View style={styles.alwaysOnActions}>
               <TouchableOpacity
@@ -302,10 +324,10 @@ function FocusScreen() {
                 activeOpacity={0.7}
               >
                 <Text style={[styles.alwaysOnBtnText, { color: COLORS.primary }]}>
-                  {alwaysOnActive ? 'Edit list' : 'Add apps'}
+                  {alwaysOnHasList ? 'Edit list' : 'Add apps'}
                 </Text>
               </TouchableOpacity>
-              {alwaysOnActive && (
+              {alwaysOnHasList && (
                 <TouchableOpacity
                   style={[styles.alwaysOnBtn, { backgroundColor: COLORS.red + '14', borderColor: COLORS.red + '44' }]}
                   onPress={handleClearAlwaysOn}
@@ -315,6 +337,32 @@ function FocusScreen() {
                 </TouchableOpacity>
               )}
             </View>
+          </View>
+
+          {/* Slim status hints — quick at-a-glance summary of related blockers.
+              Only shown on the Focus idle screen (deliberately omitted from
+              other pages so they don't become noisy). */}
+          <View style={styles.slimHintsRow}>
+            <TouchableOpacity
+              style={[styles.slimHint, { borderColor: theme.border, backgroundColor: theme.card }]}
+              onPress={() => setDailyAllowanceModalVisible(true)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="time-outline" size={14} color={allowanceCount > 0 ? COLORS.orange : theme.muted} />
+              <Text style={[styles.slimHintText, { color: theme.muted }]}>
+                Daily Allowance · <Text style={{ color: theme.text, fontWeight: '700' }}>{allowanceCount}</Text>
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.slimHint, { borderColor: theme.border, backgroundColor: theme.card }]}
+              onPress={() => router.push('/block-defense?tab=greyout')}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="calendar-outline" size={14} color={scheduleCount > 0 ? COLORS.orange : theme.muted} />
+              <Text style={[styles.slimHintText, { color: theme.muted }]}>
+                Block Schedules · <Text style={{ color: theme.text, fontWeight: '700' }}>{scheduleCount}</Text>
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* Tips card — auto-fades after 7 days, can also be dismissed */}
@@ -397,6 +445,21 @@ function FocusScreen() {
           onDeletePreset={handleDeleteBlockPreset}
           onSaveRecurringSchedules={async (schedules) => { await setRecurringBlockSchedules(schedules); }}
           onClose={() => setBlockModalVisible(false)}
+        />
+
+        {/* Inline Daily Allowance modal — opened from the slim hint pill. */}
+        <DailyAllowanceModal
+          visible={dailyAllowanceModalVisible}
+          selectedEntries={settings.dailyAllowanceEntries ?? []}
+          locked={false}
+          onSave={async (entries) => {
+            await setStandaloneBlockAndAllowance(
+              settings.standaloneBlockPackages ?? [],
+              settings.standaloneBlockUntil ? new Date(settings.standaloneBlockUntil).getTime() : null,
+              entries,
+            );
+          }}
+          onClose={() => setDailyAllowanceModalVisible(false)}
         />
       </SafeAreaView>
     );
@@ -988,9 +1051,26 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
     marginTop: SPACING.md,
   },
-  alwaysOnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm },
+  alwaysOnRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   alwaysOnTitle: { fontSize: FONT.sm, fontWeight: '700' },
   alwaysOnDesc: { fontSize: FONT.xs, lineHeight: 17 },
+  slimHintsRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginTop: SPACING.sm,
+    width: '100%',
+  },
+  slimHint: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: SPACING.sm,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+  },
+  slimHintText: { fontSize: FONT.xs, flexShrink: 1 },
   alwaysOnActions: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.xs },
   alwaysOnBtn: {
     flex: 1,

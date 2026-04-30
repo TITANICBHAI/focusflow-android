@@ -351,10 +351,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       // Backfill the daily_completions table from real task history so the
       // streak banner is correct even if the user never opened the Stats tab
-      // on a given day. Fire-and-forget — non-fatal if it fails.
-      void dbBackfillDayCompletions(30).catch((e) =>
-        void logger.warn('AppContext', `dbBackfillDayCompletions failed: ${String(e)}`),
-      );
+      // on a given day. Fire-and-forget — non-fatal if it fails. After the
+      // backfill completes we read the current streak and, if it crosses a
+      // milestone we haven't celebrated yet, queue a celebration modal.
+      void (async () => {
+        try {
+          await dbBackfillDayCompletions(30);
+          const streak = await dbGetStreak();
+          const lastShown = settings.lastShownStreakMilestone ?? 0;
+          const milestones = [3, 7, 14, 30, 60, 90, 180, 365];
+          // The largest milestone the streak has reached AND we haven't shown.
+          const due = milestones.filter((m) => streak >= m && m > lastShown).pop();
+          if (due) {
+            const next = { ...settings, pendingAchievementCelebration: due };
+            try { await dbSaveSettings(next); } catch { /* non-fatal */ }
+            dispatch({ type: 'SET_SETTINGS', payload: next });
+          }
+        } catch (e) {
+          void logger.warn('AppContext', `streak milestone check failed: ${String(e)}`);
+        }
+      })();
 
       // ── Native module syncs — each isolated ───────────────────────────────
       try {
@@ -489,8 +505,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   async function _syncAlwaysBlock(settings: AppSettings): Promise<void> {
     const packages = settings.standaloneBlockPackages ?? [];
     const allowanceEntries = settings.dailyAllowanceEntries ?? [];
-    const active = packages.length > 0 || allowanceEntries.length > 0;
+    // Master enforcement switch — when false, the user has explicitly paused
+    // the always-on list. Packages stay in `standaloneBlockPackages` so the
+    // list isn't lost, but we tell the native side to deactivate enforcement.
+    const enforcementOn = settings.alwaysOnEnforcementEnabled !== false;
+    const active = enforcementOn && (packages.length > 0 || allowanceEntries.length > 0);
     try {
+      // When enforcement is paused we still pass the package list through so
+      // the native side knows what would be enforced if re-enabled.
       await SharedPrefsModule.setAlwaysBlockActive(active, packages);
     } catch (e) {
       void logger.warn('AppContext', `always block sync failed: ${String(e)}`);

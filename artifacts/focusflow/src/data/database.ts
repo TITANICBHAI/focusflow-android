@@ -38,6 +38,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   recurringBlockSchedules: [],
   beginnerMode: true,
   tipsCardDismissed: false,
+  alwaysOnEnforcementEnabled: true,
+  lastShownStreakMilestone: 0,
 };
 
 /**
@@ -255,6 +257,30 @@ export async function dbGetRecentUnresolvedTasks(): Promise<Task[]> {
          AND status NOT IN ('completed', 'skipped')
        ORDER BY end_time DESC`,
       [cutoff, now],
+    );
+    return rows.map(rowToTask);
+  });
+}
+
+/**
+ * Returns all tasks whose start_time (interpreted in local time) falls within
+ * the inclusive [startDateISO, endDateISO] range. Used by the Stats screen so
+ * the Yesterday / Week / All-Time tabs aren't limited to the small in-memory
+ * `state.tasks` window (which only holds today + recent unresolved).
+ */
+export async function dbGetTasksInDateRange(startDateISO: string, endDateISO: string): Promise<Task[]> {
+  return runWithDbOr('dbGetTasksInDateRange', [], async (database) => {
+    const localDate = (iso: string) => {
+      const d = new Date(iso);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+    const start = localDate(startDateISO);
+    const end = localDate(endDateISO);
+    const rows = await database.getAllAsync<Record<string, unknown>>(
+      `SELECT * FROM tasks
+       WHERE date(datetime(start_time, 'localtime')) BETWEEN ? AND ?
+       ORDER BY start_time ASC`,
+      [start, end],
     );
     return rows.map(rowToTask);
   });

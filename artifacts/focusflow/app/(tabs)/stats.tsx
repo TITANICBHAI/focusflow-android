@@ -30,6 +30,7 @@ import {
   dbGetAllTimeFocusMinutes,
   dbGetAllTimeFocusSessions,
   dbGetBestStreak,
+  dbGetTasksInDateRange,
 } from '@/data/database';
 import { GreyoutModule, TemptationEntry } from '@/native-modules/GreyoutModule';
 import type { Task } from '@/data/types';
@@ -73,7 +74,6 @@ function StatsScreen() {
   const insets          = useSafeAreaInsets();
   const { state }       = useApp();
   const { theme }       = useTheme();
-  const { tasks }       = state;
   const { width }       = useWindowDimensions();
 
   const [filter, setFilter] = useState<Filter>('yesterday');
@@ -82,6 +82,26 @@ function StatsScreen() {
   const [focusMinutes,  setFocusMinutes]  = useState(0);
   const [overrideCount, setOverrideCount] = useState(0);
   const [streak,        setStreak]        = useState(0);
+
+  // ── Historical tasks (last 30 days) — `state.tasks` only holds today + a
+  //    handful of unresolved items, so Yesterday / Week / All-Time tabs need
+  //    their own fetch from the DB. Refreshes whenever today's task list
+  //    changes (so a just-completed task is reflected without re-mounting).
+  const [historicalTasks, setHistoricalTasks] = useState<Task[]>([]);
+  useEffect(() => {
+    void (async () => {
+      try {
+        const end = new Date();
+        const start = new Date();
+        start.setDate(start.getDate() - 30);
+        const rows = await dbGetTasksInDateRange(start.toISOString(), end.toISOString());
+        setHistoricalTasks(rows);
+      } catch { /* DB unavailable — leave empty */ }
+    })();
+  }, [state.tasks]);
+  // Use the historical set as the canonical source for the breakdown screens.
+  // Falls back to state.tasks while the historical fetch is still in-flight.
+  const tasks = historicalTasks.length > 0 ? historicalTasks : state.tasks;
 
   useEffect(() => {
     void (async () => {
@@ -94,7 +114,7 @@ function StatsScreen() {
       setOverrideCount(oc);
       setStreak(s);
     })();
-  }, []);
+  }, [state.tasks]);
 
   // ── YESTERDAY breakdown ───────────────────────────────────────────────────
   const yesterdayBreakdown = useMemo<YesterdayBreakdown>(() => {

@@ -34,6 +34,7 @@ import { EventBridge } from '@/services/eventBridge';
 import { navigateToTask, consumePendingTaskNavigation } from '@/navigation/navigationRef';
 import { registerBackgroundFetch, registerOverrunCheckTask } from '@/tasks/backgroundTasks';
 import { BlockedAppOverlay } from '@/components/BlockedAppOverlay';
+import { AchievementCelebrationModal } from '@/components/AchievementCelebrationModal';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { logger } from '@/services/startupLogger';
 
@@ -309,6 +310,31 @@ function OnboardingGuard() {
   return null;
 }
 
+// ─── Achievement celebration host ────────────────────────────────────────────
+// Reads `pendingAchievementCelebration` from settings and shows the
+// AchievementCelebrationModal once. On dismiss it clears the pending field
+// AND bumps `lastShownStreakMilestone` so the same milestone never fires
+// again (the next milestone the user crosses will fire the next celebration).
+
+function AchievementCelebrationHost() {
+  const { state, updateSettings } = useApp();
+  const milestone = state.settings.pendingAchievementCelebration ?? null;
+
+  const handleDismiss = () => {
+    const next = {
+      ...state.settings,
+      pendingAchievementCelebration: undefined,
+      lastShownStreakMilestone: Math.max(
+        state.settings.lastShownStreakMilestone ?? 0,
+        milestone ?? 0,
+      ),
+    };
+    void updateSettings(next);
+  };
+
+  return <AchievementCelebrationModal milestone={milestone} onDismiss={handleDismiss} />;
+}
+
 // ─── React component ──────────────────────────────────────────────────────────
 
 export default function RootLayout() {
@@ -350,6 +376,7 @@ export default function RootLayout() {
             <AppSplashOverlay />
             <OnboardingGuard />
             <BlockedAppOverlay />
+            <AchievementCelebrationHost />
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen name="privacy-policy" options={{ headerShown: false, presentation: 'fullScreenModal' }} />

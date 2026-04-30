@@ -138,6 +138,23 @@ export interface AppSettings {
   // Standalone app blocking — independent of any task
   standaloneBlockPackages: string[]; // packages to always block regardless of task state
   standaloneBlockUntil: string | null; // ISO timestamp when the standalone block expires
+  /**
+   * Master switch for the always-on block list. When false, packages in
+   * `standaloneBlockPackages` are preserved but NOT enforced (so the user can
+   * temporarily pause enforcement without losing their list). Default true.
+   */
+  alwaysOnEnforcementEnabled?: boolean;
+  /**
+   * Highest streak milestone (in days) the user has already been congratulated
+   * for. Used to detect new milestones (3, 7, 14, 30, 60, 90, 180, 365) and
+   * trigger a one-time celebration modal on the next app open.
+   */
+  lastShownStreakMilestone?: number;
+  /**
+   * When set to a milestone day count, the root layout shows a celebration
+   * modal once and then clears this field (and bumps lastShownStreakMilestone).
+   */
+  pendingAchievementCelebration?: number;
   allowedAppPresets: AllowedAppPreset[]; // saved preset allow-lists
   blockPresets: BlockPreset[];           // saved preset block-lists
   // Per-app daily allowance — replaces old dailyAllowancePackages: string[]
