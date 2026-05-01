@@ -57,7 +57,7 @@
         "com.huawei.android.launcher.permission.READ_SETTINGS",
         "com.huawei.android.launcher.permission.WRITE_SETTINGS"
       ],
-      "versionCode": 10
+      "versionCode": 11
     },
     "web": {
       "favicon": "./assets/images/icon.png"
