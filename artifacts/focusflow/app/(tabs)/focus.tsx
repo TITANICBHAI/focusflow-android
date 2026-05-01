@@ -294,134 +294,119 @@ function FocusScreen() {
             <Text style={styles.createTaskBtnText}>Create a Task</Text>
           </TouchableOpacity>
 
-          {/* Always-on enforcement card — explicit Switch lets the user pause
-              enforcement without losing the package list. */}
-          <View style={[styles.alwaysOnCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <View style={styles.alwaysOnRow}>
+          {/* ── Unified Enforcement Panel ───────────────────────────────
+               The always-on toggle is the master switch for all 24/7 enforcement.
+               The four rows below it are dimmed (but still tappable) when off,
+               so the user can still configure each tool even while paused. */}
+          <View style={[styles.enforcementPanel, { backgroundColor: theme.card, borderColor: enforcementOn ? COLORS.orange + '55' : theme.border }]}>
+
+            {/* Header row — master toggle */}
+            <View style={styles.enforcementHeader}>
               <Ionicons
                 name={alwaysOnActive ? 'shield-checkmark' : 'shield-outline'}
-                size={18}
+                size={20}
                 color={alwaysOnActive ? COLORS.orange : theme.muted}
               />
-              <View style={{ flex: 1, gap: 2 }}>
-                <Text style={[styles.alwaysOnTitle, { color: theme.text }]}>Always-on block list</Text>
-                <Text style={[styles.alwaysOnDesc, { color: theme.muted }]}>
-                  {!alwaysOnHasList
-                    ? 'Empty — add apps to keep them blocked even outside focus or timed sessions'
-                    : enforcementOn
-                      ? `${alwaysOnPkgs.length} app${alwaysOnPkgs.length !== 1 ? 's' : ''} blocked 24/7 — even with no timer running`
-                      : `${alwaysOnPkgs.length} app${alwaysOnPkgs.length !== 1 ? 's' : ''} on the list — enforcement is PAUSED`}
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.enforcementTitle, { color: theme.text }]}>Always-On Enforcement</Text>
+                <Text style={[styles.enforcementSubtitle, { color: theme.muted }]}>
+                  {enforcementOn ? 'Active — blocking 24/7 regardless of sessions' : 'Paused — list kept, nothing enforced'}
                 </Text>
               </View>
               <Switch
                 value={enforcementOn}
                 onValueChange={handleToggleEnforcement}
-                trackColor={{ false: theme.border, true: COLORS.orange + '88' }}
+                trackColor={{ false: theme.border, true: COLORS.orange + '99' }}
                 thumbColor={enforcementOn ? COLORS.orange : theme.muted}
               />
             </View>
-            {autoCopyOn && (
-              <View style={[styles.autoCopyBadge, { backgroundColor: COLORS.primary + '18', borderColor: COLORS.primary + '40' }]}>
-                <Ionicons name="copy-outline" size={11} color={COLORS.primary} />
-                <Text style={[styles.autoCopyText, { color: COLORS.primary }]}>Auto-copy from standalone block is ON</Text>
-              </View>
-            )}
-            <View style={styles.alwaysOnActions}>
-              <TouchableOpacity
-                style={[styles.alwaysOnBtn, { backgroundColor: COLORS.primary + '14', borderColor: COLORS.primary + '44' }]}
-                onPress={() => router.push('/always-on')}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="list-outline" size={13} color={COLORS.primary} />
-                <Text style={[styles.alwaysOnBtnText, { color: COLORS.primary }]}>
-                  {alwaysOnHasList ? 'Edit list' : 'Add apps'}
-                </Text>
-              </TouchableOpacity>
-              {alwaysOnHasList && (
-                <TouchableOpacity
-                  style={[styles.alwaysOnBtn, { backgroundColor: COLORS.red + '14', borderColor: COLORS.red + '44' }]}
-                  onPress={handleClearAlwaysOn}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.alwaysOnBtnText, { color: COLORS.red }]}>Clear list</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
 
-          {/* Keyword Blocker card */}
-          <View style={[styles.keywordCard, { backgroundColor: theme.card, borderColor: keywordCount > 0 ? COLORS.primary + '66' : theme.border }]}>
-            <View style={styles.keywordRow}>
-              <Ionicons
-                name={keywordCount > 0 ? 'text' : 'text-outline'}
-                size={18}
-                color={keywordCount > 0 ? COLORS.primary : theme.muted}
-              />
-              <View style={{ flex: 1, gap: 2 }}>
-                <Text style={[styles.alwaysOnTitle, { color: theme.text }]}>Keyword Blocker</Text>
-                <Text style={[styles.alwaysOnDesc, { color: theme.muted }]}>
-                  {keywordCount === 0
-                    ? 'No keywords set — add words to block content on screen during focus'
-                    : `${keywordCount} keyword${keywordCount !== 1 ? 's' : ''} — apps are sent home when any appear on screen`}
-                </Text>
-              </View>
-            </View>
-            <TouchableOpacity
-              style={[styles.alwaysOnBtn, { backgroundColor: COLORS.primary + '14', borderColor: COLORS.primary + '44', marginTop: SPACING.sm }]}
-              onPress={() => router.push('/keyword-blocker')}
-              activeOpacity={0.7}
-            >
-              <Ionicons name={keywordCount > 0 ? 'create-outline' : 'add-circle-outline'} size={13} color={COLORS.primary} />
-              <Text style={[styles.alwaysOnBtnText, { color: COLORS.primary }]}>
-                {keywordCount > 0 ? 'Manage Keywords' : 'Add Keywords'}
-              </Text>
-            </TouchableOpacity>
-          </View>
+            <View style={[styles.enforcementDivider, { backgroundColor: theme.border }]} />
 
-          {/* Slim status hints — quick at-a-glance summary of related blockers.
-              Only shown on the Focus idle screen (deliberately omitted from
-              other pages so they don't become noisy). */}
-          <View style={styles.slimHintsRow}>
+            {/* Row 1 — Always-On App List */}
             <TouchableOpacity
-              style={[styles.slimHint, { borderColor: theme.border, backgroundColor: theme.card }]}
-              onPress={() => setDailyAllowanceModalVisible(true)}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="time-outline" size={14} color={allowanceCount > 0 ? COLORS.orange : theme.muted} />
-              <Text style={[styles.slimHintText, { color: theme.muted }]}>
-                Daily Allowance · <Text style={{ color: theme.text, fontWeight: '700' }}>{allowanceCount}</Text>
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.slimHint, { borderColor: theme.border, backgroundColor: theme.card }]}
-              onPress={() => router.push('/block-defense?tab=greyout')}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="calendar-outline" size={14} color={scheduleCount > 0 ? COLORS.orange : theme.muted} />
-              <Text style={[styles.slimHintText, { color: theme.muted }]}>
-                Block Schedules · <Text style={{ color: theme.text, fontWeight: '700' }}>{scheduleCount}</Text>
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.slimHint, { borderColor: alwaysOnActive ? COLORS.orange + '66' : theme.border, backgroundColor: theme.card }]}
+              style={[styles.enforcementRow, !enforcementOn && { opacity: 0.45 }]}
               onPress={() => router.push('/always-on')}
               activeOpacity={0.7}
             >
-              <Ionicons name="infinite-outline" size={14} color={alwaysOnActive ? COLORS.orange : theme.muted} />
-              <Text style={[styles.slimHintText, { color: theme.muted }]}>
-                Always-On · <Text style={{ color: theme.text, fontWeight: '700' }}>{alwaysOnPkgs.length}</Text>
-              </Text>
+              <Ionicons name="infinite-outline" size={17} color={alwaysOnHasList ? COLORS.orange : theme.muted} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.enforcementRowLabel, { color: theme.text }]}>App List</Text>
+                <Text style={[styles.enforcementRowDesc, { color: theme.muted }]}>
+                  {alwaysOnHasList
+                    ? `${alwaysOnPkgs.length} app${alwaysOnPkgs.length !== 1 ? 's' : ''} blocked around the clock`
+                    : 'No apps — tap to add apps to block permanently'}
+                </Text>
+              </View>
+              {autoCopyOn && (
+                <View style={[styles.autoCopyBadge, { backgroundColor: COLORS.primary + '18', borderColor: COLORS.primary + '33' }]}>
+                  <Ionicons name="copy-outline" size={10} color={COLORS.primary} />
+                  <Text style={[styles.autoCopyText, { color: COLORS.primary }]}>auto-copy</Text>
+                </View>
+              )}
+              <Ionicons name="chevron-forward" size={15} color={theme.border} style={{ marginLeft: 4 }} />
             </TouchableOpacity>
+
+            <View style={[styles.enforcementDivider, { backgroundColor: theme.border }]} />
+
+            {/* Row 2 — Daily Allowance */}
             <TouchableOpacity
-              style={[styles.slimHint, { borderColor: keywordCount > 0 ? COLORS.primary + '55' : theme.border, backgroundColor: theme.card }]}
+              style={[styles.enforcementRow, !enforcementOn && { opacity: 0.45 }]}
+              onPress={() => setDailyAllowanceModalVisible(true)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="time-outline" size={17} color={allowanceCount > 0 ? COLORS.orange : theme.muted} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.enforcementRowLabel, { color: theme.text }]}>Daily Allowance</Text>
+                <Text style={[styles.enforcementRowDesc, { color: theme.muted }]}>
+                  {allowanceCount > 0
+                    ? `${allowanceCount} app${allowanceCount !== 1 ? 's' : ''} with a daily time budget`
+                    : 'No limits set — tap to cap per-app daily usage'}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={15} color={theme.border} />
+            </TouchableOpacity>
+
+            <View style={[styles.enforcementDivider, { backgroundColor: theme.border }]} />
+
+            {/* Row 3 — Block Schedules */}
+            <TouchableOpacity
+              style={[styles.enforcementRow, !enforcementOn && { opacity: 0.45 }]}
+              onPress={() => router.push('/block-defense?tab=greyout')}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="calendar-outline" size={17} color={scheduleCount > 0 ? COLORS.orange : theme.muted} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.enforcementRowLabel, { color: theme.text }]}>Block Schedules</Text>
+                <Text style={[styles.enforcementRowDesc, { color: theme.muted }]}>
+                  {scheduleCount > 0
+                    ? `${scheduleCount} active schedule${scheduleCount !== 1 ? 's' : ''} — recurring time windows`
+                    : 'No schedules — tap to block apps on a timetable'}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={15} color={theme.border} />
+            </TouchableOpacity>
+
+            <View style={[styles.enforcementDivider, { backgroundColor: theme.border }]} />
+
+            {/* Row 4 — Keyword Blocker */}
+            <TouchableOpacity
+              style={[styles.enforcementRow, !enforcementOn && { opacity: 0.45 }]}
               onPress={() => router.push('/keyword-blocker')}
               activeOpacity={0.7}
             >
-              <Ionicons name="text-outline" size={14} color={keywordCount > 0 ? COLORS.primary : theme.muted} />
-              <Text style={[styles.slimHintText, { color: theme.muted }]}>
-                Keywords · <Text style={{ color: theme.text, fontWeight: '700' }}>{keywordCount}</Text>
-              </Text>
+              <Ionicons name="text-outline" size={17} color={keywordCount > 0 ? COLORS.primary : theme.muted} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.enforcementRowLabel, { color: theme.text }]}>Keyword Blocker</Text>
+                <Text style={[styles.enforcementRowDesc, { color: theme.muted }]}>
+                  {keywordCount > 0
+                    ? `${keywordCount} keyword${keywordCount !== 1 ? 's' : ''} — home screen on match`
+                    : 'No keywords — tap to block by on-screen text'}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={15} color={theme.border} />
             </TouchableOpacity>
+
           </View>
 
           {/* Tips card — auto-fades after 7 days, can also be dismissed */}
@@ -1102,12 +1087,30 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.lg,
     width: '100%',
   },
-  keywordCard: {
+  enforcementPanel: {
     borderWidth: 1,
     borderRadius: RADIUS.lg,
-    padding: SPACING.md,
+    overflow: 'hidden',
   },
-  keywordRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm },
+  enforcementHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+  },
+  enforcementTitle: { fontSize: FONT.sm, fontWeight: '800' },
+  enforcementSubtitle: { fontSize: FONT.xs, marginTop: 1 },
+  enforcementDivider: { height: StyleSheet.hairlineWidth, marginHorizontal: SPACING.md },
+  enforcementRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm + 2,
+  },
+  enforcementRowLabel: { fontSize: FONT.sm, fontWeight: '700' },
+  enforcementRowDesc: { fontSize: FONT.xs, marginTop: 1 },
   alwaysOnCard: {
     width: '100%',
     borderRadius: RADIUS.lg,
