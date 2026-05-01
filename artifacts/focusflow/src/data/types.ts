@@ -145,6 +145,18 @@ export interface AppSettings {
    */
   alwaysOnEnforcementEnabled?: boolean;
   /**
+   * Dedicated always-on app block list — separate from `standaloneBlockPackages`.
+   * These apps are blocked 24/7 regardless of any session state. Never cleared
+   * automatically; user manages this list via the Always-On screen.
+   */
+  alwaysOnPackages?: string[];
+  /**
+   * When true, any packages added via standalone block are automatically
+   * mirrored into `alwaysOnPackages` so they stay blocked after the timed
+   * session expires. Default false.
+   */
+  autoCopyToAlwaysOn?: boolean;
+  /**
    * Highest streak milestone (in days) the user has already been congratulated
    * for. Used to detect new milestones (3, 7, 14, 30, 60, 90, 180, 365) and
    * trigger a one-time celebration modal on the next app open.
