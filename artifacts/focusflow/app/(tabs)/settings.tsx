@@ -125,7 +125,7 @@ function SettingsScreen() {
     if (backupBusy) return;
     setBackupBusy(true);
     try {
-      const result = await exportBackup(settings, 'c1.0.8');
+      const result = await exportBackup(settings, 'v1.0.0');
       if (!result.ok) {
         Alert.alert('Export failed', result.error ?? 'Could not create backup file.');
       }
@@ -642,7 +642,7 @@ function SettingsScreen() {
         </Section>
 
         <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: theme.muted }]}>FocusFlow c1.0.8</Text>
+          <Text style={[styles.footerText, { color: theme.muted }]}>FocusFlow v1.0.0</Text>
           <Text style={[styles.footerText, { color: theme.muted }]}>All data stored locally on device</Text>
         </View>
       </ScrollView>
