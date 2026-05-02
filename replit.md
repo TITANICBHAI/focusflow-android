@@ -17,6 +17,29 @@
 - **Persistent settings**: allowlist, auto-pin rules, export history, app mode all survive app restarts via PrefsStore + SharedPreferences.
 - **Notification navigation**: onNewIntent uses SharedFlow (not recreate) for smooth capture navigation.
 
+## FocusFlow-pc (Electron Desktop App)
+Located at `FocusFlow-pc/focusflow-pc/`. Electron 29 + React 18 + TypeScript + Tailwind CSS + better-sqlite3.
+
+### Screens implemented (all two-column PC layout)
+- TodayScreen, WeekScreen, FocusScreen (Pomodoro), StatsScreen, SettingsScreen, ProfileScreen, ReportsScreen, ActiveScreen, NotesScreen, OnboardingScreen
+- BlockDefenseScreen, KeywordBlockerScreen, AlwaysOnScreen, StandaloneBlockScreen, ImportBlocklistScreen
+- **OverlayAppearanceScreen**: color theme picker (Obsidian/Midnight/Forest/Ocean/Dusk), custom quote editor with live preview panel, show-site toggle, aversion sound toggle
+- **AllowedInFocusScreen**: manage `allowedInFocus[]` whitelist (domains exempted from blocking during focus sessions), preset groups (Work Essentials, Docs, Communication, Learning)
+- **DailyAllowanceScreen**: per-domain daily time budgets (Time Budget mode + Interval mode), manual visit timer with live circular gauges, today summary
+- **WeeklyReportScreen**: weekly score ring with letter grade, day-by-day bar chart, week navigation (‹/›), vs-prior-week comparison
+- **AchievementModal**: confetti animation for streak milestones [3,7,14,30,60,90,180,365], auto-fires on DB ready, persists `lastShownStreakMilestone`
+- StatsScreen: two-column PC layout (left: focus ring + productivity score + stat grid; right: task breakdown + heatmap + tag chart)
+- PinModal + PinSetupModal: SHA-256 session PIN for StandaloneBlockScreen guard
+
+### Page type (21 values)
+`'today' | 'week' | 'focus' | 'stats' | 'settings' | 'profile' | 'reports' | 'active' | 'notes' | 'block-defense' | 'keyword-blocker' | 'always-on' | 'changelog' | 'how-to-use' | 'privacy' | 'standalone-block' | 'import-blocklist' | 'daily-allowance' | 'weekly-report' | 'overlay-appearance' | 'allowed-in-focus'`
+
+### Navigation
+Sidebar "More" section lists all sub-pages. BLOCK_PAGES keeps Block Defense nav item highlighted when on any block sub-screen.
+
+### Push to GitHub
+`scripts/github-push-pc.mjs` pushes only `FocusFlow-pc/focusflow-pc/` to `https://github.com/TITANICBHAI/FocusFlow-pc`. Run via the "Push FocusFlow-pc to GitHub" workflow or `pnpm --filter @workspace/scripts run github:push-pc`.
+
 ## Recent Changes
 - **FocusFlow Multi-Feature Improvements (this session)**:
   - **T001 Phase 1 surgical fixes**: Standalone block list is no longer wiped when the timed window expires — `_syncStandaloneBlock` in `AppContext.tsx` now keeps `standaloneBlockPackages` and re-pushes them to the always-on enforcement layer; only `standaloneBlockUntil` is cleared. Default values for `systemGuardEnabled`, `blockYoutubeShortsEnabled`, `blockInstagramReelsEnabled`, `keepFocusActiveUntilTaskEnd` and the new toggles flipped to `false` in `database.ts`. Notification-bar power-menu loophole closed in `AppBlockerAccessibilityService.kt` by adding panel-guard + keyword-prune handling so the quick-settings shade can't be used to bypass the overlay. Renamed "Grey Out Schedule" → "Block Schedules" everywhere user-facing (modal title, side menu, settings, how-to-use copy). Disambiguated the standalone section in `settings.tsx` to "Standalone Block".

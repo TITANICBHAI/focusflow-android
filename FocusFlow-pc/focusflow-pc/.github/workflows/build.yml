@@ -1,0 +1,113 @@
+name: Build FocusFlow PC
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-windows:
+    name: Build Windows Installer (.exe)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Build Electron app
+        run: npm run build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package Windows NSIS installer
+        run: npm run package:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Upload Windows installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FocusFlow-Windows-${{ github.sha }}
+          path: |
+            dist/*.exe
+            dist/*-setup.exe
+          retention-days: 30
+          if-no-files-found: warn
+
+  release:
+    name: Create GitHub Release
+    runs-on: windows-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build-windows
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Build & Package for release
+        run: npm run package:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Get version from tag
+        id: version
+        shell: bash
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release with installer
+        uses: softprops/action-gh-release@v2
+        with:
+          name: FocusFlow ${{ steps.version.outputs.version }}
+          body: |
+            ## FocusFlow ${{ steps.version.outputs.version }}
+
+            ### Download
+            - **Windows**: Download the `.exe` installer below, run it, and follow setup.
+
+            ### What's included
+            - Task scheduler with priority, color, and focus mode
+            - SVG ring timer with pomodoro support
+            - Stats heatmap, streaks, and milestones
+            - System tray + global keyboard shortcuts
+            - SQLite local database (no cloud, no account)
+
+            ### Global Shortcuts
+            | Shortcut | Action |
+            |---|---|
+            | `Ctrl+Shift+Space` | Show / Hide window |
+            | `Ctrl+Shift+1` | Today |
+            | `Ctrl+Shift+2` | Focus |
+            | `Ctrl+Shift+3` | Stats |
+            | `Ctrl+Shift+4` | Settings |
+          files: |
+            dist/*.exe
+            dist/*.yml
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
