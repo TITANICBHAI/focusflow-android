@@ -1,76 +1,83 @@
-# Project Notes
+# Overview
+FocusFlow is a comprehensive productivity and focus enhancement suite designed to help users manage screen time, block distractions, and cultivate better digital habits. It includes a mobile application (FocusFlow) for Android, a desktop application (FocusFlow-pc) built with Electron, and a companion Android accessibility inspector tool (NodeSpy).
 
-## Artifacts
-- FocusFlow: Expo mobile app in `artifacts/focusflow`, preview path `/`.
-- FocusFlow Commercial Ad: video artifact in `artifacts/focusflow-ad`, preview path `/focusflow-ad/`.
-- Canvas mockup sandbox in `artifacts/mockup-sandbox`.
+The core purpose of FocusFlow is to provide robust blocking mechanisms (app blocking, keyword blocking, system protection), flexible scheduling (daily allowances, focus sessions), and insightful analytics to empower users to reclaim their focus. Key capabilities include:
+- **Distraction Blocking**: Enforces app, keyword, and system-level blocks.
+- **Focus Sessions**: Pomodoro-style timers and structured focus periods.
+- **Time Management**: Daily allowances and weekly reporting for app usage.
+- **Customization**: User-defined rules, overlay appearance, and aversion deterrents.
+- **Cross-Platform Support**: Mobile (Android) and Desktop (Windows/macOS/Linux) applications.
+- **Companion Tooling**: NodeSpy aids in creating custom blocking rules for Android apps.
 
-## Artifacts
-- NodeSpy: pure Kotlin/Jetpack Compose Android accessibility inspector in `artifacts/nodespy/`. No Expo/JS. Uses AccessibilityService to capture live node trees (class, text, bounds, flags) from any foreground app. Visual canvas tab for tap-to-select nodes, Tree tab for checkbox selection, exports NodeSpyCaptureV1 JSON (with normalized bounds) for future FocusFlow integration. Build workflow: `.github/workflows/build-nodespy.yml`.
+The business vision is to be the leading solution for digital well-being, offering a powerful yet user-friendly experience that significantly reduces digital distractions across devices, thereby improving user productivity and mental well-being.
 
-## NodeSpy — Current State
-- **Simple / Developer dual mode**: CaptureListScreen has a ScrollableTabRow at top (Simple | Developer). Mode persists via PrefsStore. Simple tab shows user-friendly snapshots list; Developer tab is unchanged technical interface.
-- **SimpleInspectorScreen**: Three tabs — Pick (screenshot canvas), Marked, Suggestions. Screenshot canvas shows the real captured screenshot as background; tapping highlights in green. Falls back to colored rectangles if no screenshot. Box-select supported in both modes.
-- **Smart app suggestions**: AppSuggestions.kt maps 8 popular apps (YouTube, Instagram, TikTok, Facebook, X, Reddit, Snapchat, LinkedIn) to common things people block, with keyword auto-matching.
-- **"Copy rules" flow**: Copies NodeSpyCaptureV1 JSON to clipboard + shows step-by-step FocusFlow import guide dialog.
-- **FloatingBubble first-launch tip**: One-time Toast on first bubble launch.
-- **Persistent settings**: allowlist, auto-pin rules, export history, app mode all survive app restarts via PrefsStore + SharedPreferences.
-- **Notification navigation**: onNewIntent uses SharedFlow (not recreate) for smooth capture navigation.
+# User Preferences
+I prefer iterative development with clear communication at each stage. Please ask before making major architectural changes or introducing new external dependencies. I appreciate detailed explanations for complex technical decisions.
+
+# System Architecture
+
+## Core Principles
+- **Robust Blocking Enforcement**: Utilizes Android Accessibility Services for persistent app and system-level blocking, along with network-level blocking for FocusFlow-pc.
+- **User-Centric Design**: Prioritizes clear UI/UX for managing complex blocking rules and schedules.
+- **Data-Driven Insights**: Provides analytics and reports to help users understand and improve their digital habits.
+- **Extensibility**: Designed to integrate with companion tools like NodeSpy for advanced customization.
+
+## FocusFlow (Android Mobile App)
+- **Technology Stack**: Expo (React Native) for the main application, pure Kotlin/Jetpack Compose for NodeSpy and core Android Accessibility Services.
+- **Blocking Mechanisms**:
+    - `AppBlockerAccessibilityService.kt`: Core service for app, keyword, and system protection.
+    - `NetworkBlockModule.ts`/`.kt`: Manages network-level blocking.
+    - `PackageInstallReceiver`: Automatically blocks newly installed apps during a session.
+- **Rule Management**:
+    - **Custom Node Rules**: Integrates with NodeSpy for creating and enforcing highly specific UI element blocking rules within any Android app.
+    - **Keyword Blocker**: Blocks predefined or user-defined keywords within apps.
+    - **Daily Allowance**: Per-app time budgets with count, time, and interval modes.
+- **Security & Resilience**:
+    - `SessionPinModule`: SHA-256 PIN protection for critical actions (stopping service, network block).
+    - `FLAG_SECURE`: Prevents screenshots of sensitive screens.
+    - `TRUSTED_FOCUSFLOW_CLASSES`: Whitelist to prevent self-blocking.
+    - Clock tamper defense using `BootReceiver`.
+    - Hardened onboarding to prevent crashes from optional native module failures.
+- **User Interface**: Features a slide-in side menu for navigation, a dedicated "Active" dashboard for live session monitoring, and a "Block Enforcement" screen. Dark mode is the default.
+- **Data Persistence**: Uses `SharedPreferences` for various settings and blocking states.
+- **Backup/Restore**: Employs `ACTION_CREATE_DOCUMENT` for reliable file saving and uses a `.focusflow` extension for backups with richer metadata.
 
 ## FocusFlow-pc (Electron Desktop App)
-Located at `FocusFlow-pc/focusflow-pc/`. Electron 29 + React 18 + TypeScript + Tailwind CSS + better-sqlite3.
+- **Technology Stack**: Electron 29, React 18, TypeScript, Tailwind CSS, `better-sqlite3`.
+- **UI/UX**: All screens feature a two-column PC layout.
+- **Key Screens**: Today, Week, Focus (Pomodoro), Stats, Settings, Profile, Reports, Active, Notes, Onboarding, Block Defense, Keyword Blocker, Always-On, Standalone Block, Import Blocklist, Overlay Appearance, Allowed In Focus, Daily Allowance, Weekly Report.
+- **Design Elements**:
+    - **Overlay Appearance**: Customizable color themes (Obsidian, Midnight, Forest, Ocean, Dusk), custom quote editor, show-site toggle, aversion sound toggle.
+    - **Achievements**: Confetti animation for streak milestones.
+    - **Stats Screen**: Focus ring, productivity score, task breakdown, heatmap, tag chart.
+- **Navigation**: Sidebar with "More" section for sub-pages.
+- **Push to GitHub**: Automated script (`scripts/github-push-pc.mjs`) for syncing the desktop app codebase to a dedicated GitHub repository.
 
-### Screens implemented (all two-column PC layout)
-- TodayScreen, WeekScreen, FocusScreen (Pomodoro), StatsScreen, SettingsScreen, ProfileScreen, ReportsScreen, ActiveScreen, NotesScreen, OnboardingScreen
-- BlockDefenseScreen, KeywordBlockerScreen, AlwaysOnScreen, StandaloneBlockScreen, ImportBlocklistScreen
-- **OverlayAppearanceScreen**: color theme picker (Obsidian/Midnight/Forest/Ocean/Dusk), custom quote editor with live preview panel, show-site toggle, aversion sound toggle
-- **AllowedInFocusScreen**: manage `allowedInFocus[]` whitelist (domains exempted from blocking during focus sessions), preset groups (Work Essentials, Docs, Communication, Learning)
-- **DailyAllowanceScreen**: per-domain daily time budgets (Time Budget mode + Interval mode), manual visit timer with live circular gauges, today summary
-- **WeeklyReportScreen**: weekly score ring with letter grade, day-by-day bar chart, week navigation (‹/›), vs-prior-week comparison
-- **AchievementModal**: confetti animation for streak milestones [3,7,14,30,60,90,180,365], auto-fires on DB ready, persists `lastShownStreakMilestone`
-- StatsScreen: two-column PC layout (left: focus ring + productivity score + stat grid; right: task breakdown + heatmap + tag chart)
-- PinModal + PinSetupModal: SHA-256 session PIN for StandaloneBlockScreen guard
+## NodeSpy (Android Accessibility Inspector)
+- **Technology Stack**: Pure Kotlin, Jetpack Compose.
+- **Functionality**:
+    - Captures live node trees (class, text, bounds, flags) from any foreground app.
+    - **Inspector Screens**: "Pick" (screenshot canvas for tap-to-select), "Marked" (selected nodes), "Suggestions".
+    - **Rule Generation**: Scores pinned nodes, recommends selectors (resource-id, label), compares stability across captures, warns about weak rules, exports `ruleQuality`, `selectorRecommendations`, and `recommendedRules`.
+    - **REGION Drag-Select**: Allows bulk-pinning of intersecting nodes on the visual canvas.
+- **Integration with FocusFlow**: Exports `NodeSpyCaptureV1` JSON, which FocusFlow imports to create custom node blocking rules.
 
-### Page type (21 values)
-`'today' | 'week' | 'focus' | 'stats' | 'settings' | 'profile' | 'reports' | 'active' | 'notes' | 'block-defense' | 'keyword-blocker' | 'always-on' | 'changelog' | 'how-to-use' | 'privacy' | 'standalone-block' | 'import-blocklist' | 'daily-allowance' | 'weekly-report' | 'overlay-appearance' | 'allowed-in-focus'`
+## Data & Analytics
+- **Task Management**: Tracks tasks, their completion, and duration.
+- **Streaks**: Calculates daily completion streaks using `daily_completions` derived from task history.
+- **Logging**: `startupLogger.ts` provides a timestamped log queue for diagnostics, accessible via `DiagnosticsModal`.
+- **Reporting**: Weekly score rings, day-by-day charts, and week-over-week comparisons.
 
-### Navigation
-Sidebar "More" section lists all sub-pages. BLOCK_PAGES keeps Block Defense nav item highlighted when on any block sub-screen.
-
-### Push to GitHub
-`scripts/github-push-pc.mjs` pushes only `FocusFlow-pc/focusflow-pc/` to `https://github.com/TITANICBHAI/FocusFlow-pc`. Run via the "Push FocusFlow-pc to GitHub" workflow or `pnpm --filter @workspace/scripts run github:push-pc`.
-
-## Recent Changes
-- **FocusFlow Multi-Feature Improvements (this session)**:
-  - **T001 Phase 1 surgical fixes**: Standalone block list is no longer wiped when the timed window expires — `_syncStandaloneBlock` in `AppContext.tsx` now keeps `standaloneBlockPackages` and re-pushes them to the always-on enforcement layer; only `standaloneBlockUntil` is cleared. Default values for `systemGuardEnabled`, `blockYoutubeShortsEnabled`, `blockInstagramReelsEnabled`, `keepFocusActiveUntilTaskEnd` and the new toggles flipped to `false` in `database.ts`. Notification-bar power-menu loophole closed in `AppBlockerAccessibilityService.kt` by adding panel-guard + keyword-prune handling so the quick-settings shade can't be used to bypass the overlay. Renamed "Grey Out Schedule" → "Block Schedules" everywhere user-facing (modal title, side menu, settings, how-to-use copy). Disambiguated the standalone section in `settings.tsx` to "Standalone Block".
-  - **T002 Phase 2 Active page + UI restructure**: New `app/active.tsx` live dashboard (focus session, timed standalone, always-on, active windows, enforcement layers, allowance, today stats, quick actions). Side menu (`SideMenu.tsx`) gains an "Active" entry above Block Controls and a "Terms" footer link pointing to the existing `/terms-of-service` route. The "What's blocking right now" panel was removed from `block-defense.tsx` and replaced with a small inline hint banner pointing to `/active`. Focus-tab idle state now shows an "Always-on block list" card with Edit-list / Clear-list buttons (`handleClearAlwaysOn`), an "Active page" link button, and a rotating `TipsCard` (5 tips, day-rotated, dismissable, auto-fades after 7 days via `tipsCardFirstShownAt`).
-  - **T003 Phase 3 streak / analytics data fixes**: New `dbBackfillDayCompletions(daysBack)` in `database.ts` derives the `daily_completions` rows from the actual `tasks` history so the streak banner is correct even if the user never opened the Stats screen on a given day. Both `dbRecordDayCompletion` and the new backfill use a local-time `YYYY-MM-DD` (`localDateString` helper) so the streak math no longer breaks across UTC midnight. AppContext init fires `dbBackfillDayCompletions(30)` after `SET_DB_READY`, and `completeTask` records today's completion immediately so the streak survives without ever opening Stats. Stats filter pills made sticky-feeling and high-contrast (full primary background when active, primary tint border + label when inactive, larger label).
-  - **Settings / type additions**: `beginnerMode`, `tipsCardDismissed`, `tipsCardFirstShownAt`, `pendingPresets` (and `PendingPresets` interface) added to `types.ts` + defaulted in `database.ts`. Beginner mode hides advanced surfaces (Custom Node Rules, Recurring Schedules, Aversion Deterrents, Custom Wallpaper) and is on by default for new installs.
-- **Import from another blocker (Stay Focused refugees)**: `ImportFromOtherAppModal` (used in both `app/(tabs)/settings.tsx` and `app/onboarding.tsx`) now offers two parallel paths — "Browse & Import file" (existing JSON/CSV/text auto-detect for AppBlock, StayFree, ActionDash, Digital Wellbeing, Lock Me Out exports) AND a new "Type or paste app names" path (for blockers like Stay Focused that have no public export — user types display names like "Instagram\nTikTok", we fuzzy-match them against the installed-app list with `matchNamesToInstalledApps()` using normalised exact→prefix→substring matching). SOURCES list reordered with Stay Focused first, each tagged with a method badge (File / Type names / File or names). New `src/services/blockListImport.ts` exports `mergeIntoStandaloneBlockList(packages, settings, setStandaloneBlockAndAllowance)` so settings.tsx and onboarding.tsx share identical merge semantics (preserves active timed standalone-block session, dedupes against existing list, returns `{added, duplicates, merged}`). Onboarding screen has a prominent primary-coloured "Switching from another blocker?" banner above the permissions list — taps open the same modal so first-run users can rebuild their block list before granting any permissions.
-- **Block Enforcement runs continuously when toggled on**: `AppBlockerAccessibilityService.kt` no longer wraps System Protection (`systemGuardEnabled`), `blockInstallActions`, `blockYoutubeShorts`, `blockInstagramReels`, or the Keyword Blocker behind `(focusActive || saActive)`. Each enforcement layer now runs whenever its own toggle is on, even with no active focus session or standalone block. The UI lock in `app/block-defense.tsx` is unchanged: while a block IS active and a toggle is currently on, the toggle stays locked on so it can't be disabled mid-session; when no block is active, all toggles remain freely editable. Description copy in the Block Enforcement screen now says "runs all the time when on" and the intro banner explains the always-on behavior. Aversion Deterrents already fired transitively via `handleBlockedApp()` and now naturally extend to these always-on layers too.
-- **Naming clarity for protected apps**: changelog c1.0.8 wording changed from "always-allowed list" to "warning-only list" — the warning-only list shows a confirmation dialog but the user can still proceed; the hard-locked never-block list (launcher, dialer, WhatsApp, Truecaller, education essentials) cannot be blocked at all and isn't shown in the picker. App picker footer hint rewritten to make the distinction explicit.
-
-- **Backup export fix**: `NativeFilePickerModule.kt` now has a `saveFile(content, fileName, mimeType)` ReactMethod that opens Android's `ACTION_CREATE_DOCUMENT` dialog — the user picks a destination (Downloads, Drive, Files) and the Kotlin side writes the content directly to that content URI. `backupService.ts` now calls this instead of the broken `Share.share({ url: 'file://...' })` approach (which never worked on Android because `file://` private-app URIs are blocked by FileProvider restrictions). `NativeFilePickerModule.ts` exposes the new `saveFile()` wrapper.
-- **Always-on block enforcement**: Standalone blocked packages and daily allowance are now enforced at ALL times, not just during an active timed session. Added `PREF_ALWAYS_BLOCK = "always_block_active"` and `PREF_ALWAYS_BLOCK_PKGS = "always_block_packages"` to `AppBlockerAccessibilityService.kt`. The early-return gate (was `if (!focusActive && !saActive) return`) now includes `!alwaysBlockActive`. `isPackageBlocked()` and `scheduleRetryCheck()` updated to accept and use `alwaysBlockActive`. `postHomeScreenReminder()` also updated. `SharedPrefsModule.kt` + `.ts` gain `setAlwaysBlockActive(active, packages)`. `AppContext.tsx` adds `_syncAlwaysBlock()` called from init + `updateSettings` + `setStandaloneBlock` + `setStandaloneBlockAndAllowance` + `setDailyAllowanceEntries`. The UI lock ("settings locked when session active") is unchanged — only `focusActive || saActive` triggers the lock.
-- **Side Menu + Block Enforcement Screen**: Added a slide-in side menu (swipe right from left edge or tap the `›` tab above the bottom nav bar). Menu has profile header, Block Controls (Standalone Block, Task Focus, Daily Allowance), Block Enforcement section (Keyword Blocker, System Protection, Aversion Deterrents, Greyout Schedule linking to `/block-defense`), Reports, and footer links (Privacy Policy, How to Use). New `/block-defense` screen groups the 4 enforcement layers with a "Block Enforcement" title and descriptive subtitle. New `/how-to-use` in-app guide is an expandable accordion covering all major features.
-- **Side Menu Guide Tip**: One-time animated tooltip shown 1.8s after first post-onboarding app open, pointing at the `›` toggle and reading "Swipe right or tap › to open the quick menu". Dismissed on tap or after 5s. Tracked with AsyncStorage key `@focusflow/sideMenuTipSeen`.
-- **Export format `.focusflow`**: Backup files now use `.focusflow` extension and are shared as a file URI (not raw text), so Android shows Drive / Files / email in the chooser instead of clipboard apps. Import now uses `*/*` MIME type so `.focusflow` files are visible in the file picker. Envelope now includes `exportedAtHuman`, `platform`, and `summary` fields for richer metadata.
-- **Block Overlay Wallpaper Fix**: `resolveSystemWallpaper()` helper in `BlockOverlayActivity.kt` now tries `peekDrawable()` before `drawable`, each in isolated try/catch blocks, so a SecurityException from one doesn't prevent the other. On Android 13+ where `READ_WALLPAPER_INTERNAL` is required (system-only permission), the branded navy→indigo gradient fallback is used. `READ_EXTERNAL_STORAGE` added to `manifest_additions.xml` for legacy API ≤ 32 support.
-
-
-- **FocusFlow Task UX Overhaul (Task #2 phase 1)**: Tasks no longer silently disappear when their timer hits zero. New `getCurrentTask` / `isAwaitingDecision` helpers return tasks past their end time so the UI can prompt "Time's up — what next?" with Done / Extend / Skip on the Focus tab and an orange banner on the Schedule tab. `TASK_ENDED` no longer auto-stops focus — focus stays on until the user explicitly resolves the task. `getAllActiveTasks` + a "+N more active" chip surface overlapping tasks. Dark mode now defaults to true. Quick-Add modal gained a separate date picker (Today / Tomorrow / future-day) alongside the time picker. Quick-block presets are now additive: tapping a preset unions its packages with whatever is already blocked and extends time from `max(now, currentUntil)` instead of replacing the block. Native InstalledAppsModule already filters out non-launcher apps (apps without a launcher icon are excluded), so system-app filtering is handled correctly at the source.
-- **FocusFlow Splash Fix + Logging System**: Added `src/services/startupLogger.ts` — timestamped INFO/WARN/ERROR log queue backed by AsyncStorage (cap 500 entries). Every init step in AppContext is now wrapped in individual try/catch with log entries; `SET_DB_READY` + `SET_LOADING: false` always dispatch from the `finally` block so the splash never gets stuck. `database.ts` now retries once on open/schema failure with a 300ms delay and never throws from common read operations. All native module calls (ForegroundServiceModule, SharedPrefsModule, AversionsModule, GreyoutModule) are isolated in individual try/catch blocks. Added `src/components/DiagnosticsModal.tsx` accessible from Settings → Diagnostics, showing the last 100 log entries colour-coded by severity with share/clear buttons. `ErrorBoundary.tsx` now logs errors to startupLogger; `ErrorFallback.tsx` has a "Share Logs" button. All 4 tab screens are wrapped in per-screen ErrorBoundary via `withScreenErrorBoundary` HOC.
-
-- NodeSpy 1.2.0 turns pinned captures into rule-making exports: it scores pinned nodes, recommends resource-id/label selectors, compares recent captures for stability, warns about weak class/bounds-only rules, adds a Guide tab in the inspector, and exports `ruleQuality`, `selectorRecommendations`, and high-confidence `recommendedRules`. FocusFlow imports the recommended rules when present and preserves confidence/tier/stability metadata.
-- Updated the NodeSpy APK GitHub Actions workflow so manual runs still upload Actions artifacts and also create a prerelease with direct `.apk` download files (`nodespy-debug.apk` and signed `nodespy-release.apk` when keystore secrets are available).
-- **Custom Node Rules** (FocusFlow + NodeSpy integration): NodeSpy now supports REGION drag-select mode — draw a rectangle on the visual canvas to bulk-pin all intersecting nodes. FocusFlow gains a full Custom Node Rules system: `CustomNodeRule` type in types.ts, default in database.ts + AppContext, `setCustomNodeRules` in both SharedPrefsModule.ts and SharedPrefsModule.kt, `PREF_CUSTOM_NODE_RULES` constant + `checkCustomNodeRules` / `findNodeMatchForCustomRule` methods in AccessibilityService (applied to ALL foreground apps before the browser-only blocked-words check), and `CustomNodeRulesModal.tsx` (Rules list + Import from NodeSpy tabs wired into settings.tsx System Protection section).
-
-
-- FocusFlow security hardening pass: added PackageInstallReceiver (auto-blocks newly installed apps mid-session + AversiveActionsManager vibration deterrent), SessionPinModule (SHA-256 PIN gates on stopService / stopNetworkBlock / setFocusActive(false)), FLAG_SECURE on BlockOverlayActivity (prevents screenshot / recents thumbnail), TRUSTED_FOCUSFLOW_CLASSES allowlist (closes self-package loophole where FocusFlow's own activity could close the overlay), isRecentsScreen() detection (sends HOME when Android overview appears during a session), clock-tamper defense in BootReceiver (dual primary+secondary validity check using task_duration_ms + task_last_written_ms), IME detection in InstalledAppsModule (isIme field on each app), and postHomeScreenReminder() in AccessibilityService (high-priority peek notification shown after overlay dismiss). All native-module TypeScript wrappers updated with PIN-aware signatures; new SessionPinModule.ts and NetworkBlockModule.ts wrappers created.
-- FocusFlow c1.0.4 narrows SystemUI protection to accessibility class/text matching only, adds native clock/alarm packages to the never-blocked list, removes the broad SystemUI window-event fallback that could interrupt Samsung alarms while the screen is off, and separates blocked keyword enforcement from the System Protection toggle.
-- Fixed the GitHub sync script to mirror the workspace instead of only adding/updating files, preventing stale deleted files on GitHub from breaking APK builds; preserved GitHub Actions workflow files locally under `.github/workflows` and included `pnpm-lock.yaml` for frozen CI installs.
-- Updated the debug APK workflow to upload all debug APK outputs with a wildcard, because ABI splits produce filenames other than `app-debug.apk`.
-- Added a manual "Push to GitHub" workflow backed by `scripts/github-push.mjs`, using the `GITHUB_PERSONAL_ACCESS_TOKEN` secret to sync the workspace to `https://github.com/TITANICBHAI/FocusFlow`.
-- FocusFlow c1.0.3 adds the requested never-blocked packages and a System Protection settings toggle that stays locked on during active Focus Mode or standalone app blocks.
-- Hardened FocusFlow onboarding and settings sync paths so optional Android native modules or Samsung battery settings failures do not crash first-run onboarding.
-- Daily allowance supports three per-app modes: count, time budget, and interval, enforced by the Android accessibility service through SharedPreferences config.
+# External Dependencies
+- **Expo**: For React Native mobile app development.
+- **React Native**: Core framework for the mobile application.
+- **Kotlin/Jetpack Compose**: For native Android Accessibility Services and the NodeSpy application.
+- **Electron**: For the desktop application framework.
+- **React**: For UI development in the desktop application.
+- **TypeScript**: For type-safe development across both mobile and desktop applications.
+- **Tailwind CSS**: For styling the desktop application.
+- **better-sqlite3**: For local database management in the Electron desktop application.
+- **AsyncStorage**: For persistent key-value storage in the mobile app (e.g., tip states, logs).
+- **GitHub Actions**: For CI/CD, particularly for NodeSpy APK builds and `FocusFlow-pc` repository syncing.
+- **Android System APIs**: `AccessibilityService`, `SharedPreferences`, `ACTION_CREATE_DOCUMENT`, `PackageInstallReceiver`, `BootReceiver`.
+- **Third-Party Blocker Imports**: Supports importing blocklists from apps like AppBlock, StayFree, ActionDash, Digital Wellbeing, Lock Me Out, and Stay Focused.
