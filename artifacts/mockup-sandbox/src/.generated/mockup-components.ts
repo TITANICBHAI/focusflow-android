@@ -6,5 +6,9 @@ export const modules: ModuleMap = {
   "./components/mockups/Screenshot2Focus.tsx": () => import("../components/mockups/Screenshot2Focus.tsx"),
   "./components/mockups/Screenshot3Blocked.tsx": () => import("../components/mockups/Screenshot3Blocked.tsx"),
   "./components/mockups/Screenshot4Stats.tsx": () => import("../components/mockups/Screenshot4Stats.tsx"),
-  "./components/mockups/Screenshot5Permissions.tsx": () => import("../components/mockups/Screenshot5Permissions.tsx")
+  "./components/mockups/Screenshot5Permissions.tsx": () => import("../components/mockups/Screenshot5Permissions.tsx"),
+  "./components/mockups/tbtechs-brand/BrandGuidelines.tsx": () => import("../components/mockups/tbtechs-brand/BrandGuidelines.tsx"),
+  "./components/mockups/tbtechs-brand/BrandInAction.tsx": () => import("../components/mockups/tbtechs-brand/BrandInAction.tsx"),
+  "./components/mockups/tbtechs-brand/ColorsTypography.tsx": () => import("../components/mockups/tbtechs-brand/ColorsTypography.tsx"),
+  "./components/mockups/tbtechs-brand/LogoConcepts.tsx": () => import("../components/mockups/tbtechs-brand/LogoConcepts.tsx")
 };

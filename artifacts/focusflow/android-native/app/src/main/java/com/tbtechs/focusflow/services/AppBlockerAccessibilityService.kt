@@ -607,8 +607,65 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 }
 
                 val isSystemUiPkg = pkg == "com.android.systemui" ||
+                    // Samsung / Samsung DeX
                     pkg == "com.sec.android.app.systemui" ||
-                    pkg == "com.samsung.android.systemui"
+                    pkg == "com.samsung.android.systemui" ||
+                    pkg == "com.samsung.desktopsystemui" ||
+                    // Xiaomi / MIUI / HyperOS
+                    pkg == "com.miui.systemui" ||
+                    pkg == "com.xiaomi.systemui" ||
+                    pkg == "miui.systemui.plugin" ||
+                    // OnePlus / OxygenOS / OPlusOS
+                    pkg == "com.oneplus.systemui" ||
+                    pkg == "com.oplusos.systemui" ||
+                    // Oppo / ColorOS
+                    pkg == "com.coloros.systemui" ||
+                    pkg == "com.oppo.systemui" ||
+                    // Realme UI
+                    pkg == "com.realme.systemui" ||
+                    // Huawei / EMUI / HarmonyOS / desktop
+                    pkg == "com.huawei.systemui" ||
+                    pkg == "com.android.systemui.huawei" ||
+                    pkg == "com.huawei.desktop.systemui" ||
+                    // Honor (Huawei spin-off)
+                    pkg == "com.hihonor.systemui" ||
+                    // Vivo / Funtouch / OriginOS / BBK
+                    pkg == "com.vivo.systemui" ||
+                    pkg == "com.bbk.systemui" ||
+                    // Motorola
+                    pkg == "com.motorola.android.systemui" ||
+                    // Asus / ZenUI / ROG Phone
+                    pkg == "com.asus.systemui" ||
+                    // Nothing OS
+                    pkg == "com.nothing.systemui" ||
+                    pkg == "com.nothing.systemuitool" ||
+                    // Nokia / HMD Global
+                    pkg == "com.hmdglobal.systemui" ||
+                    pkg == "com.nokia.systemui" ||
+                    // Sony Xperia
+                    pkg == "com.sonyericsson.systemui" ||
+                    pkg == "com.sony.systemui" ||
+                    pkg == "com.sonymobile.systemui" ||
+                    // Meizu / Flyme OS
+                    pkg == "com.flyme.systemui" ||
+                    pkg == "com.flyme.systemuiex" ||
+                    pkg == "com.meizu.systemui" ||
+                    // LG (LG Electronics)
+                    pkg == "com.lge.systemui" ||
+                    // Lenovo / ZUI
+                    pkg == "com.lenovo.systemui" ||
+                    pkg == "com.zui.systemui" ||
+                    // HTC / Sense UI
+                    pkg == "com.htc.systemui" ||
+                    pkg == "com.htc.htcsense" ||
+                    // TCL / Alcatel (TCL Technology)
+                    pkg == "com.tcl.systemui" ||
+                    // ZTE / MiFavor UI
+                    pkg == "com.zte.systemui" ||
+                    // Wiko
+                    pkg == "com.wiko.systemui" ||
+                    // Black Shark (Xiaomi gaming)
+                    pkg == "com.blackshark.systemui"
                 if (isSystemUiPkg) {
                     // FIX: notification shade events from SystemUI were being
                     // misclassified as power-menu when notification text happened
@@ -1410,7 +1467,43 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
         val isSystemUiPkg = pkg == "com.android.systemui" ||
             pkg == "com.sec.android.app.systemui" ||
-            pkg == "com.samsung.android.systemui"
+            pkg == "com.samsung.android.systemui" ||
+            pkg == "com.samsung.desktopsystemui" ||
+            pkg == "com.miui.systemui" ||
+            pkg == "com.xiaomi.systemui" ||
+            pkg == "miui.systemui.plugin" ||
+            pkg == "com.oneplus.systemui" ||
+            pkg == "com.oplusos.systemui" ||
+            pkg == "com.coloros.systemui" ||
+            pkg == "com.oppo.systemui" ||
+            pkg == "com.realme.systemui" ||
+            pkg == "com.huawei.systemui" ||
+            pkg == "com.android.systemui.huawei" ||
+            pkg == "com.huawei.desktop.systemui" ||
+            pkg == "com.hihonor.systemui" ||
+            pkg == "com.vivo.systemui" ||
+            pkg == "com.bbk.systemui" ||
+            pkg == "com.motorola.android.systemui" ||
+            pkg == "com.asus.systemui" ||
+            pkg == "com.nothing.systemui" ||
+            pkg == "com.nothing.systemuitool" ||
+            pkg == "com.hmdglobal.systemui" ||
+            pkg == "com.nokia.systemui" ||
+            pkg == "com.sonyericsson.systemui" ||
+            pkg == "com.sony.systemui" ||
+            pkg == "com.sonymobile.systemui" ||
+            pkg == "com.flyme.systemui" ||
+            pkg == "com.flyme.systemuiex" ||
+            pkg == "com.meizu.systemui" ||
+            pkg == "com.lge.systemui" ||
+            pkg == "com.lenovo.systemui" ||
+            pkg == "com.zui.systemui" ||
+            pkg == "com.htc.systemui" ||
+            pkg == "com.htc.htcsense" ||
+            pkg == "com.tcl.systemui" ||
+            pkg == "com.zte.systemui" ||
+            pkg == "com.wiko.systemui" ||
+            pkg == "com.blackshark.systemui"
 
         val isLauncherPkg = pkg == "com.android.launcher3" ||
             pkg == "com.google.android.apps.nexuslauncher" ||
@@ -2263,18 +2356,73 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     private fun schedulePowerMenuRetry(attempt: Int) {
         if (attempt > 3) return
         handler.postDelayed({
-            val focusActive  = prefs.getBoolean(PREF_FOCUS_ON, false)
-            val saActive     = prefs.getBoolean(PREF_SA_ACTIVE, false)
-            val sysGuard     = prefs.getBoolean(PREF_SYSTEM_GUARD_ENABLED, true)
-            if ((!focusActive && !saActive) || !sysGuard) return@postDelayed
+            val sysGuard = prefs.getBoolean(PREF_SYSTEM_GUARD_ENABLED, true)
+            if (!sysGuard) return@postDelayed
 
             // Only retry for true system-level power packages, not the launcher
             val lp = lastSeenPkg ?: return@postDelayed
             val isPowerSystemPkg =
-                lp == "com.samsung.android.app.powerkey" ||
                 lp == "com.android.systemui" ||
+                // Samsung / Samsung DeX
+                lp == "com.samsung.android.app.powerkey" ||
                 lp == "com.sec.android.app.systemui" ||
-                lp == "com.samsung.android.systemui"
+                lp == "com.samsung.android.systemui" ||
+                lp == "com.samsung.desktopsystemui" ||
+                // Xiaomi / MIUI / HyperOS
+                lp == "com.miui.systemui" ||
+                lp == "com.xiaomi.systemui" ||
+                lp == "miui.systemui.plugin" ||
+                // OnePlus / OxygenOS / OPlusOS
+                lp == "com.oneplus.systemui" ||
+                lp == "com.oplusos.systemui" ||
+                // Oppo / ColorOS
+                lp == "com.coloros.systemui" ||
+                lp == "com.oppo.systemui" ||
+                // Realme UI
+                lp == "com.realme.systemui" ||
+                // Huawei / EMUI / HarmonyOS
+                lp == "com.huawei.systemui" ||
+                lp == "com.android.systemui.huawei" ||
+                lp == "com.huawei.desktop.systemui" ||
+                // Honor (Huawei spin-off)
+                lp == "com.hihonor.systemui" ||
+                // Vivo / Funtouch / OriginOS / BBK
+                lp == "com.vivo.systemui" ||
+                lp == "com.bbk.systemui" ||
+                // Motorola
+                lp == "com.motorola.android.systemui" ||
+                // Asus / ZenUI / ROG Phone
+                lp == "com.asus.systemui" ||
+                // Nothing OS
+                lp == "com.nothing.systemui" ||
+                lp == "com.nothing.systemuitool" ||
+                // Nokia / HMD Global
+                lp == "com.hmdglobal.systemui" ||
+                lp == "com.nokia.systemui" ||
+                // Sony Xperia
+                lp == "com.sonyericsson.systemui" ||
+                lp == "com.sony.systemui" ||
+                lp == "com.sonymobile.systemui" ||
+                // Meizu / Flyme OS
+                lp == "com.flyme.systemui" ||
+                lp == "com.flyme.systemuiex" ||
+                lp == "com.meizu.systemui" ||
+                // LG (LG Electronics)
+                lp == "com.lge.systemui" ||
+                // Lenovo / ZUI
+                lp == "com.lenovo.systemui" ||
+                lp == "com.zui.systemui" ||
+                // HTC / Sense UI
+                lp == "com.htc.systemui" ||
+                lp == "com.htc.htcsense" ||
+                // TCL / Alcatel
+                lp == "com.tcl.systemui" ||
+                // ZTE / MiFavor UI
+                lp == "com.zte.systemui" ||
+                // Wiko
+                lp == "com.wiko.systemui" ||
+                // Black Shark (Xiaomi gaming)
+                lp == "com.blackshark.systemui"
 
             if (isPowerSystemPkg) {
                 closeSystemDialogsBroadcast()
@@ -2575,17 +2723,119 @@ class AppBlockerAccessibilityService : AccessibilityService() {
      */
     private fun isInstallActionContext(event: AccessibilityEvent, pkg: String): Boolean {
         val installerPkgs = setOf(
-            "com.android.vending",                       // Google Play Store
-            "com.android.packageinstaller",              // AOSP package installer
-            "com.google.android.packageinstaller",       // Google package installer
-            "com.samsung.android.packageinstaller",      // Samsung package installer
-            "com.miui.packageinstaller",                 // MIUI package installer
-            "com.coloros.packageinstaller",              // OPPO / ColorOS
-            "com.oppo.packageinstaller",                 // OPPO legacy
-            "com.huawei.packageinstaller",               // Huawei
-            "com.android.settings",                      // OEM "App info" → Uninstall flows
+            // ── Google / AOSP ────────────────────────────────────────────
+            "com.android.vending",                        // Google Play Store
+            "com.android.packageinstaller",               // AOSP installer
+            "com.google.android.packageinstaller",        // Google installer (GMS)
+            // ── Samsung ──────────────────────────────────────────────────
+            "com.samsung.android.packageinstaller",
+            "com.sec.android.packageinstaller",           // Samsung legacy
+            // ── Xiaomi / MIUI / HyperOS ──────────────────────────────────
+            "com.miui.packageinstaller",
+            "com.miui.global.packageinstaller",           // MIUI global variant
+            "com.xiaomi.packageinstaller",
+            // ── Oppo / ColorOS ───────────────────────────────────────────
+            "com.coloros.packageinstaller",
+            "com.oppo.packageinstaller",
+            // ── Realme UI ────────────────────────────────────────────────
+            "com.realme.packageinstaller",
+            // ── Huawei / EMUI / HarmonyOS ────────────────────────────────
+            "com.huawei.packageinstaller",
+            // ── Honor (Huawei spin-off) ───────────────────────────────────
+            "com.hihonor.packageinstaller",
+            // ── Vivo / Funtouch / OriginOS / BBK ─────────────────────────
+            "com.vivo.packageinstaller",
+            "com.bbk.packageinstaller",
+            // ── OnePlus / OxygenOS / OPlusOS ─────────────────────────────
+            "com.oneplus.packageinstaller",
+            // ── Motorola ─────────────────────────────────────────────────
+            "com.motorola.packageinstaller",
+            // ── Asus / ZenUI / ROG Phone ─────────────────────────────────
+            "com.asus.packageinstaller",
+            "com.asus.ims.packageinstallerproxy",         // Asus proxy variant
+            // ── Nokia / HMD Global ───────────────────────────────────────
+            "com.hmdglobal.packageinstaller",
+            "com.nokia.packageinstaller",
+            // ── Sony Xperia ──────────────────────────────────────────────
+            "com.sonyericsson.android.packageinstaller",
+            "com.sonymobile.android.packageinstaller",
+            // ── LG (LG Electronics) ──────────────────────────────────────
+            "com.lge.packageinstaller",
+            // ── Meizu / Flyme OS ─────────────────────────────────────────
+            "com.meizu.packageinstaller",
+            "com.flyme.packageinstaller",
+            // ── Lenovo / ZUI ─────────────────────────────────────────────
+            "com.lenovo.packageinstaller",
+            "com.zui.packageinstaller",
+            // ── HTC / Sense UI ───────────────────────────────────────────
+            "com.htc.packageinstaller",
+            // ── TCL / Alcatel ─────────────────────────────────────────────
+            "com.tcl.packageinstaller",
+            "com.tct.packageinstaller",
+            // ── ZTE / MiFavor UI ─────────────────────────────────────────
+            "com.zte.packageinstaller",
+            // ── Wiko ─────────────────────────────────────────────────────
+            "com.wiko.packageinstaller",
+            // ── Transsion / Infinix / Tecno / itel ───────────────────────
+            "com.transsion.packageinstaller",
+            "com.infinix.packageinstaller",
+            "com.tecno.packageinstaller",
+            // ── Black Shark (Xiaomi gaming) ───────────────────────────────
+            "com.blackshark.packageinstaller",
+            // ── Settings app → App info → Uninstall button (all OEMs) ────
+            "com.android.settings",
+            // Samsung
             "com.samsung.android.app.settings",
-            "com.samsung.android.settings"
+            "com.samsung.android.settings",
+            "com.sec.android.settings",
+            "com.sec.android.easysettings",
+            // Xiaomi / MIUI / HyperOS
+            "com.miui.settings",
+            "com.xiaomi.misettings",
+            // Oppo / ColorOS
+            "com.coloros.settings",
+            "com.oppo.settings",
+            // Realme
+            "com.realme.settings",
+            // Huawei / EMUI
+            "com.huawei.settings",
+            // Honor
+            "com.hihonor.settings",
+            // Vivo / BBK
+            "com.vivo.settings",
+            "com.bbk.settings",
+            // OnePlus / OxygenOS
+            "com.oneplus.settings",
+            // Motorola
+            "com.motorola.settings",
+            // Asus / ZenUI
+            "com.asus.settings",
+            // Nokia / HMD Global
+            "com.hmdglobal.settings",
+            "com.nokia.settings",
+            // Sony Xperia
+            "com.sonyericsson.settings",
+            "com.sonymobile.coresettings",
+            // LG
+            "com.lge.settings",
+            // Meizu / Flyme
+            "com.meizu.settings",
+            "com.flyme.settings",
+            // Lenovo / ZUI
+            "com.lenovo.settings",
+            "com.zui.settings",
+            // HTC / Sense UI
+            "com.htc.settings",
+            // TCL
+            "com.tcl.settings",
+            "com.tct.settings",
+            // ZTE / MiFavor
+            "com.zte.settings",
+            // Wiko
+            "com.wiko.settings",
+            // Transsion / Infinix / Tecno / itel
+            "com.transsion.settings",
+            "com.transsion.aisettings"
         )
         if (pkg !in installerPkgs) return false
 

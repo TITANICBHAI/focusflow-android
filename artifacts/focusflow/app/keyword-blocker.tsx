@@ -97,6 +97,13 @@ export default function KeywordBlockerScreen() {
   const blockedWords = settings.blockedWords ?? [];
   const isOn = blockedWords.length > 0;
 
+  // Locked when standalone block is active — user can add keywords but not remove them.
+  const isLocked = (() => {
+    if (!settings.standaloneBlockUntil) return false;
+    if ((settings.standaloneBlockPackages ?? []).length === 0) return false;
+    return new Date(settings.standaloneBlockUntil).getTime() > Date.now();
+  })();
+
   const handleSaveWords = async (words: string[]) => {
     await updateSettings({ ...settings, blockedWords: words });
   };
@@ -192,7 +199,7 @@ export default function KeywordBlockerScreen() {
           <Text style={styles.primaryBtnText}>{isOn ? 'Manage Keywords' : 'Add Keywords'}</Text>
         </TouchableOpacity>
 
-        {isOn && (
+        {isOn && !isLocked && (
           <TouchableOpacity
             style={[styles.secondaryBtn, { borderColor: COLORS.red + '66', backgroundColor: COLORS.red + '11' }]}
             onPress={handleClearAll}
@@ -201,6 +208,13 @@ export default function KeywordBlockerScreen() {
             <Ionicons name="trash-outline" size={16} color={COLORS.red} />
             <Text style={[styles.secondaryBtnText, { color: COLORS.red }]}>Clear all keywords</Text>
           </TouchableOpacity>
+        )}
+
+        {isLocked && (
+          <View style={[styles.secondaryBtn, { borderColor: COLORS.orange + '55', backgroundColor: COLORS.orange + '0E' }]}>
+            <Ionicons name="lock-closed-outline" size={15} color={COLORS.orange} />
+            <Text style={[styles.secondaryBtnText, { color: COLORS.orange }]}>Locked — block is active</Text>
+          </View>
         )}
 
         {/* Quick presets */}
@@ -243,6 +257,7 @@ export default function KeywordBlockerScreen() {
       <BlockedWordsModal
         visible={modalVisible}
         words={blockedWords}
+        locked={isLocked}
         onSave={handleSaveWords}
         onClose={() => setModalVisible(false)}
       />

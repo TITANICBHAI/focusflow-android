@@ -1,6 +1,7 @@
 import { useEffect, useState, type ComponentType } from "react";
 
 import { modules as discoveredModules } from "./.generated/mockup-components";
+import FocusFlowLanding from "./components/FocusFlowLanding";
 
 type ModuleMap = Record<string, () => Promise<Record<string, unknown>>>;
 
@@ -156,7 +157,18 @@ function App() {
     );
   }
 
-  return <Gallery />;
+  const basePath = getBasePath();
+  const { pathname } = window.location;
+  const local =
+    basePath && pathname.startsWith(basePath)
+      ? pathname.slice(basePath.length) || "/"
+      : pathname;
+
+  if (local === "/gallery") {
+    return <Gallery />;
+  }
+
+  return <FocusFlowLanding />;
 }
 
 export default App;
