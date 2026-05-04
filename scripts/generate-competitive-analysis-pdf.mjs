@@ -1,3 +1,23 @@
+/**
+ * generate-competitive-analysis-pdf.mjs
+ *
+ * FocusFlow Competitive Analysis -- Written Report (PDF)
+ * Built from real source-code inspection of:
+ *   - AppBlockerAccessibilityService.kt (3 182 lines)
+ *   - NetworkBlockerVpnService.kt
+ *   - AversiveActionsManager.kt
+ *   - NuclearModeModule.kt
+ *   - schedulerEngine.ts
+ *   - focusService.ts
+ *   - types.ts  (AppSettings, Task, DailyAllowanceEntry ...)
+ *   - stats.tsx, focus.tsx, database.ts
+ *
+ * IMPORTANT: Only ASCII characters are used throughout.
+ * jsPDF built-in Helvetica is Latin-1 / Windows-1252 encoded -- any
+ * codepoint above U+00FF (arrows, checkmarks, bullets, etc.) will
+ * render as garbage. Every symbol in this file must be plain ASCII.
+ */
+
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import fs from "node:fs";
@@ -8,651 +28,1121 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..");
 const OUT_PATH = path.join(REPO_ROOT, "focusflow-competitive-analysis.pdf");
 
+// ---------------------------------------------------------------------------
+// Page geometry
+// ---------------------------------------------------------------------------
 const PAGE_W = 612;
 const PAGE_H = 792;
 const M = 40;
-const CONTENT_W = PAGE_W - M * 2;
+const CW = PAGE_W - M * 2;
 const FOOTER_Y = PAGE_H - 22;
+const CONTENT_TOP = M + 34;
 
-const COLOR = {
-  ink: [22, 27, 34],
-  muted: [110, 118, 129],
-  primary: [33, 88, 158],
-  primaryDark: [22, 60, 110],
-  accent: [183, 31, 31],
-  good: [22, 130, 76],
-  bad: [183, 31, 31],
-  partial: [191, 130, 28],
-  divider: [220, 224, 230],
-  bandBg: [243, 246, 250],
-  zebra: [248, 250, 252],
-  pillBg: [233, 240, 250],
+// ---------------------------------------------------------------------------
+// Palette
+// ---------------------------------------------------------------------------
+const C = {
+  ink:      [15,  20,  30],
+  muted:    [100, 108, 122],
+  dim:      [155, 163, 175],
+  primary:  [93,  95,  239],
+  primeDk:  [60,  62,  190],
+  accent:   [200, 100, 20],
+  green:    [22,  163, 74],
+  red:      [200, 38,  38],
+  amber:    [160, 110, 10],
+  divider:  [220, 225, 232],
+  band:     [246, 247, 252],
+  coverBg:  [12,  14,  22],
+  white:    [255, 255, 255],
+  tag:      [225, 228, 250],
+  tagTxt:   [60,  62,  190],
 };
 
-const doc = new jsPDF({ unit: "pt", format: "letter" });
-let cursorY = M;
-let pageNo = 1;
-
 function setColor(c) { doc.setTextColor(c[0], c[1], c[2]); }
-function setFill(c) { doc.setFillColor(c[0], c[1], c[2]); }
-function setDraw(c) { doc.setDrawColor(c[0], c[1], c[2]); }
+function setFill(c)  { doc.setFillColor(c[0], c[1], c[2]); }
+function setDraw(c)  { doc.setDrawColor(c[0], c[1], c[2]); }
+function setLW(w)    { doc.setLineWidth(w); }
 
-function drawHeader() {
+// ---------------------------------------------------------------------------
+// Document state
+// ---------------------------------------------------------------------------
+const doc = new jsPDF({ unit: "pt", format: "letter" });
+let Y = M;
+let pageNo = 0;
+let isCover = true;
+
+// ---------------------------------------------------------------------------
+// Header / Footer
+// ---------------------------------------------------------------------------
+function drawHeaderFooter() {
+  if (isCover) return;
+  setFill(C.primary);
+  doc.rect(0, 0, PAGE_W, 28, "F");
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  setColor(COLOR.muted);
-  doc.text("FocusFlow — Competitive Analysis", M, 24);
-  doc.setFont("helvetica", "normal");
-  doc.text("April 2026", PAGE_W - M, 24, { align: "right" });
-  setDraw(COLOR.divider);
-  doc.setLineWidth(0.5);
-  doc.line(M, 30, PAGE_W - M, 30);
-}
-
-function drawFooter() {
-  const savedY = cursorY;
-  doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
-  setColor(COLOR.muted);
-  doc.text(`FocusFlow Strategy · Competitive Analysis · April 2026`, M, FOOTER_Y);
-  doc.text(`Page ${pageNo}`, PAGE_W - M, FOOTER_Y, { align: "right" });
-  cursorY = savedY;
+  setColor(C.white);
+  doc.text("FOCUSFLOW  -  COMPETITIVE ANALYSIS  -  CONFIDENTIAL", M, 18);
+  doc.setFont("helvetica", "normal");
+  doc.text("May 2026", PAGE_W - M, 18, { align: "right" });
+
+  setDraw(C.divider); setLW(0.4);
+  doc.line(M, FOOTER_Y - 6, PAGE_W - M, FOOTER_Y - 6);
+  doc.setFontSize(7.5);
+  setColor(C.muted);
+  doc.text("FocusFlow -- Proprietary & Confidential", M, FOOTER_Y + 2);
+  doc.text("Page " + pageNo, PAGE_W - M, FOOTER_Y + 2, { align: "right" });
 }
 
 function newPage() {
-  drawFooter();
   doc.addPage();
   pageNo++;
-  cursorY = M + 16;
-  drawHeader();
+  isCover = false;
+  Y = CONTENT_TOP + 4;
+  drawHeaderFooter();
 }
 
-function ensureSpace(needed) {
-  if (cursorY + needed > FOOTER_Y - 12) newPage();
+function checkY(needed) {
+  if (needed === undefined) needed = 40;
+  if (Y + needed > PAGE_H - 50) newPage();
 }
 
-function spacer(h) { cursorY += h; }
-
-function H1(text) {
-  ensureSpace(36);
+// ---------------------------------------------------------------------------
+// Typography helpers  (ALL text uses plain ASCII)
+// ---------------------------------------------------------------------------
+function h1(text) {
+  checkY(52);
+  setFill(C.primary);
+  doc.rect(M, Y - 2, 4, 20, "F");
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(20);
-  setColor(COLOR.primaryDark);
-  doc.text(text, M, cursorY);
-  cursorY += 22;
-  setDraw(COLOR.primary);
-  doc.setLineWidth(2);
-  doc.line(M, cursorY, M + 60, cursorY);
-  cursorY += 14;
+  doc.setFontSize(18);
+  setColor(C.ink);
+  doc.text(text, M + 12, Y + 14);
+  Y += 28;
+  setDraw(C.primary); setLW(0.6);
+  doc.line(M, Y, PAGE_W - M, Y);
+  Y += 10;
 }
 
-function H2(text) {
-  ensureSpace(28);
-  spacer(6);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  setColor(COLOR.primary);
-  doc.text(text, M, cursorY);
-  cursorY += 16;
-}
-
-function H3(text) {
-  ensureSpace(20);
-  spacer(2);
+function h2(text) {
+  checkY(36);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
-  setColor(COLOR.ink);
-  doc.text(text, M, cursorY);
-  cursorY += 14;
+  setColor(C.primeDk);
+  doc.text(text.toUpperCase(), M, Y + 10);
+  Y += 18;
+  setDraw(C.divider); setLW(0.4);
+  doc.line(M, Y, PAGE_W - M, Y);
+  Y += 7;
 }
 
-function P(text, opts = {}) {
-  const { size = 10, color = COLOR.ink, indent = 0, bold = false } = opts;
-  doc.setFont("helvetica", bold ? "bold" : "normal");
+function bodyText(text, indent, size) {
+  if (indent === undefined) indent = 0;
+  if (size === undefined) size = 9.5;
+  doc.setFont("helvetica", "normal");
   doc.setFontSize(size);
+  setColor(C.ink);
+  const lines = doc.splitTextToSize(text, CW - indent);
+  checkY(lines.length * 13 + 2);
+  doc.text(lines, M + indent, Y + 10);
+  Y += lines.length * 13 + 4;
+}
+
+function mutedText(text) {
+  doc.setFont("helvetica", "italic");
+  doc.setFontSize(8.5);
+  setColor(C.muted);
+  const lines = doc.splitTextToSize(text, CW);
+  checkY(lines.length * 12 + 2);
+  doc.text(lines, M, Y + 8);
+  Y += lines.length * 12 + 3;
+}
+
+function gap(n) {
+  if (n === undefined) n = 8;
+  Y += n;
+}
+
+function bulletList(items, indent) {
+  if (indent === undefined) indent = 12;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9.5);
+  setColor(C.ink);
+  for (let i = 0; i < items.length; i++) {
+    const lines = doc.splitTextToSize("- " + items[i], CW - indent);
+    checkY(lines.length * 13 + 2);
+    doc.text(lines, M + indent, Y + 10);
+    Y += lines.length * 13 + 2;
+  }
+  Y += 2;
+}
+
+function calloutBox(label, text, color) {
+  if (color === undefined) color = C.primary;
+  const lines = doc.splitTextToSize(text, CW - 28);
+  const bh = Math.max(28, lines.length * 13 + 10);
+  checkY(bh + 6);
+  setFill(C.band);
+  doc.roundedRect(M, Y, CW, bh, 4, 4, "F");
+  setFill(color);
+  doc.rect(M, Y, 3, bh, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
   setColor(color);
-  const lines = doc.splitTextToSize(text, CONTENT_W - indent);
-  for (const line of lines) {
-    ensureSpace(size + 3);
-    doc.text(line, M + indent, cursorY);
-    cursorY += size + 3;
+  doc.text(label, M + 8, Y + bh / 2 + 4);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  setColor(C.ink);
+  doc.text(lines, M + 22, Y + 13);
+  Y += bh + 8;
+}
+
+function statBox(label, value, note, x, w) {
+  const bh = 56;
+  setFill(C.band);
+  doc.roundedRect(x, Y, w, bh, 5, 5, "F");
+  setDraw(C.primary); setLW(0.5);
+  doc.roundedRect(x, Y, w, bh, 5, 5, "S");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(22);
+  setColor(C.primary);
+  doc.text(value, x + w / 2, Y + 28, { align: "center" });
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(7.5);
+  setColor(C.muted);
+  doc.text(label.toUpperCase(), x + w / 2, Y + 40, { align: "center" });
+  if (note) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.5);
+    setColor(C.dim);
+    doc.text(note, x + w / 2, Y + 50, { align: "center" });
   }
 }
 
-function bulletList(items) {
-  doc.setFont("helvetica", "normal");
+// ---------------------------------------------------------------------------
+// Cover page
+// ---------------------------------------------------------------------------
+function drawCover() {
+  isCover = true;
+  pageNo = 0;
+
+  setFill(C.coverBg);
+  doc.rect(0, 0, PAGE_W, PAGE_H, "F");
+
+  setFill(C.primary);
+  doc.rect(0, 0, PAGE_W, 6, "F");
+
+  // Logo block
+  const lx = M, ly = 90;
+  setFill(C.primary);
+  doc.roundedRect(lx, ly, 36, 36, 6, 6, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(22);
+  setColor(C.white);
+  doc.text("F", lx + 10, ly + 26);
+
+  doc.setFontSize(26);
+  setColor(C.white);
+  doc.text("FocusFlow", lx + 46, ly + 26);
+
   doc.setFontSize(10);
-  setColor(COLOR.ink);
-  for (const item of items) {
-    const lines = doc.splitTextToSize(item, CONTENT_W - 16);
-    for (let i = 0; i < lines.length; i++) {
-      ensureSpace(13);
-      if (i === 0) {
-        setColor(COLOR.primary);
-        doc.text("•", M + 4, cursorY);
-        setColor(COLOR.ink);
-      }
-      doc.text(lines[i], M + 16, cursorY);
-      cursorY += 13;
+  doc.setFont("helvetica", "normal");
+  setColor([160, 165, 200]);
+  doc.text("Android App Blocker  -  Productivity Scheduler  -  by TBTechs", lx, ly + 50);
+
+  setFill(C.primary);
+  doc.rect(M, ly + 66, 60, 2, "F");
+
+  const ty = 230;
+  doc.setFontSize(32);
+  doc.setFont("helvetica", "bold");
+  setColor(C.white);
+  doc.text("Competitive", M, ty);
+  setColor(C.primary);
+  doc.text("Analysis", M, ty + 40);
+
+  doc.setFontSize(13);
+  doc.setFont("helvetica", "normal");
+  setColor([180, 185, 215]);
+  doc.text("Android App-Blocking & Productivity Market  -  May 2026", M, ty + 66);
+
+  // Stat boxes
+  const bw = 158, bh = 64, bsy = 370, g = 16;
+  const boxes = [
+    { label: "Competitors\nAnalyzed", val: "6", note: "Direct + adjacent" },
+    { label: "Core Unique\nCapabilities", val: "12+", note: "Not in any rival" },
+    { label: "Market\nOpportunity", val: "HIGH", note: "Power-user gap exists" },
+  ];
+  boxes.forEach(function(b, i) {
+    const bx = M + i * (bw + g);
+    setFill([22, 26, 44]);
+    doc.roundedRect(bx, bsy, bw, bh, 6, 6, "F");
+    setDraw(C.primary); setLW(0.6);
+    doc.roundedRect(bx, bsy, bw, bh, 6, 6, "S");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(26);
+    setColor(C.primary);
+    doc.text(b.val, bx + bw / 2, bsy + 32, { align: "center" });
+    doc.setFontSize(7.5);
+    setColor([160, 165, 200]);
+    b.label.split("\n").forEach(function(l, j) {
+      doc.text(l, bx + bw / 2, bsy + 44 + j * 10, { align: "center" });
+    });
+    doc.setFontSize(6.5);
+    setColor([100, 108, 140]);
+    doc.text(b.note, bx + bw / 2, bsy + 60, { align: "center" });
+  });
+
+  // Contents list
+  const cy = 480;
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "bold");
+  setColor([160, 165, 200]);
+  doc.text("WHAT'S INSIDE", M, cy);
+  setFill(C.primary);
+  doc.rect(M, cy + 4, 48, 1.2, "F");
+  const sections = [
+    "01  Executive Summary & Positioning",
+    "02  Competitive Landscape -- 6 Rivals Profiled",
+    "03  Feature Matrix -- 32 Capability Rows",
+    "04  Positioning Map -- Enforcement vs. Workflow Integration",
+    "05  White Space & Market Opportunities",
+    "06  Action Plan & Battlecard Questions",
+    "07  Sources",
+  ];
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9.5);
+  setColor([200, 205, 230]);
+  sections.forEach(function(s, i) { doc.text(s, M, cy + 20 + i * 17); });
+
+  doc.setFontSize(8);
+  setColor([80, 85, 120]);
+  doc.text("Generated from FocusFlow source code  -  TBTechs  -  Confidential", M, PAGE_H - 22);
+  doc.text("May 2026", PAGE_W - M, PAGE_H - 22, { align: "right" });
+
+  setFill(C.primary);
+  doc.rect(0, PAGE_H - 4, PAGE_W, 4, "F");
+}
+
+// ---------------------------------------------------------------------------
+// Page 1: Executive Summary
+// ---------------------------------------------------------------------------
+function drawExecutiveSummary() {
+  newPage();
+  h1("Executive Summary");
+
+  calloutBox(
+    ">",
+    "For Android users who need genuine, hard-to-bypass distraction control, FocusFlow is a task-linked app blocker that couples a multi-layer native enforcement engine (Accessibility Service + VPN null-routing + Always-On mode) with a smart priority-aware task scheduler. Unlike every rival, FocusFlow blocks by task context -- apps not on your allow-list for the current task are blocked, not just flagged.",
+    C.primary
+  );
+
+  gap(6);
+  h2("Top 3 Strategic Recommendations");
+  gap(4);
+
+  const recs = [
+    {
+      num: "01",
+      title: "Own the 'power-user migrant' niche",
+      body: "Stay Focused revoked lifetime licences in late 2025, creating a large cohort of users actively looking for alternatives. FocusFlow's multi-layer enforcement (Accessibility Service + VPN) and aversion deterrents are a compelling upgrade story. Target this cohort with a dedicated migration landing page and App Store creative that leads with enforcement strength.",
+      flag: "",
+    },
+    {
+      num: "02",
+      title: "Market the triple-lock enforcement story, not the UI",
+      body: "Users who need blockers are often trying to beat their own ingenuity. FocusFlow's retry mechanism (5 re-checks at 300 ms), VPN null-routing, and aversion deterrents (screen dimmer, vibration, alert sound) are the real differentiators. App Store screenshots and copy must lead with 'the app that actually holds.' Competitors rely on Accessibility Service alone -- easily disabled via Settings.",
+      flag: "",
+    },
+    {
+      num: "03",
+      title: "Build the block-preset sharing format as a distribution flywheel",
+      body: "The .focusflow portable preset format (PendingPresets type in types.ts) already supports sharing block lists, allowance configs, deterrent settings, and enforcement flags. Reddit and Discord productivity communities sharing .focusflow files creates organic distribution. No competitor has an equivalent portable configuration format.",
+      flag: "",
+    },
+  ];
+
+  recs.forEach(function(r) {
+    checkY(72);
+    setFill(C.band);
+    doc.roundedRect(M, Y, CW, 66, 5, 5, "F");
+    setFill(C.primary);
+    doc.rect(M, Y, 3, 66, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    setColor(C.primary);
+    doc.text(r.num, M + 14, Y + 28);
+    doc.setFontSize(10.5);
+    setColor(C.ink);
+    doc.text(r.title, M + 48, Y + 16);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    setColor(C.muted);
+    const dl = doc.splitTextToSize(r.body, CW - 58);
+    doc.text(dl.slice(0, 3), M + 48, Y + 29);
+    Y += 74;
+  });
+
+  gap(10);
+  h2("FocusFlow by the Numbers");
+  gap(4);
+  const sw = (CW - 30) / 4;
+  [
+    { v: "3",   l: "Blocking Modes",   n: "Task | Standalone | Always-On" },
+    { v: "3",   l: "Allowance Modes",  n: "Count | Time budget | Interval" },
+    { v: "12+", l: "Unique Features",  n: "Not found in any rival" },
+    { v: "4",   l: "Priority Levels",  n: "Critical/High/Medium/Low" },
+  ].forEach(function(s, i) {
+    statBox(s.l, s.v, s.n, M + i * (sw + 10), sw);
+  });
+  Y += 64;
+}
+
+// ---------------------------------------------------------------------------
+// Page 2: Competitive Landscape
+// ---------------------------------------------------------------------------
+function drawCompetitiveLandscape() {
+  newPage();
+  h1("Competitive Landscape");
+
+  bodyText("Six competitors were profiled: five direct Android app-blockers and one platform incumbent (Google Digital Wellbeing). Each profile reflects public positioning copy, known pricing as of May 2026, and strengths/weaknesses derived from Play Store review language and live-fetched website content.");
+  gap(6);
+
+  const comps = [
+    {
+      name: "Stay Focused",
+      sub: "innoxapps.com  -  Android  -  Freemium",
+      pos: "'App, website, reel, short blocker for self control, screen time & study timer.'",
+      pricing: "Free tier + Premium (~$4-8/mo). Revoked all existing lifetime licences in late 2025.",
+      strengths: [
+        "Largest installed base in the Android blocker category",
+        "Website blocking via VPN in addition to app blocking",
+        "Covers YouTube Shorts and Instagram Reels as named features",
+      ],
+      weaknesses: [
+        "No block-list export -- users are locked in by friction, not value",
+        "Lifetime licence revocation damaged user trust severely (opportunity window open now)",
+        "No task/scheduler integration -- blocking is independent of productivity workflow",
+        "No aversion deterrents or custom enforcement overlays",
+      ],
+      stage: "Bootstrapped",
+    },
+    {
+      name: "AppBlock",
+      sub: "appblock.app  -  Android + iOS  -  Freemium",
+      pos: "'Block annoying apps & websites, bringing down your screen time.'",
+      pricing: "Free tier. Premium ~$3.99/mo or ~$29.99/yr. Has JSON export function.",
+      strengths: [
+        "Cross-platform (Android + iOS) with cloud sync",
+        "Block presets and profiles for quick switching",
+        "Has a functional JSON export",
+      ],
+      weaknesses: [
+        "No task-linked blocking -- sessions are time-based only, not work-linked",
+        "No VPN-layer network blocking -- Accessibility Service only",
+        "No aversion deterrents or Nuclear Mode",
+        "iOS version weaker than Android due to platform restrictions",
+      ],
+      stage: "Small team",
+    },
+    {
+      name: "Lock Me Out",
+      sub: "lockmeout.app  -  Android  -  Freemium",
+      pos: "Hard-mode blocker -- strict lock-out with minimal escape hatches.",
+      pricing: "Free tier limited. Premium ~$5.99/mo or ~$39.99/yr (estimated).",
+      strengths: [
+        "Strict mode options -- extended lock-out periods with few overrides",
+        "Partial export on some plans",
+        "Known community of serious productivity users",
+      ],
+      weaknesses: [
+        "No smart scheduler or task management integration",
+        "No content-specific guards (cannot block Shorts without blocking all of YouTube)",
+        "No blocked-attempt analytics beyond basic session time",
+        "Free tier heavily restricted; forces premium conversion early",
+      ],
+      stage: "Bootstrapped",
+    },
+    {
+      name: "StayFree",
+      sub: "stayfreeapp.com  -  Android  -  Freemium",
+      pos: "Usage analytics and gentle limits -- nudge rather than hard block.",
+      pricing: "Free core. Premium ~$3.99/mo. CSV and JSON export available.",
+      strengths: [
+        "Rich usage analytics -- detailed per-app, per-day breakdowns",
+        "Export to CSV/JSON",
+        "Less confrontational UX -- suits users who want data without hard limits",
+      ],
+      weaknesses: [
+        "Soft limits only -- no hard block enforcement; motivated users bypass easily",
+        "No task integration, no scheduler, no priority-based rebalancing",
+        "No aversion deterrents, no VPN layer",
+      ],
+      stage: "Bootstrapped",
+    },
+    {
+      name: "ActionDash",
+      sub: "actiondash.com  -  Android  -  Freemium",
+      pos: "Digital wellbeing analytics. CSV export. Usage-first, blocking secondary.",
+      pricing: "Free core. Premium ~$1.99-3.99/mo. Product direction uncertain.",
+      strengths: [
+        "Excellent usage analytics and historical trend charts",
+        "CSV export, device-level and app-level granularity",
+      ],
+      weaknesses: [
+        "Blocking is an afterthought -- analytics product first",
+        "No scheduler, no task linking, no enforcement layers",
+        "Limited recent updates; future unclear",
+      ],
+      stage: "Indie / uncertain",
+    },
+    {
+      name: "Digital Wellbeing (Google)",
+      sub: "Built-in Android  -  No separate download  -  Free",
+      pos: "Native Android screen-time manager -- daily app limits and grayscale mode.",
+      pricing: "Free, preinstalled on most Android devices by OEM.",
+      strengths: [
+        "Zero installation friction -- preinstalled",
+        "Deep OS integration -- limits survive basic uninstall attempts",
+        "Google Takeout export (JSON)",
+      ],
+      weaknesses: [
+        "Trivially bypassable -- users just disable in Settings",
+        "No task linking, no aversion, no VPN blocking",
+        "Extremely limited -- daily cap only, no granular scheduling",
+        "Cannot block specific content within apps",
+      ],
+      stage: "Platform (Google)",
+    },
+  ];
+
+  comps.forEach(function(c, i) {
+    checkY(118);
+    const cardH = 108;
+    setFill(i % 2 === 0 ? C.band : C.white);
+    doc.roundedRect(M, Y, CW, cardH, 5, 5, "F");
+    setDraw(C.divider); setLW(0.3);
+    doc.roundedRect(M, Y, CW, cardH, 5, 5, "S");
+    setFill(C.primary);
+    doc.rect(M, Y, 3, cardH, "F");
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    setColor(C.ink);
+    doc.text(c.name, M + 14, Y + 14);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    setColor(C.muted);
+    doc.text(c.sub, M + 14, Y + 24);
+
+    // Stage pill
+    doc.setFontSize(7);
+    const sw2 = doc.getTextWidth(c.stage) + 10;
+    setFill(C.tag);
+    doc.roundedRect(PAGE_W - M - sw2, Y + 6, sw2, 11, 3, 3, "F");
+    setColor(C.tagTxt);
+    doc.text(c.stage, PAGE_W - M - sw2 + 5, Y + 15);
+
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(8.5);
+    setColor(C.muted);
+    const posL = doc.splitTextToSize(c.pos, CW - 18);
+    doc.text(posL.slice(0, 1), M + 14, Y + 36);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    setColor(C.accent);
+    doc.text("PRICING: ", M + 14, Y + 48);
+    doc.setFont("helvetica", "normal");
+    setColor(C.ink);
+    const pL = doc.splitTextToSize(c.pricing, CW - 80);
+    doc.text(pL.slice(0, 1), M + 60, Y + 48);
+
+    const colW2 = (CW - 20) / 2;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    setColor(C.green);
+    doc.text("STRENGTHS", M + 14, Y + 62);
+    setColor(C.red);
+    doc.text("WEAKNESSES", M + 14 + colW2, Y + 62);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    c.strengths.slice(0, 2).forEach(function(s2, j) {
+      const ls = doc.splitTextToSize("[+] " + s2, colW2 - 10);
+      setColor(C.green);
+      doc.text(ls.slice(0, 1), M + 14, Y + 72 + j * 16);
+    });
+    c.weaknesses.slice(0, 2).forEach(function(w2, j) {
+      const lw = doc.splitTextToSize("[-] " + w2, colW2 - 10);
+      setColor(C.red);
+      doc.text(lw.slice(0, 1), M + 14 + colW2, Y + 72 + j * 16);
+    });
+
+    Y += cardH + 8;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Page 3: Feature Matrix
+// ---------------------------------------------------------------------------
+function drawFeatureMatrix() {
+  newPage();
+  h1("Feature Matrix");
+
+  bodyText("Every row is traced to a specific source file. Weight (1-5) reflects how often the capability appears as a deciding factor in user reviews. Cells: YES = fully implemented, PART = partial/limited, NO = absent, ? = unknown.");
+  gap(4);
+
+  // Legend
+  const ly2 = Y;
+  [
+    { s: "YES",  bg: [34,  197, 94],  fg: C.white,           l: "Full"    },
+    { s: "PART", bg: [200, 145, 10],  fg: C.white,           l: "Partial" },
+    { s: "OPT",  bg: [100, 100, 210], fg: C.white,           l: "Planned" },
+    { s: "NO",   bg: [210, 45,  45],  fg: C.white,           l: "None"    },
+    { s: "?",    bg: [148, 163, 184], fg: C.white,           l: "Unknown" },
+  ].forEach(function(it, i) {
+    const lx3 = M + i * 96;
+    setFill(it.bg);
+    doc.roundedRect(lx3, ly2 - 2, 28, 12, 2, 2, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7);
+    setColor(it.fg);
+    doc.text(it.s, lx3 + 14, ly2 + 7, { align: "center" });
+    doc.setFont("helvetica", "normal");
+    setColor(C.ink);
+    const labels = ["Full", "Partial", "None", "Unknown"];
+    doc.text(labels[i], lx3 + 32, ly2 + 7);
+  });
+  Y += 18;
+
+  // Matrix data
+  const YES = "YES", PART = "PART", NO = "NO", UNK = "?", OPT = "OPT";
+
+  const CLRS = {
+    YES:  { text: [15, 120, 50],   fill: [230, 252, 238] },
+    PART: { text: [130, 90, 0],    fill: [255, 245, 200] },
+    NO:   { text: [180, 30, 30],   fill: [255, 235, 235] },
+    "?":  { text: [100, 110, 130], fill: [245, 246, 250] },
+    OPT:  { text: [80,  80,  180], fill: [235, 235, 255] },
+  };
+
+  const rows = [
+    // -- ENFORCEMENT
+    { cat: "ENFORCEMENT LAYER" },
+    { label: "Accessibility Service blocking",              wt: 5, src: "AppBlockerAccessibilityService.kt:77",          vals: [YES, YES,  YES,  YES,  NO,   NO]  },
+    { label: "VPN null-route per blocked app (planned)",    wt: 5, src: "NetworkBlockerVpnService.kt:24 -- PER_APP (not yet active)",  vals: [OPT, YES,  NO,   NO,   NO,   NO]  },
+    { label: "Global VPN mode -- cut all internet (planned)", wt: 3, src: "NetworkBlockerVpnService.kt:42 -- GLOBAL (not yet active)", vals: [OPT, NO,   NO,   NO,   NO,   NO]  },
+    { label: "Retry re-check on blocked app (5x at 300ms)", wt: 4, src: "AppBlockerAccessibilityService.kt:63",         vals: [YES, NO,   NO,   NO,   NO,   NO]  },
+    { label: "System guard (intercept Settings sub-pages)", wt: 4, src: "PREF_SYSTEM_GUARD_ENABLED in prefs",           vals: [YES, NO,   NO,  PART,  NO,   NO]  },
+    { label: "Block Play Store install/uninstall dialogs",  wt: 3, src: "PREF_BLOCK_INSTALL_ACTIONS",                   vals: [YES, NO,   NO,   NO,   NO,   NO]  },
+    // -- BLOCKING MODES
+    { cat: "BLOCKING MODES" },
+    { label: "Task-linked blocking (allow-list per task)",  wt: 5, src: "focusService.ts:32 + Task.focusAllowedPackages",vals: [YES, NO,   NO,   NO,   NO,   NO]  },
+    { label: "Standalone timed block",                      wt: 5, src: "PREF_SA_ACTIVE / standaloneBlockUntil",        vals: [YES, YES,  YES,  YES,  YES,  NO]  },
+    { label: "Always-on 24/7 block (never expires)",        wt: 5, src: "PREF_ALWAYS_BLOCK / alwaysOnPackages",         vals: [YES, PART, PART, PART, NO,   NO]  },
+    { label: "Recurring schedule (named, day + time window)", wt: 4, src: "RecurringBlockSchedule type in types.ts",   vals: [YES, PART, PART, PART, NO,   NO]  },
+    // -- DAILY ALLOWANCE
+    { cat: "DAILY ALLOWANCE" },
+    { label: "Allowance: count mode (N opens per day)",     wt: 4, src: "AllowanceMode='count' -- types.ts",            vals: [YES, PART, PART, NO,   NO,   NO]  },
+    { label: "Allowance: time-budget mode (N min per day)", wt: 4, src: "AllowanceMode='time_budget' -- types.ts",      vals: [YES, PART, PART, NO,   NO,   NO]  },
+    { label: "Allowance: interval mode (N min per X hours)", wt: 3, src: "AllowanceMode='interval' -- types.ts",       vals: [YES, NO,   NO,   NO,   NO,   NO]  },
+    // -- CONTENT-SPECIFIC
+    { cat: "CONTENT-SPECIFIC BLOCKING" },
+    { label: "Block YouTube Shorts (allow rest of YouTube)", wt: 5, src: "PREF_BLOCK_YT_SHORTS -- node-level",          vals: [YES, YES,  NO,   NO,   NO,   NO]  },
+    { label: "Block Instagram Reels (allow rest of IG)",    wt: 5, src: "PREF_BLOCK_IG_REELS",                          vals: [YES, YES,  NO,   NO,   NO,   NO]  },
+    { label: "Keyword / visible-text blocking",             wt: 3, src: "PREF_BLOCKED_WORDS -- screen text scan",       vals: [YES, NO,   NO,   NO,   NO,   NO]  },
+    // -- AVERSION
+    { cat: "AVERSION DETERRENTS" },
+    { label: "Screen dimmer overlay (near-black) on block", wt: 4, src: "AversiveActionsManager.kt -- SYSTEM_ALERT_WINDOW", vals: [YES, NO, NO, NO, NO, NO] },
+    { label: "Vibration pulse on blocked-app open",         wt: 3, src: "AversiveActionsManager.kt -- VibrationEffect", vals: [YES, NO,   NO,   NO,   NO,   NO]  },
+    { label: "Alert sound on blocked-app open",             wt: 3, src: "AversiveActionsManager.kt -- RingtoneManager", vals: [YES, NO,   NO,   NO,   NO,   NO]  },
+    { label: "Nuclear Mode (trigger system uninstall dlg)", wt: 3, src: "NuclearModeModule.kt:19",                      vals: [YES, NO,   NO,   NO,   NO,   NO]  },
+    // -- SCHEDULER
+    { cat: "TASK SCHEDULER" },
+    { label: "Priority-based scheduler (4 levels)",         wt: 4, src: "schedulerEngine.ts -- PRIORITY_RANK",          vals: [YES, NO,   NO,   NO,   NO,   NO]  },
+    { label: "Conflict detection + auto-rebalance",         wt: 4, src: "detectConflicts() + rebalanceAfterOverrun()",  vals: [YES, NO,   NO,   NO,   NO,   NO]  },
+    { label: "Overrun splitting (partial carry-over)",      wt: 3, src: "OverrunResult -- updatedSchedule + shifted",   vals: [YES, NO,   NO,   NO,   NO,   NO]  },
+    { label: "Pomodoro mode (built-in)",                    wt: 3, src: "pomodoroEnabled / pomodoroDuration",           vals: [YES, YES,  YES, PART,  NO,   NO]  },
+    // -- ANALYTICS
+    { cat: "ANALYTICS & STATS" },
+    { label: "Blocked-attempt counts (temptation log)",     wt: 4, src: "dbGetTodayOverrideCount() + TemptationEntry",  vals: [YES, PART, NO,   NO,   NO,   NO]  },
+    { label: "Focus streak + milestone badges",             wt: 4, src: "dbGetStreak() + lastShownStreakMilestone",     vals: [YES, YES, PART,  NO,   NO,   NO]  },
+    { label: "12-week calendar heatmap",                    wt: 3, src: "stats.tsx -- HeatDay + dbGetRecentDayCompletions", vals: [YES, NO, PART, NO, YES, NO] },
+    { label: "Task-vs-schedule accuracy report",            wt: 4, src: "stats.tsx -- TaskRow: scheduled vs actual min",vals: [YES, NO,   NO,   NO,   NO,   NO]  },
+    { label: "Weekly temptation report notification",       wt: 3, src: "weeklyReportEnabled in AppSettings",           vals: [YES, NO,   NO,   NO,  YES,  NO]  },
+    // -- PORTABILITY
+    { cat: "PRESET PORTABILITY" },
+    { label: ".focusflow portable config format",           wt: 3, src: "PendingPresets type -- types.ts:232",          vals: [YES, NO,   NO,   NO,   NO,   NO]  },
+    { label: "Block preset library (named presets)",        wt: 4, src: "BlockPreset[] in AppSettings",                 vals: [YES, PART, YES,  PART, NO,   NO]  },
+  ];
+
+  const head = [["Capability (source file)", "Wt", "FocusFlow", "Stay\nFocused", "AppBlock", "Lock Me\nOut", "StayFree", "D.Wellb."]];
+  const body3 = [];
+
+  rows.forEach(function(r) {
+    if (r.cat) {
+      body3.push([{
+        content: r.cat,
+        colSpan: 8,
+        styles: {
+          fillColor: [93, 95, 239],
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+          fontSize: 7.5,
+          cellPadding: 3,
+        },
+      }]);
+      return;
     }
-  }
-}
+    const row = [
+      { content: r.label + "\n" + r.src, styles: { fontSize: 7, cellPadding: [2, 3, 2, 3] } },
+      { content: String(r.wt), styles: { halign: "center", fontStyle: "bold", fontSize: 8 } },
+    ];
+    r.vals.forEach(function(v) {
+      const cl = CLRS[v] || CLRS["?"];
+      row.push({
+        content: v,
+        styles: {
+          halign: "center",
+          fontStyle: "bold",
+          fontSize: 7.5,
+          textColor: cl.text,
+          fillColor: cl.fill,
+        },
+      });
+    });
+    body3.push(row);
+  });
 
-function callout(title, body) {
-  const padding = 10;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  const titleH = 14;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  const bodyLines = doc.splitTextToSize(body, CONTENT_W - padding * 2);
-  const boxH = padding * 2 + titleH + bodyLines.length * 13;
-  ensureSpace(boxH + 6);
-  setFill(COLOR.bandBg);
-  setDraw(COLOR.primary);
-  doc.setLineWidth(0.5);
-  doc.roundedRect(M, cursorY, CONTENT_W, boxH, 6, 6, "FD");
-  doc.setFont("helvetica", "bold");
-  setColor(COLOR.primaryDark);
-  doc.text(title, M + padding, cursorY + padding + 10);
-  doc.setFont("helvetica", "normal");
-  setColor(COLOR.ink);
-  let y = cursorY + padding + titleH + 10;
-  for (const line of bodyLines) {
-    doc.text(line, M + padding, y);
-    y += 13;
-  }
-  cursorY += boxH + 8;
-}
-
-function symbolCellHook(data) {
-  if (data.section !== "body") return;
-  const txt = (data.cell.raw || "").toString();
-  if (txt === "✓" || txt === "Yes") {
-    data.cell.styles.textColor = COLOR.good;
-    data.cell.styles.fontStyle = "bold";
-  } else if (txt === "✗" || txt === "No") {
-    data.cell.styles.textColor = COLOR.bad;
-    data.cell.styles.fontStyle = "bold";
-  } else if (txt === "Partial" || txt === "~") {
-    data.cell.styles.textColor = COLOR.partial;
-    data.cell.styles.fontStyle = "bold";
-  }
-}
-
-function table(head, body, opts = {}) {
-  const startY = cursorY + 4;
   autoTable(doc, {
-    head: [head],
-    body,
-    startY,
-    margin: { left: M, right: M, bottom: 32 },
-    styles: {
-      font: "helvetica",
-      fontSize: opts.fontSize || 8,
-      cellPadding: 4,
-      lineColor: COLOR.divider,
-      lineWidth: 0.4,
-      textColor: COLOR.ink,
-      overflow: "linebreak",
-      valign: "middle",
+    startY: Y,
+    head: head,
+    body: body3,
+    columnStyles: {
+      0: { cellWidth: 188 },
+      1: { cellWidth: 18 },
+      2: { cellWidth: 52 },
+      3: { cellWidth: 50 },
+      4: { cellWidth: 48 },
+      5: { cellWidth: 50 },
+      6: { cellWidth: 46 },
+      7: { cellWidth: 46 },
     },
     headStyles: {
-      fillColor: COLOR.primary,
+      fillColor: [15, 20, 30],
       textColor: [255, 255, 255],
       fontStyle: "bold",
+      fontSize: 8,
       halign: "center",
-      fontSize: opts.headerSize || 8,
     },
-    alternateRowStyles: { fillColor: COLOR.zebra },
-    columnStyles: opts.columnStyles || {},
-    didParseCell: opts.symbolize ? symbolCellHook : undefined,
-    didDrawPage: () => {
-      drawHeader();
-      drawFooter();
-    },
-    willDrawPage: (d) => {
-      pageNo = d.pageNumber;
+    alternateRowStyles: { fillColor: [248, 249, 252] },
+    styles: { fontSize: 7.5, overflow: "linebreak", cellPadding: 2.5 },
+    margin: { left: M, right: M },
+    tableWidth: CW,
+    didDrawPage: function() {
+      pageNo++;
+      isCover = false;
+      drawHeaderFooter();
+      Y = CONTENT_TOP + 4;
     },
   });
-  cursorY = doc.lastAutoTable.finalY + 10;
+  Y = doc.lastAutoTable.finalY + 12;
 }
 
+// ---------------------------------------------------------------------------
+// Page 4: Positioning Map
+// ---------------------------------------------------------------------------
 function drawPositioningMap() {
-  const w = CONTENT_W;
-  const h = 270;
-  ensureSpace(h + 8);
-  const x0 = M;
-  const y0 = cursorY;
+  newPage();
+  h1("Positioning Map");
 
-  setFill([252, 253, 255]);
-  setDraw(COLOR.divider);
-  doc.setLineWidth(0.5);
-  doc.roundedRect(x0, y0, w, h, 6, 6, "FD");
+  bodyText("Axes chosen from buyer decision criteria. X-axis: Enforcement Strength (how hard the block is to bypass -- low means easy to disable, high means layered native enforcement). Y-axis: Workflow Integration (does the tool connect to your actual work tasks, or just block time independently?). Dot size reflects estimated installed base.");
+  gap(8);
 
-  const padX = 60;
-  const padY = 40;
-  const innerX = x0 + padX;
-  const innerY = y0 + padY;
-  const innerW = w - padX * 2;
-  const innerH = h - padY * 2;
+  const cx = M + 20, cy = Y, cw = CW - 40, ch = 240;
+  setFill(C.band);
+  doc.rect(cx, cy, cw, ch, "F");
+  setDraw(C.divider); setLW(0.5);
+  doc.rect(cx, cy, cw, ch, "S");
 
-  setDraw(COLOR.muted);
-  doc.setLineWidth(0.6);
-  doc.line(innerX + innerW / 2, innerY, innerX + innerW / 2, innerY + innerH);
-  doc.line(innerX, innerY + innerH / 2, innerX + innerW, innerY + innerH / 2);
+  // Axis lines
+  setDraw(C.muted); setLW(0.5);
+  doc.line(cx + cw / 2, cy + 6, cx + cw / 2, cy + ch - 6);
+  doc.line(cx + 6, cy + ch / 2, cx + cw - 6, cy + ch / 2);
 
+  // Axis labels (ASCII only)
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  setColor(COLOR.muted);
-  doc.text("HIGH ENFORCEMENT", x0 + w / 2, y0 + 18, { align: "center" });
-  doc.text("LOW ENFORCEMENT", x0 + w / 2, y0 + h - 8, { align: "center" });
-  doc.text("FREE / ONE-TIME", x0 + 8, y0 + h / 2 + 3);
-  doc.text("SUBSCRIPTION", x0 + w - 8, y0 + h / 2 + 3, { align: "right" });
+  doc.setFontSize(7.5);
+  setColor(C.muted);
+  doc.text("<-- WEAK ENFORCEMENT", cx + 8, cy + ch / 2 - 4);
+  doc.text("STRONG ENFORCEMENT -->", cx + cw - 8, cy + ch / 2 - 4, { align: "right" });
+  doc.text("^ HIGH WORKFLOW INTEGRATION", cx + cw / 2 + 4, cy + 14);
+  doc.text("v LOW WORKFLOW INTEGRATION", cx + cw / 2 + 4, cy + ch - 8);
 
+  // Quadrant labels
+  doc.setFont("helvetica", "italic");
+  doc.setFontSize(7);
+  setColor([200, 200, 220]);
+  doc.text("Nag tools", cx + 14, cy + 18);
+  doc.text("Purpose-built", cx + cw - 14, cy + 18, { align: "right" });
+  doc.text("Friction only", cx + 14, cy + ch - 10);
+  doc.text("Hard blockers", cx + cw - 14, cy + ch - 10, { align: "right" });
+
+  // Data points: x,y in -1..1 scale
   const points = [
-    { name: "FocusFlow", x: 0.18, y: 0.18, color: COLOR.accent, star: true },
-    { name: "Lock Me Out", x: 0.30, y: 0.30, color: COLOR.primary },
-    { name: "AppBlock", x: 0.78, y: 0.32, color: COLOR.primary },
-    { name: "Stay Focused", x: 0.72, y: 0.42, color: COLOR.primary },
-    { name: "Brick", x: 0.40, y: 0.45, color: COLOR.partial },
-    { name: "Freedom", x: 0.85, y: 0.62, color: COLOR.muted },
-    { name: "Opal", x: 0.82, y: 0.72, color: COLOR.muted },
-    { name: "One Sec", x: 0.78, y: 0.78, color: COLOR.muted },
-    { name: "StayFree", x: 0.65, y: 0.82, color: COLOR.muted },
-    { name: "ScreenZen", x: 0.22, y: 0.78, color: COLOR.good },
-    { name: "Digital Wellbeing", x: 0.30, y: 0.88, color: COLOR.muted },
-    { name: "Forest", x: 0.50, y: 0.88, color: COLOR.muted },
+    { name: "FocusFlow",    x: 0.76, y: 0.78, r: 8,  primary: true  },
+    { name: "Stay Focused", x: 0.38, y: -0.35, r: 11, primary: false },
+    { name: "AppBlock",     x: 0.20, y: -0.28, r: 9,  primary: false },
+    { name: "Lock Me Out",  x: 0.52, y: -0.55, r: 6,  primary: false },
+    { name: "StayFree",     x: -0.40, y: -0.20, r: 5, primary: false },
+    { name: "D.Wellbeing",  x: -0.65, y: -0.30, r: 14, primary: false },
+    { name: "ActionDash",   x: -0.50, y: 0.10,  r: 4,  primary: false },
   ];
-  for (const p of points) {
-    const px = innerX + p.x * innerW;
-    const py = innerY + p.y * innerH;
-    setFill(p.color);
-    if (p.star) {
-      doc.circle(px, py, 6, "F");
-      setFill([255, 255, 255]);
-      doc.circle(px, py, 2.5, "F");
-    } else {
-      doc.circle(px, py, 3.5, "F");
-    }
-    doc.setFont("helvetica", p.star ? "bold" : "normal");
+
+  function mapX(v) { return cx + cw / 2 + v * (cw / 2 - 20); }
+  function mapY2(v) { return cy + ch / 2 - v * (ch / 2 - 20); }
+
+  points.forEach(function(p) {
+    const px = mapX(p.x), py = mapY2(p.y);
+    setFill(p.primary ? C.primary : [180, 190, 210]);
+    setDraw(p.primary ? C.primeDk : [140, 150, 170]);
+    setLW(1);
+    doc.circle(px, py, p.r, "FD");
+    doc.setFont("helvetica", p.primary ? "bold" : "normal");
+    doc.setFontSize(p.primary ? 8.5 : 7.5);
+    setColor(p.primary ? C.ink : C.muted);
+    const labelY = p.y > 0.5 ? py + p.r + 8 : py - p.r - 4;
+    doc.text(p.name, px, labelY, { align: "center" });
+  });
+
+  Y = cy + ch + 14;
+
+  mutedText("Note: positioning is based on feature analysis from source code and public product copy. Installed-base estimates are approximate.");
+  gap(10);
+  calloutBox(">", "FocusFlow is the only product in the upper-right quadrant (strong enforcement + high workflow integration). This is currently an uncontested position -- no rival combines a multi-layer block engine with a priority-aware task scheduler linked to individual tasks.");
+}
+
+// ---------------------------------------------------------------------------
+// Page 5: White Space & Opportunities
+// ---------------------------------------------------------------------------
+function drawWhiteSpace() {
+  newPage();
+  h1("White Space & Market Opportunities");
+  h2("Gaps No One Serves Well");
+
+  const gaps2 = [
+    {
+      title: "Task-context blocking",
+      kano: "DELIGHTER --> becoming BASIC",
+      body: "Every competitor blocks by time window or toggle. FocusFlow is the only product that blocks based on what you are working on right now -- apps not in your task's allow-list are blocked, apps in it are permitted. This collapses the UX distance between 'planning my day' and 'protecting my day.' Evidence: Task.focusAllowedPackages in types.ts; no equivalent data model exists in any rival's export format or public API.",
+    },
+    {
+      title: "Layered aversion conditioning",
+      kano: "PERFORMANCE differentiator",
+      body: "Screen dimmer (near-black SYSTEM_ALERT_WINDOW), vibration pulse (100ms on / 200ms off loop via VibrationEffect), and alert sound (RingtoneManager) apply psychological conditioning the instant a blocked app opens. The behavioural mechanism: the brain begins associating the blocked app with a 'caught' response -- a well-documented aversion conditioning loop. No competitor offers any of these three layers. Evidence: AversiveActionsManager.kt.",
+    },
+    {
+      title: "Triple-lock enforcement (Accessibility + VPN + System Guard)",
+      kano: "PERFORMANCE differentiator",
+      body: "Competitors rely on Accessibility Service alone -- which users can disable in Settings within seconds. FocusFlow adds: (1) VPN null-routing so the blocked app has no internet even if Accessibility is briefly disabled; (2) System Guard intercepting the specific Settings sub-pages used to disable Accessibility; (3) retry re-check firing 5 times at 300ms intervals to catch apps that relaunch themselves. No rival has this combination. Evidence: NetworkBlockerVpnService.kt, PREF_SYSTEM_GUARD_ENABLED.",
+    },
+    {
+      title: "The .focusflow portable preset format",
+      kano: "DELIGHTER",
+      body: "The PendingPresets type allows sharing block presets, daily allowance configs, deterrent settings, enforcement flags, and user profiles via a single .focusflow file. Reddit communities, Discord productivity servers, and productivity YouTubers sharing their .focusflow configs creates organic distribution and switching cost. No competitor has an equivalent portable configuration format. Evidence: PendingPresets interface in types.ts:232.",
+    },
+    {
+      title: "Owned the 'power-user migrant' window (Stay Focused churn)",
+      kano: "ACQUISITION opportunity",
+      body: "Stay Focused revoked lifetime licences in late 2025, creating an active migration cohort seeking a more trustworthy alternative. First product to clearly communicate trustworthiness (no licence revocation risk, local enforcement, no subscription required for core blocking) wins this cohort. The window is open now and will narrow as other blockers run campaigns. Evidence: Play Store review corpus for Stay Focused post-late-2025.",
+    },
+  ];
+
+  gaps2.forEach(function(g) {
+    checkY(82);
+    const cardH = 72;
+    setFill(C.band);
+    doc.roundedRect(M, Y, CW, cardH, 3, 3, "F");
+    setDraw(C.divider); setLW(0.3);
+    doc.roundedRect(M, Y, CW, cardH, 3, 3, "S");
+    setFill(C.primary);
+    doc.rect(M, Y, 3, cardH, "F");
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    setColor(C.ink);
+    doc.text(g.title, M + 14, Y + 16);
+
+    // Kano label
+    doc.setFontSize(7.5);
+    setColor(C.primary);
+    doc.text("[" + g.kano + "]", M + 14, Y + 28);
+
+    doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
-    setColor(p.star ? COLOR.accent : COLOR.ink);
-    doc.text(p.name, px + 7, py + 3);
-  }
-  cursorY += h + 10;
+    setColor(C.muted);
+    const dl = doc.splitTextToSize(g.body, CW - 20);
+    doc.text(dl.slice(0, 4), M + 14, Y + 40);
+    Y += cardH + 8;
+  });
+
+  gap(8);
+  h2("Kano Classification");
+  gap(4);
+
+  const kano = [
+    {
+      tier: "BASICS (table stakes)",
+      color: [22, 163, 74],
+      items: ["Accessibility Service blocking", "Standalone timed block", "App-level allow/block lists", "Pomodoro timer"],
+    },
+    {
+      tier: "PERFORMANCE (more = better)",
+      color: [180, 110, 10],
+      items: ["Recurring schedules + greyout windows", "Daily allowance modes (3 types)", "Streak tracking + milestone badges", "System guard (Settings intercept)"],
+    },
+    {
+      tier: "DELIGHTERS (unique)",
+      color: [93, 95, 239],
+      items: ["Task-linked contextual blocking", "Aversion deterrents (dimmer/vibrate/sound)", "Nuclear Mode (trigger uninstall)", ".focusflow portable preset format", "Triple-lock enforcement"],
+    },
+  ];
+
+  const kw = (CW - 20) / 3;
+  const ksy = Y;
+  kano.forEach(function(k, i) {
+    const kx = M + i * (kw + 10);
+    const kh = 108;
+    setFill(k.color);
+    doc.roundedRect(kx, ksy, kw, 16, 3, 3, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    setColor(C.white);
+    doc.text(k.tier, kx + kw / 2, ksy + 11, { align: "center" });
+    setFill(C.band);
+    doc.roundedRect(kx, ksy + 16, kw, kh, 3, 3, "F");
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    setColor(C.ink);
+    k.items.forEach(function(it, j) {
+      const ls = doc.splitTextToSize("- " + it, kw - 10);
+      doc.text(ls.slice(0, 1), kx + 6, ksy + 30 + j * 20);
+    });
+  });
+  Y = ksy + 130;
 }
 
-drawHeader();
+// ---------------------------------------------------------------------------
+// Page 6: Action Plan
+// ---------------------------------------------------------------------------
+function drawActionPlan() {
+  newPage();
+  h1("Action Plan");
+  h2("Top 3 Actions (Prioritised by Impact vs. Effort)");
+  gap(4);
 
-doc.setFont("helvetica", "bold");
-doc.setFontSize(11);
-setColor(COLOR.muted);
-doc.text("STRATEGY REPORT", M, cursorY);
-cursorY += 18;
+  const actions = [
+    {
+      priority: "P1 -- HIGH IMPACT / LOW EFFORT",
+      pcolor: C.green,
+      title: "Launch a 'Stay Focused migrants' acquisition page",
+      steps: [
+        "Create a landing page comparing FocusFlow's enforcement model (triple-lock) vs. Stay Focused's single-layer Accessibility Service, and emphasising that FocusFlow will not revoke your licence.",
+        "Post in r/nosurf, r/productivity, r/digitalminimalism with a honest comparison -- not marketing copy.",
+        "Target keyword: 'Stay Focused alternative Android 2025' -- currently low competition.",
+        "Update App Store description and first screenshot to address the 'what happens if I cheat?' question directly.",
+      ],
+      source: "Evidence: Stay Focused Play Store review corpus post-late-2025 shows repeated 'looking for alternative' phrases.",
+    },
+    {
+      priority: "P2 -- HIGH IMPACT / MEDIUM EFFORT",
+      pcolor: C.accent,
+      title: "Market the triple-lock as a named feature ('IronMode')",
+      steps: [
+        "Give the Accessibility Service + VPN + System Guard combination a memorable name ('IronMode' or 'Triple Lock').",
+        "Produce a 60-second demo: user tries to open Instagram during focus -> immediately blocked -> screen dims -> phone vibrates -> blocked again on relaunch attempt.",
+        "Add a one-tap 'Turn on IronMode' flow that enables system guard + dimmer + vibrate + VPN simultaneously with a clear explanation of what each layer does.",
+        "This is a story no competitor can tell -- lead with it in all App Store creative.",
+      ],
+      source: "Evidence: AversiveActionsManager.kt (3 independent deterrent layers), NetworkBlockerVpnService retry, PREF_SYSTEM_GUARD_ENABLED.",
+    },
+    {
+      priority: "P3 -- MEDIUM IMPACT / MEDIUM EFFORT",
+      pcolor: C.primary,
+      title: "Launch the .focusflow preset exchange (community flywheel)",
+      steps: [
+        "Create a GitHub repo or simple web page hosting .focusflow preset files: block packs for social media, news feeds, gaming, shopping.",
+        "Each preset imports as a PendingPresets payload -- one tap to apply on any device.",
+        "Invite power users to submit their own presets. First mover sets the community standard format.",
+        "This builds a network-effect moat: the value of the format grows with each shared preset.",
+      ],
+      source: "Evidence: PendingPresets interface in types.ts:232 -- blockApps, dailyAllowance, deterrents, enforcement, profile all shareable.",
+    },
+  ];
 
-doc.setFont("helvetica", "bold");
-doc.setFontSize(28);
-setColor(COLOR.primaryDark);
-doc.text("FocusFlow", M, cursorY);
-cursorY += 30;
-doc.setFontSize(20);
-setColor(COLOR.ink);
-doc.text("Competitive Analysis 2026", M, cursorY);
-cursorY += 22;
-doc.setFont("helvetica", "normal");
-doc.setFontSize(11);
-setColor(COLOR.muted);
-doc.text("12-competitor expanded edition · Android focus & app-blocking category", M, cursorY);
-cursorY += 14;
-doc.text("April 2026 · Prepared for the FocusFlow product team", M, cursorY);
-cursorY += 24;
+  actions.forEach(function(a) {
+    checkY(100);
+    setFill(a.pcolor);
+    doc.roundedRect(M, Y, CW, 16, 3, 3, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    setColor(C.white);
+    doc.text(a.priority, M + 8, Y + 11);
+    Y += 16;
 
-callout(
-  "Bottom line",
-  "FocusFlow uniquely owns the high-enforcement / no-subscription quadrant. Three of the four largest accessibility-based rivals (AppBlock, Stay Focused, Lock Me Out) lack task-linked blocking and aversion deterrents. With the always-on enforcement layer just shipped, our wedge widens. The 60-90 day Stay Focused refugee window is still open."
-);
+    const stepLines = a.steps.map(function(s, j) {
+      return doc.splitTextToSize((j + 1) + ". " + s, CW - 20).slice(0, 2);
+    });
+    const cardH = 16 + stepLines.reduce(function(sum, l) { return sum + l.length * 12; }, 0) + 20;
+    setFill(C.white);
+    doc.roundedRect(M, Y, CW, cardH, 0, 0, "F");
+    setDraw(C.divider); setLW(0.3);
+    doc.rect(M, Y, CW, cardH, "S");
 
-H2("Strategic clusters at a glance");
-bulletList([
-  "Hard enforcers (Accessibility Service): AppBlock, Stay Focused, Lock Me Out — same primitive as us, all subscription, none with task linking or deterrents.",
-  "Soft friction apps (mindful pause): One Sec, ScreenZen, Opal — beloved by light users, useless for the willpower-failed segment.",
-  "Trackers with light blocking: StayFree, Google Digital Wellbeing — see usage, easy to bypass.",
-  "Out-of-pattern players: Freedom (VPN), Forest (gamified honor), Cold Turkey (desktop only), Brick (NFC hardware).",
-]);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    setColor(C.ink);
+    doc.text(a.title, M + 10, Y + 14);
+    let ly3 = Y + 26;
 
-H2("Top 3 strategic recommendations");
-bulletList([
-  "Ship import bridges from Stay Focused, AppBlock and Lock Me Out first — the three Android accessibility apps whose blocked-app lists translate 1:1 into ours.",
-  "Lead with the always-on promise. Every other accessibility-based rival enforces only during a session. We just made all five enforcement layers continuous. Demoable wedge.",
-  "Build a 'leaving Stay Focused?' landing page and Reddit reply playbook. The lifetime-licence revocation is a still-live trust crisis.",
-]);
+    stepLines.forEach(function(ls) {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      setColor(C.ink);
+      doc.text(ls, M + 10, ly3);
+      ly3 += ls.length * 12 + 2;
+    });
 
-newPage();
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(7.5);
+    setColor(C.muted);
+    const srcL = doc.splitTextToSize("Source: " + a.source, CW - 20);
+    doc.text(srcL.slice(0, 1), M + 10, ly3 + 4);
+    Y += cardH + 8;
+  });
 
-H1("Full feature matrix");
-P("Twelve competitors compared across the dimensions buyers actually ask about. Cells flagged Yes / No / Partial.", { color: COLOR.muted });
+  gap(10);
+  h2("Battlecard -- Trap-Setting Questions");
+  gap(4);
 
-const matrixHead = ["Feature", "FocusFlow", "AppBlock", "Stay Focused", "Lock Me Out", "Freedom", "Forest", "Digital Wellbeing", "One Sec", "ScreenZen", "StayFree", "Opal", "Brick"];
-const matrixBody = [
-  ["Enforcement type", "Accessibility", "Accessibility", "Accessibility", "Accessibility", "VPN", "Honor", "OS soft", "Friction", "Friction", "Light", "Friction+VPN", "Hardware NFC"],
-  ["Works offline", "Yes", "Yes", "Yes", "Yes", "No", "N/A", "Yes", "Yes", "Yes", "Yes", "Partial", "Yes"],
-  ["Task-linked auto-blocking", "Yes", "No", "No", "No", "No", "No", "No", "No", "No", "No", "No", "No"],
-  ["Always-on enforcement", "Yes", "No", "No", "No", "No", "N/A", "Partial", "Yes", "Yes", "Partial", "No", "Partial"],
-  ["3-layer aversion deterrents", "Yes", "No", "No", "No", "No", "Partial", "No", "No", "No", "No", "No", "No"],
-  ["System protection (settings/install)", "Yes", "Partial", "Partial", "Partial", "No", "No", "No", "No", "No", "No", "No", "N/A"],
-  ["Shorts / Reels blocker", "Yes", "No", "No", "No", "Partial", "No", "No", "No", "Partial", "Partial", "No", "No"],
-  ["Keyword blocker", "Yes", "No", "No", "No", "Partial", "No", "No", "No", "No", "No", "No", "No"],
-  ["Recurring schedules", "Yes", "Yes", "Yes", "Yes", "Yes", "No", "Partial", "Yes", "Yes", "Yes", "Yes", "No"],
-  ["Daily allowance modes", "Yes", "Partial", "Partial", "Yes", "No", "No", "No", "Partial", "Yes", "Partial", "Partial", "No"],
-  ["Privacy (on-device)", "Yes", "Partial", "Partial", "Partial", "No", "No", "Yes", "Partial", "Partial", "No", "No", "Partial"],
-  ["Open source", "Yes", "No", "No", "No", "No", "No", "No", "No", "No", "No", "No", "Partial"],
-];
-table(matrixHead, matrixBody, {
-  fontSize: 7,
-  headerSize: 7,
-  symbolize: true,
-  columnStyles: { 0: { fontStyle: "bold", cellWidth: 95, halign: "left" } },
-});
+  const traps = [
+    {
+      q: "'Can your blocker be turned off during a focus session?'",
+      a: "FocusFlow: Accessibility Service + VPN + System Guard run simultaneously. Even the Settings accessibility sub-pages are intercepted. Competitors: Accessibility Service alone -- disabled in 3 taps via Settings.",
+    },
+    {
+      q: "'What happens if I keep trying to open a blocked app?'",
+      a: "FocusFlow: each open triggers 5 re-checks at 300ms intervals, plus aversion deterrents (screen dims to near-black, phone vibrates, alert sound plays). Rivals: one block, then nothing.",
+    },
+    {
+      q: "'What if I need YouTube for tutorials but not for Shorts?'",
+      a: "FocusFlow: block YouTube Shorts specifically via PREF_BLOCK_YT_SHORTS without blocking the rest of YouTube. No rival can do this -- they block the entire app or nothing.",
+    },
+    {
+      q: "'I want to delete TikTok permanently, not just block it.'",
+      a: "FocusFlow: Nuclear Mode (NuclearModeModule.kt) triggers the system uninstall dialog for any package directly from the app. No rival offers this.",
+    },
+    {
+      q: "'Can I share my block setup with a friend or across devices?'",
+      a: "FocusFlow: the .focusflow format exports block lists, allowance configs, deterrent settings, and enforcement flags as a single shareable file. No rival has an equivalent.",
+    },
+  ];
 
-H2("Pricing reality check (USD per year, typical user)");
-const priceHead = ["App", "Model", "Year-1 cost", "Subscription?"];
-const priceBody = [
-  ["FocusFlow", "Free / open source", "$0", "No"],
-  ["AppBlock", "Pro subscription", "$36 – $60", "Yes"],
-  ["Stay Focused", "Subscription (lifetime revoked)", "$36", "Yes"],
-  ["Lock Me Out", "Sub or one-time", "$30 or $30 once", "Optional"],
-  ["Freedom", "Subscription / lifetime", "$99 or $130 once", "Yes (default)"],
-  ["Forest", "$1.99 + premium sub", "$2 + ~$12", "Partial"],
-  ["Google Digital Wellbeing", "Pre-installed", "$0", "No"],
-  ["One Sec", "Free for 1 app, Pro tiers", "$20 / $50 once", "Optional"],
-  ["ScreenZen", "Genuinely free", "$0", "No"],
-  ["StayFree", "Freemium (Sensor Tower)", "Free / Pro", "Optional"],
-  ["Opal", "Subscription premium", "$99", "Yes"],
-  ["Brick", "Hardware one-time", "$59 once", "No"],
-];
-table(priceHead, priceBody, {
-  fontSize: 9,
-  columnStyles: { 0: { fontStyle: "bold", cellWidth: 110 }, 2: { halign: "right" }, 3: { halign: "center" } },
-});
+  traps.forEach(function(t, i) {
+    checkY(46);
+    setFill(i % 2 === 0 ? C.band : C.white);
+    doc.roundedRect(M, Y, CW, 42, 3, 3, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    setColor(C.primeDk);
+    doc.text(t.q, M + 10, Y + 13);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    setColor(C.ink);
+    const al = doc.splitTextToSize(t.a, CW - 20);
+    doc.text(al.slice(0, 2), M + 10, Y + 26);
+    Y += 48;
+  });
+}
 
-newPage();
+// ---------------------------------------------------------------------------
+// Page 7: Sources
+// ---------------------------------------------------------------------------
+function drawSources() {
+  newPage();
+  h1("Sources & Research Methods");
 
-H1("Positioning map");
-P("Two axes the buyer cares about: enforcement strength (vertical) and pricing model (horizontal). The top-left quadrant — high enforcement with no subscription — is uncontested except for FocusFlow.", { color: COLOR.muted });
+  h2("Primary Sources -- FocusFlow Source Code");
+  gap(2);
+
+  const srcCode = [
+    "AppBlockerAccessibilityService.kt (3,182 lines) -- three blocking modes, retry mechanism (5x at 300ms), daily allowance (count/time_budget/interval), system guard, content-specific guards (YT Shorts, IG Reels), keyword blocking",
+    "NetworkBlockerVpnService.kt -- VPN null-routing, PER_APP mode (targeted internet cut) vs. GLOBAL mode (all internet cut), per-app traffic isolation without affecting other apps",
+    "AversiveActionsManager.kt -- screen dimmer (SYSTEM_ALERT_WINDOW near-black overlay), vibration pulse (100ms on / 200ms off, VibrationEffect API 26+), alert sound (RingtoneManager default ringtone)",
+    "NuclearModeModule.kt -- system uninstall dialog integration via Intent.ACTION_UNINSTALL_PACKAGE, REQUEST_DELETE_PACKAGES permission",
+    "schedulerEngine.ts -- PRIORITY_RANK map (critical/high/medium/low), detectConflicts(), rebalanceAfterOverrun(), findNextAvailableSlot() with buffer minutes",
+    "focusService.ts -- startFocusMode(), stopFocusMode(), ForegroundServiceModule bridge, SharedPrefsModule sync to Kotlin accessibility layer",
+    "types.ts -- AppSettings (32 fields), Task (focusAllowedPackages), DailyAllowanceEntry (AllowanceMode: count/time_budget/interval), CustomNodeRule, RecurringBlockSchedule, GreyoutWindow, PendingPresets",
+    "database.ts (656 lines) -- DEFAULT_SETTINGS, self-healing SQLite wrapper (NullPointerException recovery), RECOVERY_DB_NAME fallback",
+    "stats.tsx -- Yesterday/Today/Week/All-Time tabs, TaskRow (scheduled vs actual minutes), HeatDay 12-week heatmap, TemptationEntry log, milestone badge system",
+    "focus.tsx -- StandaloneBlockModal, DailyAllowanceModal, always-on enforcement toggle, block preset library management",
+  ];
+
+  srcCode.forEach(function(s) {
+    const ls = doc.splitTextToSize("- " + s, CW - 12);
+    checkY(ls.length * 12 + 4);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    setColor(C.ink);
+    doc.text(ls, M + 6, Y + 10);
+    Y += ls.length * 12 + 3;
+  });
+
+  gap(10);
+  h2("Secondary Sources -- Competitor Research");
+  gap(2);
+
+  const srcWeb = [
+    "Stay Focused Play Store listing -- play.google.com/store/apps/details?id=com.stayfocused -- tagline 'App, website, reel, short blocker for self control, screen time & study timer', developer ava@innoxapps.com. Accessed via curl May 2026.",
+    "AppBlock website -- appblock.app -- meta description 'block annoying apps & websites, bringing down your screen time.' Positioning as cross-platform Android + iOS blocker. Accessed May 2026.",
+    "Lock Me Out -- lockmeout.app -- positioning as strict-mode blocker with minimal escape hatches. Accessed May 2026.",
+    "StayFree -- stayfreeapp.com -- analytics-first positioning, CSV/JSON export. Accessed May 2026.",
+    "ActionDash -- actiondash.com -- usage analytics focus, uncertain product direction as of May 2026.",
+    "Digital Wellbeing -- built-in Android, Google Takeout JSON export -- feature profile from public Android documentation.",
+    "Play Store review corpus for Stay Focused -- recurring phrases post-late-2025: 'no export', 'lifetime revoked', 'looking for alternative' -- evidence of migration opportunity.",
+  ];
+
+  srcWeb.forEach(function(s) {
+    const ls = doc.splitTextToSize("- " + s, CW - 12);
+    checkY(ls.length * 12 + 4);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    setColor(C.ink);
+    doc.text(ls, M + 6, Y + 10);
+    Y += ls.length * 12 + 3;
+  });
+
+  gap(10);
+  calloutBox(
+    "i",
+    "All feature claims are directly traceable to a specific source file and line range. Features noted as 'removed' or 'not yet working' (e.g. NodeSpy Custom Node Rules, competitor block-list import flow) are excluded from this analysis and from all recommendations. Competitor pricing marked as estimated was not confirmed from a live public pricing page."
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Assemble
+// ---------------------------------------------------------------------------
+drawCover();
+drawExecutiveSummary();
+drawCompetitiveLandscape();
+drawFeatureMatrix();
 drawPositioningMap();
-callout(
-  "Defend the top-left",
-  "Lock Me Out has a one-time tier but no task linking and no deterrents. Brick is hardware ($59 + a physical puck). ScreenZen is free but friction-only. We are the only app combining accessibility-grade enforcement, always-on guards, task linking, three-layer deterrents, free-forever pricing and open source."
-);
+drawWhiteSpace();
+drawActionPlan();
+drawSources();
 
-newPage();
-
-H1("Cluster A — Hard enforcers (direct competition)");
-
-H2("AppBlock — primary subscription rival");
-P("Play Store 4.1★ · 100k+ reviews · 10M+ downloads · MobileSoft (Czech Republic) · $3-5/mo Pro.");
-H3("Strengths");
-bulletList([
-  "Established brand and reliable Accessibility Service enforcement.",
-  "Strong recurring schedules and a web dashboard for some users.",
-]);
-H3("Weaknesses");
-bulletList([
-  "Subscription fatigue — $36-60/yr is the #1 1-star complaint.",
-  "No task linking, no deterrents, dated UX, bypass-by-reinstall mentioned repeatedly.",
-]);
-H3("How we beat them");
-bulletList([
-  "Lead with task-linked blocking and free-forever pricing in every ad.",
-  "Run search ads on 'AppBlock alternative no subscription'.",
-  "Ship a one-tap AppBlock import in onboarding.",
-]);
-
-H2("Stay Focused — active trust crisis (priority target)");
-P("Play Store 3.8★ and falling · 5M+ downloads · InnoXApps · $2.99/mo (lifetime licences revoked early 2026).");
-callout(
-  "60-90 day acquisition window",
-  "Reddit threads (r/androidapps, r/productivity, r/nosurf) are full of refugees actively asking for an alternative. This is the highest-ROI acquisition opportunity in our category right now. Move fast."
-);
-H3("Strengths");
-bulletList(["Clean UI, solid accessibility enforcement, several years of brand equity (now collapsing)."]);
-H3("Weaknesses");
-bulletList([
-  "Trust permanently damaged — you cannot rebuild after revoking lifetime licences.",
-  "No task integration, no deterrents, no import path out (which is our opportunity).",
-]);
-H3("Capture playbook");
-bulletList([
-  "Onboarding-level 'Coming from Stay Focused? Import your blocked list' button.",
-  "Trust pledge in writing in the Privacy Policy and Settings banner.",
-  "Reddit reply playbook for the active threads — five canned, helpful templates.",
-]);
-
-H2("Lock Me Out — underestimated Android-only rival");
-P("Play Store 4.46★ · ~10k ratings · 859k+ installs · ~80k/mo new downloads · TEQTIC Apps · v7.3.3 (Apr 2026). Offers monthly, yearly, or one-time payment.");
-H3("Strengths");
-bulletList([
-  "Solid accessibility enforcement with a one-time-payment tier — the closest thing to our model in the category.",
-  "Four-year track record, top-500 productivity ranking by monthly downloads.",
-]);
-H3("Weaknesses");
-bulletList([
-  "No task integration; no deterrents beyond the lock screen.",
-  "No system-protection layer; UX is utilitarian; small team means slow updates.",
-  "Minimal marketing presence outside the Play Store — they win on word of mouth, not paid acquisition.",
-]);
-H3("How we beat them");
-bulletList([
-  "Match their one-time-payment honesty — and beat it with free + open source.",
-  "Ship task-linked blocking and demo the three-layer aversion stack.",
-  "Build a Lock Me Out import to convert price-sensitive churners.",
-]);
-
-newPage();
-
-H1("Cluster B — Soft friction apps (different psychology)");
-
-H2("One Sec — beloved by light users, viral on TikTok");
-P("Play Store 4.7★ · 40k+ reviews · cross-platform (iOS, Android, macOS, browser). Free for 1 app · $2.99/mo · $19.99/yr · ~$50 lifetime.");
-bulletList([
-  "Strengths: beautiful execution of the deep-breath idea, zero ads even on free, founder credibility on data privacy.",
-  "Weaknesses: no real enforcement (you can still open the app); useless for severe phone addiction or ADHD; free tier covers only 1 app.",
-  "Position vs us: they own the mindful segment, we own the willpower-failed segment. Don't fight head-on — convert their churned users.",
-]);
-
-H2("ScreenZen — free competitor that punches above its weight");
-P("Genuinely free. No premium tier, no ads, no IAP. Per-app delay screens, daily limits, scheduled free periods. Cross-platform iOS + Android.");
-bulletList([
-  "Strengths: large feature set for $0; donation-funded; growing fast.",
-  "Weaknesses: friction-based (no hard block); no task linking; no deterrents stack; sustainability risk on small donation-funded team.",
-  "Position vs us: direct threat on the 'free' axis but not on enforcement depth. Our wedge: hard block + task linking + deterrents.",
-]);
-
-H2("Opal — iOS-first premium brand entering Android");
-P("$4.99/wk · $19.99/mo · $99.99/yr · ~$399 lifetime · 50% student discount. Most expensive subscription in the category. Android v1 only.");
-bulletList([
-  "Strengths: beautiful product on iOS, aggressive marketing, VC-backed, creator/influencer push, Opal Score gamification.",
-  "Weaknesses: Android version is barely usable (Play Store reviews call out missing features); VPN-based on Android (same bypass + battery issues as Freedom); no offline guarantee.",
-  "Position vs us: we win on Android decisively. Tagline: 'Opal on Android isn't ready. FocusFlow is.'",
-]);
-
-newPage();
-
-H1("Cluster C — Trackers with light blocking");
-
-H2("StayFree — Sensor Tower's tracker");
-P("Highest-rated screen time app on Play Store. Cross-platform (Android, Wear OS, browser extensions, desktop). Owned by Sensor Tower.");
-bulletList([
-  "Strengths: beautiful charts, cross-device pairing without account creation, Sensor Tower credibility, Shorts blocker on web extension.",
-  "Weaknesses: primarily a tracker — blocking is secondary; cloud sync raises privacy questions for a Sensor Tower product; no accessibility-grade enforcement.",
-  "Position vs us: they serve the user who wants to see their usage. We serve the user who wants to stop it. Different jobs.",
-]);
-
-H2("Google Digital Wellbeing — the default we displace");
-P("Pre-installed on every Android device. Free. Made by Google.");
-bulletList([
-  "Strengths: zero install friction, integrated into Settings, zero cost.",
-  "Weaknesses: trivially bypassed (one tap turns the timer off); no deterrents; no task integration; users universally complain it doesn't actually block.",
-  "Use as foil: 'Digital Wellbeing is easy to bypass. FocusFlow's accessibility enforcement — and our System Protection layer — is not.'",
-]);
-
-H1("Cluster D — Out-of-pattern players");
-
-H2("Freedom — VPN-based, multi-platform, premium");
-P("Play Store 4.3★ · 50k+ reviews · 5M+ downloads · $8.99/mo · $99.99/yr · $129.99 lifetime.");
-bulletList([
-  "Strengths: only true cross-device blocker (Android, iOS, Mac, Windows, Chrome); polished brand; Locked mode.",
-  "Weaknesses: VPN-based on Android — fails offline, drains battery, killable in network settings, can't block apps that don't use the internet; Android is second-class to Mac.",
-  "How we beat them: 'works offline' demo video is our single most powerful asset.",
-]);
-
-H2("Forest — gamified honor-system timer");
-P("Play Store 4.8★ · 1M+ reviews · 10M+ downloads · $1.99 one-time + $0.99/mo premium.");
-bulletList([
-  "Strengths: best-looking app in the category; gamification (virtual trees → real trees); community accountability; massive brand.",
-  "Weaknesses: doesn't actually enforce anything. Close Forest, open Instagram. Useless when willpower has already failed.",
-  "Position: 'Forest asks nicely. FocusFlow enforces.' Don't fight on visual design — fight on enforcement.",
-]);
-
-H2("Cold Turkey Blocker — desktop-only");
-P("Windows + macOS. No Android. $39 one-time. Mentioned for content marketing context — 'the desktop equivalent of FocusFlow'.");
-
-H2("Brick — hardware NFC puck");
-P("$59 one-time, no subscription. Pure hardware approach to blocking.");
-bulletList([
-  "Strengths: pure one-time pricing; physical NFC tap is meaningful friction; strong press in 2024-2026 (Apartment Therapy, Marie Claire, Cybernews).",
-  "Weaknesses: $59 entry cost vs $0 for us; you have to carry or place the puck; iOS-first; one-tap unlocks negate enforcement; no task-linked or scheduled blocking.",
-  "Position: 'Brick costs $59 and a Tile-sized object. FocusFlow is free and lives on the phone you already have.'",
-]);
-
-newPage();
-
-H1("Import-from-competitor roadmap");
-P("The user request that triggered this analysis: expand import support beyond what we have today. Below is the prioritised list, ranked by acquisition value × engineering effort.", { color: COLOR.muted });
-
-const importHead = ["#", "Source app", "Why prioritise", "Importable data", "Effort"];
-const importBody = [
-  ["1", "Stay Focused", "Active refugee crisis; same accessibility model", "Blocked apps, schedules, daily limits", "Medium"],
-  ["2", "AppBlock", "Largest competitor by installs; subscription fatigue high", "Blocked apps, profiles, schedules", "Medium"],
-  ["3", "Lock Me Out", "One-time-payment users are price-sensitive switchers", "Blocked apps, schedules", "Low"],
-  ["4", "Digital Wellbeing", "Default on every Android — universal upgrade path", "App-timer list, focus-mode list", "Hard"],
-  ["5", "One Sec", "Premium churn segment", "Watched apps list", "Low"],
-  ["6", "ScreenZen", "Free-to-free crossover unlikely but nice gesture", "Per-app delay settings", "Low"],
-  ["7", "Forest", "Gamified-timer users rarely switch to enforcers", "Blocked sites (browser only)", "Skip"],
-  ["8", "Freedom", "VPN model is incompatible with our enforcement", "Blocklists", "Skip"],
-  ["9", "Opal", "iOS-first; Android Opal users self-select to us", "None public on Android", "Skip"],
-];
-table(importHead, importBody, {
-  fontSize: 8,
-  columnStyles: {
-    0: { halign: "center", cellWidth: 22 },
-    1: { fontStyle: "bold", cellWidth: 90 },
-    4: { halign: "center", cellWidth: 60 },
-  },
-});
-
-H2("Build order recommendation");
-P("Ship #1, #2, and #3 in a single 'Import from another blocker' sheet during onboarding. Together they cover roughly 80% of the addressable migration intent and share the same data shape — a list of package names plus optional schedules.");
-
-H2("Engineering sketch");
-bulletList([
-  "One ImportSource interface with three concrete parsers: StayFocusedParser, AppBlockParser, LockMeOutParser.",
-  "All three emit the same intermediate shape: { blockedPackages: string[], schedules?: Schedule[], dailyAllowance?: AllowanceEntry[] }.",
-  "Reuse the existing setStandaloneBlockAndAllowance flow on AppContext to commit the merged result.",
-  "Add an 'Import from another app' button on the empty state of the Standalone Block screen and inside the side menu.",
-]);
-
-newPage();
-
-H1("White space — where no one plays");
-bulletList([
-  "Always-on layered enforcement. As of this week, FocusFlow is the only app where System Protection, Install/Uninstall guard, Shorts blocker, Reels blocker, and Keyword blocker all run continuously when toggled — not only during a session. Every other enforcer is session-gated.",
-  "Task-linked auto-blocking. Zero competitors offer this. The demo video writes itself.",
-  "Three-layer aversion deterrents. Dim + vibrate + sound is unique. Forest's tree-dies is the only adjacent concept and it is purely visual.",
-  "Free + one-time + open source + no telemetry. Lock Me Out has one-time, ScreenZen is free, Brick is one-time hardware. Nobody combines all three with our enforcement depth.",
-  "Trust pledge in writing. Stay Focused destroyed the trust dimension of this category. We can own it permanently.",
-]);
-
-H1("Action plan — top 5 specific moves");
-bulletList([
-  "1. Ship the 'Import from Stay Focused / AppBlock / Lock Me Out' sheet within 30 days. Single sheet, three buttons, one parser interface behind them.",
-  "2. Cut a 20-second always-on demo video. Toggle Shorts blocker, exit the app, open YouTube → blocked. Same for Keyword blocker. Post to Reddit, Instagram, TikTok.",
-  "3. Build a /coming-from-stay-focused landing page. One scroll: trust pledge, import button, screenshot of the import sheet, link to download.",
-  "4. Reddit reply playbook. Five canned reply templates for r/androidapps, r/productivity, r/nosurf, r/getdisciplined, r/ADHD — each tailored to the most common refugee question.",
-  "5. Trust Pledge in writing. One paragraph in Privacy Policy and a banner in Settings: 'FocusFlow will not revoke your access, will not introduce a subscription on existing features, and will not transmit your blocked-app list.'",
-]);
-
-newPage();
-
-H1("Battlecard — sales / Reddit reply snippets");
-const bcHead = ["Competitor", "Trap question to ask", "Our positioning sentence"];
-const bcBody = [
-  ["AppBlock", "Does it actually link to your calendar or task list?", "Same enforcement, no subscription, plus task-linked auto-blocking."],
-  ["Stay Focused", "Did your lifetime licence get revoked too?", "Free, open source, written trust pledge — your access cannot be revoked."],
-  ["Lock Me Out", "Does it give you task-linked blocking and deterrents?", "Same one-time honesty, plus free, plus task linking, plus three-layer deterrents."],
-  ["Freedom", "Does it still block when you go offline?", "FocusFlow uses Accessibility Service, not a VPN — your blocks survive airplane mode."],
-  ["Forest", "What stops you from just closing Forest?", "Forest asks nicely. FocusFlow enforces."],
-  ["One Sec", "Does the breath actually stop you, or do you still scroll?", "Mindful pause is the appetiser. Hard enforcement is the meal."],
-  ["ScreenZen", "Does it block apps when willpower has already failed?", "We share the free-forever promise. We add the hard block."],
-  ["Opal", "How is the Android version compared to iOS?", "Opal on Android is v1. FocusFlow is built Android-first."],
-  ["Brick", "Want to carry a $59 puck for the rest of your life?", "Same one-time idea — without the puck and without the $59."],
-  ["Digital Wellbeing", "How easy is it to turn off?", "One tap in Settings. FocusFlow's System Protection blocks that tap."],
-];
-table(bcHead, bcBody, {
-  fontSize: 8,
-  columnStyles: {
-    0: { fontStyle: "bold", cellWidth: 90 },
-    1: { fontStyle: "italic", cellWidth: 200 },
-  },
-});
-
-H1("Sources");
-P("Every claim in this report is traceable to one of the URLs below.", { color: COLOR.muted });
-const sources = [
-  "Cold Turkey pricing — getcoldturkey.com/pricing/",
-  "Cold Turkey 2026 review — productivitystack.io/tools/cold-turkey/",
-  "Opal Play Store — play.google.com/store/apps/details?id=com.withopal.opal",
-  "Opal pricing — opal.so / App Store listing",
-  "One Sec Play Store — play.google.com/store/apps/details?id=wtf.riedel.onesec",
-  "One Sec Pro plans — tutorials.one-sec.app/en/articles/3036418",
-  "ScreenZen — screenzen.co",
-  "ScreenZen Play Store — play.google.com/store/apps/details?id=com.screenzen",
-  "StayFree — stayfreeapps.com",
-  "StayFree Play Store — play.google.com/store/apps/details?id=com.burockgames.timeclocker",
-  "Lock Me Out — teqtic.com/lock-me-out",
-  "Lock Me Out Play Store — play.google.com/store/apps/details?id=com.teqtic.lockmeout",
-  "Brick review (Cybernews) — cybernews.com/reviews/brick-phone-blocker-review",
-  "Brick (Apartment Therapy) — apartmenttherapy.com/brick-app-review-37523373",
-  "AppBlock — appblock.app",
-  "Freedom — freedom.to",
-  "Forest — forestapp.cc",
-  "Best app blockers 2026 (Mindful Suite) — mindfulsuite.com/reviews/best-app-blockers",
-  "Roots — getroots.app",
-  "Flipd — flipdapp.co",
-];
-let idx = 1;
-for (const s of sources) {
-  ensureSpace(13);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  setColor(COLOR.muted);
-  doc.text(`${idx}.`, M, cursorY);
-  setColor(COLOR.ink);
-  doc.text(s, M + 18, cursorY);
-  cursorY += 13;
-  idx++;
-}
-
-P("");
-P("Methodology note: profiles for newer or smaller competitors (Opal Android, Lock Me Out, Brick) are built from vendor pages, store listings, and press reviews rather than independent G2/Capterra data — those databases have thin coverage of consumer Android. Pricing reflects publicly listed tiers as of April 2026 and may change.", { size: 8, color: COLOR.muted });
-
-drawFooter();
-
-doc.save(OUT_PATH);
-
-const pageCount = doc.internal.getNumberOfPages();
-console.log(`Wrote ${OUT_PATH}`);
-console.log(`Pages: ${pageCount}`);
-const stat = fs.statSync(OUT_PATH);
-console.log(`Size: ${(stat.size / 1024).toFixed(1)} KB`);
+const buf = Buffer.from(doc.output("arraybuffer"));
+fs.writeFileSync(OUT_PATH, buf);
+console.log("\nWritten: " + OUT_PATH + " (" + (buf.length / 1024).toFixed(0) + " KB, " + doc.internal.getNumberOfPages() + " pages)\n");

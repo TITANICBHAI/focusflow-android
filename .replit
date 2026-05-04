@@ -28,6 +28,10 @@ args = "Start application"
 task = "workflow.run"
 args = "Push FocusFlow-pc to GitHub"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start FocusFlow Ad"
+
 [[workflows.workflow]]
 name = "Push to GitHub"
 author = "agent"
@@ -62,6 +66,18 @@ args = "pnpm --filter @workspace/scripts run github:push-pc"
 [workflows.workflow.metadata]
 outputType = "console"
 
+[[workflows.workflow]]
+name = "Start FocusFlow Ad"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=3002 BASE_PATH=/ pnpm --filter @workspace/focusflow-ad run dev"
+waitForPort = 3002
+
 [agent]
 stack = "BEST_EFFORT_FALLBACK"
 expertMode = true
@@ -69,6 +85,10 @@ expertMode = true
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
+
+[[ports]]
+localPort = 3002
+externalPort = 3002
 
 [[ports]]
 localPort = 5000

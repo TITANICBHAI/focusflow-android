@@ -4,7 +4,14 @@
 - **Cross-OEM power menu blocking**: Extended `isSystemUiPkg` and `schedulePowerMenuRetry` in `AppBlockerAccessibilityService.kt` to cover 15+ OEM SystemUI variants (Xiaomi/MIUI, OnePlus/OxygenOS, Oppo/ColorOS, Realme, Huawei/EMUI, Vivo/Funtouch, Motorola, Asus/ZenUI, Nothing OS, Nokia/HMD, Sony Xperia). Retry now fires on `systemGuard` alone — no longer requires an active focus/standalone session.
 - **Cross-OEM uninstall blocking**: Expanded `isInstallActionContext` package list in `AppBlockerAccessibilityService.kt` to include OEM package installers (Samsung legacy, Xiaomi, Realme, Vivo, OnePlus, Motorola, Asus, Nokia) and OEM Settings apps (MIUI, ColorOS, Oppo, Realme, Huawei, Vivo, OnePlus, Motorola, Asus, Nokia) so the uninstall intercept fires on non-Samsung devices.
 - **Focus tab enforcement panel spacing**: Increased `enforcementRow` padding from `SPACING.sm+2` to `SPACING.md`, switched horizontal padding to `SPACING.lg`, added `lineHeight: 16` to description text — tiles no longer look stuffed into a small space.
-- **GitHub push workflows**: Both "Push to GitHub" and "Push FocusFlow-pc to GitHub" are standalone runnable workflows using the `GITHUB_PERSONAL_ACCESS_TOKEN` secret (already configured).
+- **GitHub push workflows**: Both "Push to GitHub" and "Push FocusFlow-pc to GitHub" are standalone runnable workflows using the `GITHUB_PERSONAL_ACCESS_TOKEN` secret. Requires `GITHUB_PERSONAL_ACCESS_TOKEN` secret in Replit Secrets.
+- **Replit migration**: All pnpm packages installed, all 4 workflows configured and running, canvas populated with landing page, gallery, ad video, and 5 phone mockup screens.
+
+## Running Workflows
+- **Start application** — Mockup sandbox on port 5000 (main webview). Routes: `/` (landing), `/gallery`, `/preview/Screenshot1Home`, `/preview/Screenshot2Focus`, `/preview/Screenshot3Blocked`, `/preview/Screenshot4Stats`, `/preview/Screenshot5Permissions`.
+- **Start FocusFlow Ad** — Ad/video animation sandbox on port 3002.
+- **Push to GitHub** — Syncs workspace to `TITANICBHAI/FocusFlow` on GitHub main branch. Requires `GITHUB_PERSONAL_ACCESS_TOKEN`.
+- **Push FocusFlow-pc to GitHub** — Syncs `FocusFlow-pc/focusflow-pc` dir to `TITANICBHAI/FocusFlow-pc`. Requires `GITHUB_PERSONAL_ACCESS_TOKEN`.
 
 # Overview
 FocusFlow is a comprehensive productivity and focus enhancement suite designed to help users manage screen time, block distractions, and cultivate better digital habits. It includes a mobile application (FocusFlow) for Android, a desktop application (FocusFlow-pc) built with Electron, and a companion Android accessibility inspector tool (NodeSpy).

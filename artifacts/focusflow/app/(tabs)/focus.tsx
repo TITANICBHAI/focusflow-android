@@ -364,7 +364,7 @@ function FocusScreen() {
             <View style={styles.enforcementHeader}>
               <Ionicons
                 name={alwaysOnActive ? 'shield-checkmark' : 'shield-outline'}
-                size={20}
+                size={15}
                 color={alwaysOnActive ? COLORS.orange : theme.muted}
               />
               <View style={{ flex: 1 }}>
@@ -389,7 +389,7 @@ function FocusScreen() {
               onPress={() => router.push('/always-on')}
               activeOpacity={0.7}
             >
-              <Ionicons name="infinite-outline" size={17} color={alwaysOnHasList ? COLORS.orange : theme.muted} />
+              <Ionicons name="infinite-outline" size={13} color={alwaysOnHasList ? COLORS.orange : theme.muted} />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.enforcementRowLabel, { color: theme.text }]}>App List</Text>
                 <Text style={[styles.enforcementRowDesc, { color: theme.muted }]}>
@@ -404,7 +404,7 @@ function FocusScreen() {
                   <Text style={[styles.autoCopyText, { color: COLORS.primary }]}>auto-copy</Text>
                 </View>
               )}
-              <Ionicons name="chevron-forward" size={15} color={theme.border} style={{ marginLeft: 4 }} />
+              <Ionicons name="chevron-forward" size={12} color={theme.border} style={{ marginLeft: 4 }} />
             </TouchableOpacity>
 
             <View style={[styles.enforcementDivider, { backgroundColor: theme.border }]} />
@@ -415,7 +415,7 @@ function FocusScreen() {
               onPress={() => setDailyAllowanceModalVisible(true)}
               activeOpacity={0.7}
             >
-              <Ionicons name="time-outline" size={17} color={allowanceCount > 0 ? COLORS.orange : theme.muted} />
+              <Ionicons name="time-outline" size={13} color={allowanceCount > 0 ? COLORS.orange : theme.muted} />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.enforcementRowLabel, { color: theme.text }]}>Daily Allowance</Text>
                 <Text style={[styles.enforcementRowDesc, { color: theme.muted }]}>
@@ -424,7 +424,7 @@ function FocusScreen() {
                     : 'No limits set — tap to cap per-app daily usage'}
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={15} color={theme.border} />
+              <Ionicons name="chevron-forward" size={12} color={theme.border} />
             </TouchableOpacity>
 
             <View style={[styles.enforcementDivider, { backgroundColor: theme.border }]} />
@@ -435,7 +435,7 @@ function FocusScreen() {
               onPress={() => router.push('/block-defense?tab=greyout')}
               activeOpacity={0.7}
             >
-              <Ionicons name="calendar-outline" size={17} color={scheduleCount > 0 ? COLORS.orange : theme.muted} />
+              <Ionicons name="calendar-outline" size={13} color={scheduleCount > 0 ? COLORS.orange : theme.muted} />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.enforcementRowLabel, { color: theme.text }]}>Block Schedules</Text>
                 <Text style={[styles.enforcementRowDesc, { color: theme.muted }]}>
@@ -444,7 +444,7 @@ function FocusScreen() {
                     : 'No schedules — tap to block apps on a timetable'}
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={15} color={theme.border} />
+              <Ionicons name="chevron-forward" size={12} color={theme.border} />
             </TouchableOpacity>
 
             <View style={[styles.enforcementDivider, { backgroundColor: theme.border }]} />
@@ -455,7 +455,7 @@ function FocusScreen() {
               onPress={() => router.push('/keyword-blocker')}
               activeOpacity={0.7}
             >
-              <Ionicons name="text-outline" size={17} color={keywordCount > 0 ? COLORS.primary : theme.muted} />
+              <Ionicons name="text-outline" size={13} color={keywordCount > 0 ? COLORS.primary : theme.muted} />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.enforcementRowLabel, { color: theme.text }]}>Keyword Blocker</Text>
                 <Text style={[styles.enforcementRowDesc, { color: theme.muted }]}>
@@ -464,7 +464,7 @@ function FocusScreen() {
                     : 'No keywords — tap to block by on-screen text'}
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={15} color={theme.border} />
+              <Ionicons name="chevron-forward" size={12} color={theme.border} />
             </TouchableOpacity>
 
           </View>
@@ -1187,22 +1187,22 @@ const styles = StyleSheet.create({
   enforcementHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.sm,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+    gap: 6,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 6,
   },
-  enforcementTitle: { fontSize: FONT.sm, fontWeight: '800' },
-  enforcementSubtitle: { fontSize: FONT.xs, marginTop: 2, lineHeight: 16 },
-  enforcementDivider: { height: StyleSheet.hairlineWidth, marginHorizontal: SPACING.lg },
+  enforcementTitle: { fontSize: 11, fontWeight: '800' },
+  enforcementSubtitle: { fontSize: 10, marginTop: 1, lineHeight: 13 },
+  enforcementDivider: { height: StyleSheet.hairlineWidth, marginHorizontal: SPACING.md },
   enforcementRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.md,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+    gap: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 5,
   },
-  enforcementRowLabel: { fontSize: FONT.sm, fontWeight: '700' },
-  enforcementRowDesc: { fontSize: FONT.xs, marginTop: 2, lineHeight: 16 },
+  enforcementRowLabel: { fontSize: 11, fontWeight: '700' },
+  enforcementRowDesc: { fontSize: 10, marginTop: 1, lineHeight: 13 },
   alwaysOnCard: {
     width: '100%',
     borderRadius: RADIUS.lg,
