@@ -683,8 +683,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 }
 
                 // ── Launcher power-off dialog (e.g. One UI Home long-press power button) ──
-                // Some OEMs (Samsung One UI) show the power-off confirmation from the launcher
-                // package rather than from SystemUI or the powerkey package.
+                // Some OEMs show the power-off confirmation from the launcher package rather
+                // than from SystemUI or the powerkey package.
                 val isLauncherPkg = pkg == "com.sec.android.app.launcher" ||
                     pkg == "com.samsung.android.app.launcher" ||
                     pkg == "com.google.android.apps.nexuslauncher" ||
@@ -694,6 +694,9 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                     pkg == "com.oneplus.launcher" ||
                     pkg == "com.huawei.android.launcher" ||
                     pkg == "com.oppo.launcher" ||
+                    pkg == "com.coloros.launcher" ||       // Oppo / ColorOS
+                    pkg == "com.realme.launcher" ||        // Realme UI (C3, Narzo, etc.)
+                    pkg == "com.vivo.launcher" ||          // Vivo / FuntouchOS / OriginOS
                     pkg == "com.bbk.launcher2"
                 if (isLauncherPkg && isPowerMenu(ev)) {
                     handlePowerMenuIntercepted()
@@ -751,6 +754,23 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                     return
                 }
             }
+            return
+        }
+
+        // ── System Guard: uninstall dialogs from package installer packages ─────
+        // On some OEMs (Realme, Oppo/ColorOS, etc.) the uninstall confirmation
+        // dialog is shown by the system package installer, NOT by com.android.settings.
+        // com.android.settings is in BLOCKABLE_AFTER_WARNING and its uninstall dialog
+        // is caught there; but installer packages fall through to here, so we need a
+        // second check that fires for them when System Protection is on.
+        // Both systemGuardEnabled AND an active enforcement mode must be true (AND, not OR)
+        // so we don't intercept uninstalls when the user has no blocking active at all.
+        if (systemGuardEnabled &&
+            (focusActive || saActive || alwaysBlockActive) &&
+            INSTALLER_PACKAGES.any { pkg.equals(it, ignoreCase = true) } &&
+            isUninstallDialog(ev)
+        ) {
+            handleBlockedApp(pkg)
             return
         }
 
@@ -995,23 +1015,23 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         if (powerKeywords.any { classLower.contains(it) }) return true
 
         val textLower = getEventAndNodeText(event, maxDepth = 5).lowercase()
-        // Pruned text-keyword fallback: removed single ambiguous words like
-        // "restart", "reboot", "shut down", "side key settings" because they
-        // appear inside common notifications (system updates, download prompts,
-        // app names) and were causing the notification shade to be misread as
-        // the power menu. Kept only high-signal full phrases.
-        val powerTextKeywords = listOf(
-            "power off",
-            "power down",
-            "tap again to turn off",         // Samsung One UI Home confirmation text
-            "tap again to power off",
-            "press again to power off",
-            "emergency mode saves battery power",
-            "providing only essential apps",
-            "turning off mobile data when the screen is off",
-            "emergency call",
+        // Text-keyword fallback uses AND-within-group logic (same as isNotificationPanelExpanded):
+        // a group matches only when ALL its items are present simultaneously in the visible text.
+        // Single-item groups match on that phrase alone (high-confidence full phrases).
+        // Multi-item groups require BOTH parts — this prevents a notification mentioning
+        // "emergency" or "battery" in isolation from being mistaken for the power menu.
+        val powerTextGroups = listOf(
+            listOf("power off"),
+            listOf("power down"),
+            listOf("tap again to", "turn off"),          // Samsung One UI Home confirmation
+            listOf("tap again to", "power off"),
+            listOf("press again to", "power off"),
+            listOf("emergency mode", "battery power"),   // Emergency mode entry dialog
+            listOf("providing only essential apps"),
+            listOf("turning off mobile data", "screen is off"),
+            listOf("emergency call", "power off"),
         )
-        return powerTextKeywords.any { it in textLower }
+        return powerTextGroups.any { group -> group.all { it in textLower } }
     }
 
     /**

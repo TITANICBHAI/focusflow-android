@@ -62,9 +62,10 @@ class FocusDayDeviceAdminReceiver : DeviceAdminReceiver() {
     override fun onDisableRequested(context: Context, intent: Intent): CharSequence {
         val prefs: SharedPreferences =
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val focusActive = prefs.getBoolean("focus_active", false)
-        val saActive    = prefs.getBoolean("standalone_block_active", false)
-        return if (focusActive || saActive) {
+        val focusActive      = prefs.getBoolean("focus_active", false)
+        val saActive         = prefs.getBoolean("standalone_block_active", false)
+        val alwaysBlockActive = prefs.getBoolean("always_block_active", false)
+        return if (focusActive || saActive || alwaysBlockActive) {
             "⚠ A FocusFlow session is currently active. Removing Device Admin will " +
             "weaken enforcement and allow OEM systems to kill the blocking service. " +
             "Are you sure you want to cheat?"
