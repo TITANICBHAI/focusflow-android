@@ -75,9 +75,14 @@ async function ghFetch(path, method = 'GET', body = null) {
       resp.status === 429 ||
       (resp.status === 403 && /rate limit|abuse|secondary/i.test(txt));
 
-    if (isRateLimited && attempt < MAX_RETRIES) {
+    const isServerError = resp.status === 502 || resp.status === 503 || resp.status === 504;
+
+    if ((isRateLimited || isServerError) && attempt < MAX_RETRIES) {
       const retryAfter = parseInt(resp.headers.get('retry-after') || '0', 10);
-      const backoffMs = retryAfter > 0 ? retryAfter * 1000 : Math.min(60_000, 1000 * 2 ** attempt);
+      const backoffMs = isServerError
+        ? Math.min(10_000, 1_000 * (attempt + 1))
+        : retryAfter > 0 ? retryAfter * 1000 : Math.min(60_000, 1000 * 2 ** attempt);
+      console.warn(`  Retrying (${resp.status}) in ${Math.round(backoffMs / 1000)}s… (attempt ${attempt + 1}/${MAX_RETRIES})`);
       await sleep(backoffMs);
       continue;
     }

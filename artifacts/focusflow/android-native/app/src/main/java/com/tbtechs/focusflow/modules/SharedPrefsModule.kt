@@ -405,25 +405,6 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
      * @param packageName  Specific package to reset, or null to reset all
      */
     /**
-     * Writes the custom node-rule JSON (derived from NodeSpy NodeSpyCaptureV1 exports)
-     * to SharedPreferences so the AccessibilityService can enforce them without JS.
-     *
-     * Format: JSON array of objects with fields:
-     *   id, label, pkg, matchResId?, matchText?, matchCls?, action ("overlay"|"home"), enabled
-     *
-     * Only enabled rules need to be sent — the TS wrapper filters them before calling here.
-     *
-     * @param rulesJson  Full JSON string of CustomNodeRule[]
-     */
-    @ReactMethod
-    fun setCustomNodeRules(rulesJson: String, promise: Promise) {
-        prefs().edit()
-            .putString(AppBlockerAccessibilityService.PREF_CUSTOM_NODE_RULES, rulesJson)
-            .apply()
-        promise.resolve(null)
-    }
-
-    /**
      * Generic key/value string getter — lets JS read arbitrary config keys from
      * SharedPreferences. Used by AppContext to cross-check critical flags (e.g.
      * privacy_accepted) that are backed up here in case the SQLite DB is wiped.
@@ -529,6 +510,19 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
         )
         val isDefault = resolveInfo?.activityInfo?.packageName == reactContext.packageName
         promise.resolve(isDefault)
+    }
+
+    /**
+     * Writes the preferred clock style for FocusFlow's home launcher.
+     * LauncherActivity reads "launcher_clock_style" on every clock tick and
+     * renders either a large digital TextView or an analog canvas clock.
+     *
+     * @param style  "digital" (default) or "analog"
+     */
+    @ReactMethod
+    fun setLauncherClockStyle(style: String, promise: Promise) {
+        prefs().edit().putString("launcher_clock_style", style).apply()
+        promise.resolve(null)
     }
 
     @ReactMethod

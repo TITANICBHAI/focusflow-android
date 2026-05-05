@@ -55,6 +55,7 @@ import { TaskAlarmModule } from '@/native-modules/TaskAlarmModule';
 import { EventBridge } from '@/services/eventBridge';
 import { AversionsModule } from '@/native-modules/AversionsModule';
 import { GreyoutModule } from '@/native-modules/GreyoutModule';
+import { NetworkBlockModule } from '@/native-modules/NetworkBlockModule';
 import { logBootMarker, logger } from '@/services/startupLogger';
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -149,7 +150,6 @@ const defaultSettings: AppSettings = {
   launcherLockDuringStandalone: true,
   overlayWallpaper: '',
   overlayQuotes: [],
-  customNodeRules: [],
   recurringBlockSchedules: [],
 };
 
@@ -641,6 +641,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await SharedPrefsModule.setLauncherBlockUninstall(settings.launcherBlockUninstall ?? false);
     } catch (e) {
       void logger.warn('AppContext', `launcher block uninstall sync failed: ${String(e)}`);
+    }
+    try {
+      await SharedPrefsModule.setLauncherClockStyle(
+        (settings.launcherClockStyle ?? 'digital') as 'digital' | 'analog',
+      );
+    } catch (e) {
+      void logger.warn('AppContext', `launcher clock style sync failed: ${String(e)}`);
     }
   }
 
@@ -1304,6 +1311,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           allowedPackages,
         };
         dispatch({ type: 'SET_FOCUS_SESSION', payload: session });
+
+        // Start VPN network blocking if the toggle is on.
+        // Best-effort — a failure here does not abort focus mode.
+        if (state.settings.vpnBlockEnabled) {
+          const vpnPkgs = state.settings.standaloneVpnPackages ?? [];
+          void NetworkBlockModule.startNetworkBlock(JSON.stringify(vpnPkgs)).catch((e) =>
+            void logger.warn('AppContext', `network block start failed: ${String(e)}`),
+          );
+        }
       } catch (e) {
         void logger.error('AppContext', `startFocusMode failed: ${String(e)}`);
         throw e;
@@ -1329,6 +1345,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await SharedPrefsModule.setFocusActive(false);
       await SharedPrefsModule.setAllowedPackages([]);
     } catch { /* best-effort */ }
+    try {
+      await NetworkBlockModule.stopNetworkBlock(null);
+    } catch { /* best-effort — VPN may already be stopped */ }
     dispatch({ type: 'SET_FOCUS_SESSION', payload: null });
   }, []);
 

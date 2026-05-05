@@ -86,6 +86,18 @@ class LauncherActivity : Activity() {
         private val DOCK_DIVIDER = Color.parseColor("#33FFFFFF")
     }
 
+    private data class AllowanceCardData(
+        val pkg: String,
+        val label: String,
+        val icon: android.graphics.drawable.Drawable?,
+        val used: Long,
+        val total: Long,
+        val remaining: Long,
+        val mode: String,
+        val displayText: String,
+        val fraction: Float,
+    )
+
     private lateinit var prefs: SharedPreferences
     private val handler = Handler(Looper.getMainLooper())
     private var clockRunnable: Runnable? = null
@@ -94,6 +106,10 @@ class LauncherActivity : Activity() {
     private var clockView: TextView? = null
     private var ampmView: TextView? = null
     private var dateView: TextView? = null
+    private var analogClockView: AnalogClockView? = null
+    private var digitalTimeRow: LinearLayout? = null
+    private var allowanceStripContainer: LinearLayout? = null
+    private var allowanceTickCount = 0
     private var homeGrid: GridLayout? = null
     private var dockRow: LinearLayout? = null
     private var drawerOverlay: FrameLayout? = null
@@ -118,6 +134,7 @@ class LauncherActivity : Activity() {
         super.onResume()
         refreshHomeGrid()
         refreshDock()
+        refreshAllowanceStrip()
     }
 
     override fun onDestroy() {
@@ -156,6 +173,9 @@ class LauncherActivity : Activity() {
         // ── Clock widget ──────────────────────────────────────────────────────
         val clockWidget = buildClockWidget()
         column.addView(clockWidget)
+
+        // ── Daily allowance strip ─────────────────────────────────────────────
+        column.addView(buildAllowanceStrip())
 
         // ── Home screen grid (scrollable) ─────────────────────────────────────
         val gridScroll = ScrollView(this).apply {
@@ -266,7 +286,18 @@ class LauncherActivity : Activity() {
 
         timeRow.addView(clockView)
         timeRow.addView(ampmView)
+        digitalTimeRow = timeRow
         wrap.addView(timeRow)
+
+        // Analog clock — shown instead of the digital row when style = "analog"
+        analogClockView = AnalogClockView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(200), dp(200)).also {
+                it.gravity = Gravity.CENTER_HORIZONTAL
+                it.topMargin = dp(4)
+            }
+            visibility = View.GONE
+        }
+        wrap.addView(analogClockView)
 
         updateClockText()
         return wrap
@@ -953,16 +984,30 @@ class LauncherActivity : Activity() {
     private fun updateClockText() {
         val now = Date()
         val use24h = android.text.format.DateFormat.is24HourFormat(this)
+        val isAnalog = prefs.getString("launcher_clock_style", "digital") == "analog"
 
-        if (use24h) {
-            clockView?.text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
-            ampmView?.text  = ""
+        if (isAnalog) {
+            digitalTimeRow?.visibility = View.GONE
+            analogClockView?.visibility = View.VISIBLE
+            analogClockView?.invalidate()
         } else {
-            clockView?.text = SimpleDateFormat("h:mm", Locale.getDefault()).format(now)
-            ampmView?.text  = SimpleDateFormat("a", Locale.getDefault()).format(now)
+            digitalTimeRow?.visibility = View.VISIBLE
+            analogClockView?.visibility = View.GONE
+            if (use24h) {
+                clockView?.text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
+                ampmView?.text  = ""
+            } else {
+                clockView?.text = SimpleDateFormat("h:mm", Locale.getDefault()).format(now)
+                ampmView?.text  = SimpleDateFormat("a", Locale.getDefault()).format(now)
+            }
         }
 
         dateView?.text = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()).format(now)
+        allowanceTickCount++
+        if (allowanceTickCount >= 60) {
+            allowanceTickCount = 0
+            refreshAllowanceStrip()
+        }
     }
 
     // ── Utilities ─────────────────────────────────────────────────────────────
@@ -979,5 +1024,345 @@ class LauncherActivity : Activity() {
         prefs.edit().putString(key, json).apply()
     }
 
+    // ── Daily Allowance Strip ─────────────────────────────────────────────────
+
+    private fun buildAllowanceStrip(): LinearLayout {
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            visibility = View.GONE
+        }
+        allowanceStripContainer = container
+        return container
+    }
+
+    private fun refreshAllowanceStrip() {
+        val container = allowanceStripContainer ?: return
+        container.removeAllViews()
+        val cards = loadAllowanceCardData()
+        if (cards.isEmpty()) {
+            container.visibility = View.GONE
+            return
+        }
+
+        val label = TextView(this).apply {
+            text = "TODAY'S LIMITS"
+            textSize = 10f
+            setTextColor(TEXT_MUTED)
+            letterSpacing = 0.08f
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).also { it.setMargins(dp(16), dp(10), dp(16), dp(4)) }
+        }
+        container.addView(label)
+
+        val scroll = HorizontalScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            isHorizontalScrollBarEnabled = false
+        }
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            setPadding(dp(12), 0, dp(12), dp(10))
+        }
+        cards.forEach { card -> row.addView(buildAllowanceCard(card)) }
+        scroll.addView(row)
+        container.addView(scroll)
+        container.visibility = View.VISIBLE
+    }
+
+    private fun buildAllowanceCard(card: AllowanceCardData): View {
+        val fillColor = when {
+            card.fraction > 0.5f  -> Color.parseColor("#4CAF50")
+            card.fraction > 0.25f -> Color.parseColor("#FF9800")
+            else                  -> Color.parseColor("#F44336")
+        }
+        val borderColor = when {
+            card.fraction > 0.5f  -> Color.parseColor("#334CAF50")
+            card.fraction > 0.25f -> Color.parseColor("#33FF9800")
+            else                  -> Color.parseColor("#33F44336")
+        }
+
+        val cardView = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(dp(80), LinearLayout.LayoutParams.WRAP_CONTENT).also {
+                it.setMargins(dp(4), 0, dp(4), 0)
+            }
+            setPadding(dp(6), dp(8), dp(6), dp(8))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(12).toFloat()
+                setColor(Color.parseColor("#1A1F2E"))
+                setStroke(dp(1), borderColor)
+            }
+        }
+
+        val iconView = ImageView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(30), dp(30))
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            card.icon?.let { setImageDrawable(it) }
+        }
+        cardView.addView(iconView)
+
+        val nameView = TextView(this).apply {
+            text = card.label
+            textSize = 10f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).also { it.topMargin = dp(4) }
+        }
+        cardView.addView(nameView)
+
+        val fraction = card.fraction.coerceIn(0f, 1f)
+        val progressRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(4)
+            ).also { it.topMargin = dp(5) }
+            background = GradientDrawable().apply {
+                cornerRadius = dp(2).toFloat()
+                setColor(Color.parseColor("#22FFFFFF"))
+            }
+        }
+        if (fraction > 0f) {
+            progressRow.addView(View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, fraction)
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(2).toFloat()
+                    setColor(fillColor)
+                }
+            })
+        }
+        if (fraction < 1f) {
+            progressRow.addView(View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f - fraction)
+            })
+        }
+        cardView.addView(progressRow)
+
+        val remainingView = TextView(this).apply {
+            text = card.displayText
+            textSize = 9f
+            setTextColor(TEXT_DIM)
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).also { it.topMargin = dp(3) }
+        }
+        cardView.addView(remainingView)
+
+        return cardView
+    }
+
+    private fun loadAllowanceCardData(): List<AllowanceCardData> {
+        val configJson = prefs.getString("daily_allowance_config", null) ?: return emptyList()
+        if (configJson.isBlank() || configJson == "null") return emptyList()
+
+        val usedJson = prefs.getString(AppBlockerAccessibilityService.PREF_DAILY_ALLOWANCE_USED, "{}") ?: "{}"
+        val allUsed  = try { org.json.JSONObject(usedJson) } catch (_: Exception) { org.json.JSONObject() }
+        val today    = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        val now      = System.currentTimeMillis()
+        val result   = mutableListOf<AllowanceCardData>()
+
+        try {
+            val arr = org.json.JSONArray(configJson)
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                val pkg = obj.optString("packageName", "").takeIf { it.isNotBlank() } ?: continue
+                val mode    = obj.optString("mode", "count")
+                val pkgUsed = allUsed.optJSONObject(pkg)
+
+                val icon  = try { packageManager.getApplicationIcon(pkg) } catch (_: Exception) { null }
+                val label = try {
+                    packageManager.getApplicationLabel(
+                        packageManager.getApplicationInfo(pkg, 0)
+                    ).toString()
+                } catch (_: Exception) { pkg.substringAfterLast('.') }
+
+                when (mode) {
+                    "count" -> {
+                        val countPerDay = obj.optInt("countPerDay", 1).coerceAtLeast(1)
+                        val usedDate    = pkgUsed?.optString("date", "") ?: ""
+                        val usedCount   = if (usedDate == today) pkgUsed?.optInt("count", 0) ?: 0 else 0
+                        val remaining   = (countPerDay - usedCount).coerceAtLeast(0)
+                        val fraction    = remaining.toFloat() / countPerDay.toFloat()
+                        val display     = if (remaining == 0) "no opens left" else "$remaining/$countPerDay opens"
+                        result.add(AllowanceCardData(pkg, label, icon, usedCount.toLong(), countPerDay.toLong(), remaining.toLong(), mode, display, fraction))
+                    }
+                    "time_budget" -> {
+                        val budgetMs    = obj.optLong("budgetMinutes", 30L) * 60_000L
+                        val usedDate    = pkgUsed?.optString("date", "") ?: ""
+                        val usedMs      = if (usedDate == today) pkgUsed?.optLong("usedMs", 0L) ?: 0L else 0L
+                        val remainingMs = (budgetMs - usedMs).coerceAtLeast(0L)
+                        val fraction    = if (budgetMs > 0L) remainingMs.toFloat() / budgetMs.toFloat() else 0f
+                        result.add(AllowanceCardData(pkg, label, icon, usedMs, budgetMs, remainingMs, mode, formatRemainingMs(remainingMs), fraction))
+                    }
+                    "interval" -> {
+                        val intervalMs    = obj.optLong("intervalMinutes", 5L) * 60_000L
+                        val windowMs      = obj.optLong("intervalHours", 1L) * 3_600_000L
+                        val windowStartMs = pkgUsed?.optLong("windowStartMs", 0L) ?: 0L
+                        val windowExpired = now > windowStartMs + windowMs
+                        val usedMs        = if (windowExpired) 0L else pkgUsed?.optLong("usedMs", 0L) ?: 0L
+                        val remainingMs   = (intervalMs - usedMs).coerceAtLeast(0L)
+                        val fraction      = if (intervalMs > 0L) remainingMs.toFloat() / intervalMs.toFloat() else 0f
+                        val display       = if (windowExpired) "reset" else formatRemainingMs(remainingMs)
+                        result.add(AllowanceCardData(pkg, label, icon, usedMs, intervalMs, remainingMs, mode, display, fraction))
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        return result
+    }
+
+    private fun formatRemainingMs(ms: Long): String {
+        if (ms <= 0L) return "time's up"
+        val totalMin = ms / 60_000L
+        val hours    = totalMin / 60
+        val mins     = totalMin % 60
+        return when {
+            hours > 0 -> "${hours}h ${mins}m"
+            mins  > 0 -> "${mins}m left"
+            else      -> "${ms / 1000}s left"
+        }
+    }
+
     private fun dp(v: Int) = (v * resources.displayMetrics.density + 0.5f).toInt()
+}
+
+/**
+ * AnalogClockView — a Canvas-drawn analog clock face styled to match
+ * the FocusFlow launcher's dark aesthetic (white hands, indigo accent,
+ * subtle tick marks).
+ *
+ * Renders the current time each time invalidate() is called (driven by
+ * LauncherActivity's 1-second clock tick).
+ */
+class AnalogClockView(context: android.content.Context) : android.view.View(context) {
+
+    private val paintFace = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.parseColor("#1A1F2E")
+        style = android.graphics.Paint.Style.FILL
+    }
+    private val paintRim = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.parseColor("#6366f1")
+        style = android.graphics.Paint.Style.STROKE
+        strokeWidth = 3f
+    }
+    private val paintHour = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.WHITE
+        style = android.graphics.Paint.Style.STROKE
+        strokeWidth = 8f
+        strokeCap = android.graphics.Paint.Cap.ROUND
+    }
+    private val paintMinute = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.WHITE
+        style = android.graphics.Paint.Style.STROKE
+        strokeWidth = 5f
+        strokeCap = android.graphics.Paint.Cap.ROUND
+    }
+    private val paintSecond = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.parseColor("#6366f1")
+        style = android.graphics.Paint.Style.STROKE
+        strokeWidth = 2f
+        strokeCap = android.graphics.Paint.Cap.ROUND
+    }
+    private val paintTick = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.parseColor("#55667799")
+        style = android.graphics.Paint.Style.STROKE
+        strokeWidth = 2f
+    }
+    private val paintCenter = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.parseColor("#6366f1")
+        style = android.graphics.Paint.Style.FILL
+    }
+
+    override fun onDraw(canvas: android.graphics.Canvas) {
+        super.onDraw(canvas)
+        val w = width.toFloat()
+        val h = height.toFloat()
+        val cx = w / 2f
+        val cy = h / 2f
+        val radius = minOf(cx, cy) - 6f
+
+        // Face
+        canvas.drawCircle(cx, cy, radius, paintFace)
+        canvas.drawCircle(cx, cy, radius, paintRim)
+
+        // Tick marks (12 hour marks, slightly longer)
+        for (i in 0 until 60) {
+            val angle = Math.toRadians((i * 6 - 90).toDouble())
+            val isHour = i % 5 == 0
+            val outerR = radius - 4f
+            val innerR = if (isHour) radius - 16f else radius - 10f
+            paintTick.strokeWidth = if (isHour) 3f else 1.5f
+            paintTick.color = if (isHour)
+                android.graphics.Color.parseColor("#99AAAACC")
+            else
+                android.graphics.Color.parseColor("#33667799")
+            canvas.drawLine(
+                cx + (innerR * Math.cos(angle)).toFloat(),
+                cy + (innerR * Math.sin(angle)).toFloat(),
+                cx + (outerR * Math.cos(angle)).toFloat(),
+                cy + (outerR * Math.sin(angle)).toFloat(),
+                paintTick
+            )
+        }
+
+        // Current time
+        val cal = java.util.Calendar.getInstance()
+        val hours   = cal.get(java.util.Calendar.HOUR)
+        val minutes = cal.get(java.util.Calendar.MINUTE)
+        val seconds = cal.get(java.util.Calendar.SECOND)
+
+        // Hour hand (moves smoothly with minutes)
+        val hourAngle = Math.toRadians(((hours * 30 + minutes * 0.5f) - 90).toDouble())
+        val hourLen = radius * 0.5f
+        canvas.drawLine(
+            cx, cy,
+            cx + (hourLen * Math.cos(hourAngle)).toFloat(),
+            cy + (hourLen * Math.sin(hourAngle)).toFloat(),
+            paintHour
+        )
+
+        // Minute hand
+        val minuteAngle = Math.toRadians(((minutes * 6 + seconds * 0.1f) - 90).toDouble())
+        val minuteLen = radius * 0.72f
+        canvas.drawLine(
+            cx, cy,
+            cx + (minuteLen * Math.cos(minuteAngle)).toFloat(),
+            cy + (minuteLen * Math.sin(minuteAngle)).toFloat(),
+            paintMinute
+        )
+
+        // Second hand
+        val secondAngle = Math.toRadians((seconds * 6 - 90).toDouble())
+        val secondLen = radius * 0.80f
+        canvas.drawLine(
+            cx - (secondLen * 0.15f * Math.cos(secondAngle)).toFloat(),
+            cy - (secondLen * 0.15f * Math.sin(secondAngle)).toFloat(),
+            cx + (secondLen * Math.cos(secondAngle)).toFloat(),
+            cy + (secondLen * Math.sin(secondAngle)).toFloat(),
+            paintSecond
+        )
+
+        // Center dot
+        canvas.drawCircle(cx, cy, 6f, paintCenter)
+    }
 }

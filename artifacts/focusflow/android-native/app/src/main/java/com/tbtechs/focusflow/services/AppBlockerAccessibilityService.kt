@@ -99,13 +99,6 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         const val PREF_BLOCK_IG_REELS        = "block_ig_reels"           // Instagram Reels / clips viewer (Instagram otherwise allowed)
 
         /**
-         * JSON array of CustomNodeRule objects imported from NodeSpy NodeSpyCaptureV1 exports.
-         * Each rule has: id, label, pkg, matchResId?, matchText?, matchCls?, action ("overlay"|"home")
-         * The AccessibilityService scans the foreground window tree for matching nodes.
-         */
-        const val PREF_CUSTOM_NODE_RULES = "custom_node_rules"
-
-        /**
          * Always-on block enforcement — independent of any timed session.
          *
          * PREF_ALWAYS_BLOCK: Boolean — when true the AccessibilityService enforces
@@ -2756,26 +2749,6 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
         val now = System.currentTimeMillis()
 
-        // ── Custom node rules — enforced for any foreground app ───────────────
-        // NodeSpy-imported rules: each rule targets specific nodes by resId/text/cls
-        // within a named package. Checked before the browser-only word scan so
-        // rule matches short-circuit further processing.
-        val rulesJson = prefs.getString(PREF_CUSTOM_NODE_RULES, "[]") ?: "[]"
-        if (rulesJson.length > 2) { // non-empty JSON array (more than "[]")
-            val throttleKey = "$pkg:cnr"
-            val lastCnr = lastContentScanMs[throttleKey] ?: 0L
-            if (now - lastCnr >= CONTENT_SCAN_THROTTLE_MS) {
-                lastContentScanMs[throttleKey] = now
-                event.source?.let { root ->
-                    try {
-                        if (checkCustomNodeRules(pkg, root, rulesJson)) return
-                    } finally {
-                        root.recycle()
-                    }
-                }
-            }
-        }
-
         // ── Blocked words — browser packages only (high-noise guard) ─────────
         val words = getBlockedWords()
         if (words.isEmpty()) return
@@ -3346,93 +3319,6 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 scheduleGreyoutRetryCheck(pkg, attempt + 1)
             }
         }, RETRY_INTERVAL_MS * attempt)
-    }
-
-    // ─── Custom node rules (NodeSpy integration) ──────────────────────────────
-
-    /**
-     * Scans [rootNode] for any node matching the custom rules for [pkg].
-     *
-     * Rules are AND-ed: all non-empty selector fields must match.
-     * Returns true if a rule fired (caller should return immediately to avoid
-     * double-triggering the blocked-words path).
-     *
-     * Selector fields (case-insensitive substring match):
-     *   matchResId  — viewIdResourceName
-     *   matchText   — visible text or content description
-     *   matchCls    — class name
-     *
-     * Action:
-     *   "overlay" — show the FocusFlow block overlay (default)
-     *   "home"    — silently press HOME (useful for subtle deterrence)
-     */
-    private fun checkCustomNodeRules(
-        pkg: String,
-        rootNode: AccessibilityNodeInfo,
-        rulesJson: String
-    ): Boolean {
-        val rules = try { org.json.JSONArray(rulesJson) } catch (_: Exception) { return false }
-        for (i in 0 until rules.length()) {
-            val rule = rules.optJSONObject(i) ?: continue
-            if (!rule.optBoolean("enabled", true)) continue
-            if (rule.optString("pkg") != pkg) continue
-
-            val matchResId = rule.optString("matchResId").takeIf { it.isNotBlank() }
-            val matchText  = rule.optString("matchText").takeIf { it.isNotBlank() }
-            val matchCls   = rule.optString("matchCls").takeIf { it.isNotBlank() }
-
-            // Require at least one non-empty selector to avoid matching everything
-            if (matchResId == null && matchText == null && matchCls == null) continue
-
-            if (findNodeMatchForCustomRule(rootNode, matchResId, matchText, matchCls)) {
-                val action = rule.optString("action", "overlay")
-                if (action == "home") {
-                    handler.post { performGlobalAction(GLOBAL_ACTION_HOME) }
-                } else {
-                    handleBlockedApp(pkg)
-                }
-                return true
-            }
-        }
-        return false
-    }
-
-    /**
-     * Recursive node-tree search for a node matching the given selectors.
-     *
-     * All non-null selectors must match (AND logic). Case-insensitive substring match.
-     * Only visible nodes are considered for matching (invisible nodes are still traversed).
-     */
-    private fun findNodeMatchForCustomRule(
-        node: AccessibilityNodeInfo,
-        resId: String?,
-        text: String?,
-        cls: String?
-    ): Boolean {
-        if (node.isVisibleToUser) {
-            val nodeResId  = node.viewIdResourceName ?: ""
-            val nodeText   = buildString {
-                node.text?.let { append(it) }
-                node.contentDescription?.let { if (isNotEmpty()) append(' '); append(it) }
-            }
-            val nodeCls = node.className?.toString() ?: ""
-
-            val resMatch  = resId == null || nodeResId.contains(resId, ignoreCase = true)
-            val textMatch = text == null  || nodeText.contains(text, ignoreCase = true)
-            val clsMatch  = cls == null   || nodeCls.contains(cls, ignoreCase = true)
-
-            if (resMatch && textMatch && clsMatch) return true
-        }
-
-        for (i in 0 until node.childCount) {
-            val child = node.getChild(i) ?: continue
-            try {
-                if (findNodeMatchForCustomRule(child, resId, text, cls)) return true
-            } finally {
-                child.recycle()
-            }
-        }
-        return false
     }
 
     // ─── JSON helper ──────────────────────────────────────────────────────────

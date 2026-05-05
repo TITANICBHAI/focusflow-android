@@ -115,6 +115,12 @@ patch_permission "android.permission.BIND_ACCESSIBILITY_SERVICE"  ' tools:ignore
 patch_permission "android.permission.KILL_BACKGROUND_PROCESSES"
 patch_permission "android.permission.USE_FULL_SCREEN_INTENT"
 patch_permission "android.permission.EXPAND_STATUS_BAR"
+# Required on Android 11+ for InstalledAppsModule.queryIntentActivities() to return
+# a full app list. Without this the app drawer and installed-apps settings screen
+# are empty or show only system/whitelisted apps on API 30+ devices.
+patch_permission "android.permission.QUERY_ALL_PACKAGES"          ' tools:ignore="QueryAllPackagesPermission"'
+# Required by NuclearModeModule to launch the system uninstall dialog for a package.
+patch_permission "android.permission.REQUEST_DELETE_PACKAGES"
 
 # ── ForegroundTaskService ─────────────────────────────────────────────────────
 
@@ -194,8 +200,8 @@ fi
 # taskAffinity="" ensures HOME press creates its own task root.
 
 if ! grep -q "LauncherActivity" "$MANIFEST"; then
-  sed -i 's|</application>|        <activity\n            android:name="com.tbtechs.focusflow.services.LauncherActivity"\n            android:launchMode="singleTask"\n            android:excludeFromRecents="true"\n            android:exported="true"\n            android:taskAffinity="">\n            <intent-filter>\n                <action android:name="android.intent.action.MAIN" />\n                <category android:name="android.intent.category.HOME" />\n                <category android:name="android.intent.category.DEFAULT" />\n            </intent-filter>\n        </activity>\n    </application>|' "$MANIFEST"
-  echo "   ✓ LauncherActivity registered"
+  sed -i 's|</application>|        <activity\n            android:name="com.tbtechs.focusflow.services.LauncherActivity"\n            android:launchMode="singleTask"\n            android:excludeFromRecents="true"\n            android:exported="true"\n            android:taskAffinity=""\n            android:clearTaskOnLaunch="true"\n            android:stateNotNeeded="true">\n            <intent-filter>\n                <action android:name="android.intent.action.MAIN" />\n                <category android:name="android.intent.category.HOME" />\n                <category android:name="android.intent.category.DEFAULT" />\n            </intent-filter>\n        </activity>\n    </application>|' "$MANIFEST"
+  echo "   ✓ LauncherActivity registered (with clearTaskOnLaunch + stateNotNeeded)"
 else
   echo "   ✓ LauncherActivity already registered"
 fi

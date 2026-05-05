@@ -34,7 +34,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   blockYoutubeShortsEnabled: false,
   blockInstagramReelsEnabled: false,
   keepFocusActiveUntilTaskEnd: false,
-  customNodeRules: [],
   recurringBlockSchedules: [],
   beginnerMode: true,
   tipsCardDismissed: false,

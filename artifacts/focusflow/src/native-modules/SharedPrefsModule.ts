@@ -10,7 +10,7 @@
  */
 
 import { NativeModules, Platform } from 'react-native';
-import type { DailyAllowanceEntry, CustomNodeRule } from '@/data/types';
+import type { DailyAllowanceEntry } from '@/data/types';
 
 const SharedPrefs = Platform.OS === 'android' ? NativeModules.SharedPrefs : null;
 
@@ -237,20 +237,6 @@ export const SharedPrefsModule = {
   },
 
   /**
-   * Writes the custom node rules (imported from NodeSpy NodeSpyCaptureV1 exports)
-   * to SharedPreferences as a JSON string.
-   * The AccessibilityService reads this to enforce per-node blocking rules.
-   *
-   * Only enabled rules are passed — disabled rules are filtered out client-side
-   * before calling this method to keep the native scan loop fast.
-   */
-  async setCustomNodeRules(rules: CustomNodeRule[]): Promise<void> {
-    if (!hasSharedPrefsMethod('setCustomNodeRules')) return;
-    const enabledRules = rules.filter(r => r.enabled);
-    return SharedPrefs.setCustomNodeRules(JSON.stringify(enabledRules));
-  },
-
-  /**
    * Returns true when the installed APK was built debuggable (debug variant).
    * Falls back to JS `__DEV__` when the native bridge is unavailable (Expo Go,
    * iOS, web). Use this to gate developer-only UI like the Diagnostics screen
@@ -264,6 +250,18 @@ export const SharedPrefsModule = {
     } catch {
       return __DEV__;
     }
+  },
+
+  /**
+   * Writes the preferred clock style for FocusFlow's home launcher.
+   * LauncherActivity reads "launcher_clock_style" on every clock tick and
+   * renders either a large digital TextView or an analog canvas clock.
+   *
+   * @param style  'digital' (default) | 'analog'
+   */
+  async setLauncherClockStyle(style: 'digital' | 'analog'): Promise<void> {
+    if (!hasSharedPrefsMethod('setLauncherClockStyle')) return;
+    return SharedPrefs.setLauncherClockStyle(style);
   },
 
   /**

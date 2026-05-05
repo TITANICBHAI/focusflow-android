@@ -9,7 +9,10 @@
  * Methods:
  *   - goHome()                      — send device to home screen (no permission needed)
  *   - bringToFront()                — re-launch FocusFlow over blocked app
- *   - showOverlay(message: string)  — placeholder for future full-screen overlay
+ *   - showOverlay(message: string)  — re-launches FocusFlow to the front (alias of bringToFront).
+ *                                     A dedicated full-screen lock overlay (FocusLockActivity) is
+ *                                     a planned future feature; see ForegroundLaunchModule.kt for
+ *                                     implementation requirements.
  *   - hasOverlayPermission()        — returns true if SYSTEM_ALERT_WINDOW is granted
  *   - requestOverlayPermission()    — opens system settings for SYSTEM_ALERT_WINDOW
  */

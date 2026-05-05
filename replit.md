@@ -1,6 +1,16 @@
 # Project Notes
 
-## Recent Fixes
+## Recent Fixes (latest session)
+- **QUERY_ALL_PACKAGES + REQUEST_DELETE_PACKAGES**: Added both permissions to `install.sh`. `QUERY_ALL_PACKAGES` is required on Android 11+ for the app drawer to list all installed apps. `REQUEST_DELETE_PACKAGES` is required by `NuclearModeModule` to launch the system uninstall dialog.
+- **LauncherActivity manifest flags**: `install.sh` now adds `android:clearTaskOnLaunch="true"` and `android:stateNotNeeded="true"` to the LauncherActivity registration, preventing stale task state from persisting across HOME presses.
+- **NuclearModeModule.ts**: Created the missing JS bridge for `NuclearModeModule.kt` (`requestUninstallApp`, `requestUninstallApps`, `isAppInstalled`).
+- **BlockOverlayModule.ts**: Created the missing JS bridge for `BlockOverlayModule.kt` (`setOverlayQuote`, `setCustomQuotes`, `clearCustomQuote`, `setOverlayWallpaper`, `clearOverlayWallpaper`, `getDefaultQuotes`, `getOverlaySettings`).
+- **Analog clock (end-to-end)**: Added `setLauncherClockStyle` to `SharedPrefsModule.ts` + `SharedPrefsModule.kt`. Wired it into `AppContext._syncSystemGuard` so the pref is persisted whenever settings change. In `LauncherActivity.kt`, `updateClockText()` now reads `launcher_clock_style` each tick and either shows the digital TextView row or the new `AnalogClockView` (a Canvas-drawn clock with hour/minute/second hands, hour tick marks, and indigo accent — styled to match the dark launcher aesthetic).
+- **NetworkBlockModule wired to focus session**: `AppContext.startFocusMode` now calls `NetworkBlockModule.startNetworkBlock` (with `standaloneVpnPackages`) when `vpnBlockEnabled` is true; `stopFocusMode` calls `NetworkBlockModule.stopNetworkBlock(null)` unconditionally (best-effort).
+- **GitHub push 504/502/503 retry**: Both `scripts/github-push.mjs` and `scripts/github-push-pc.mjs` now retry on `502/503/504` server errors with a linear back-off (1–10 s per attempt), in addition to the existing `403/429` rate-limit retry.
+- **ForegroundLaunchModule.ts doc cleanup**: Removed the misleading "placeholder for future full-screen overlay" description from `showOverlay()`. The JSDoc now accurately states it calls `bringToFront` and notes that a dedicated `FocusLockActivity` is a planned future feature.
+
+## Earlier Fixes
 - **Cross-OEM power menu blocking**: Extended `isSystemUiPkg` and `schedulePowerMenuRetry` in `AppBlockerAccessibilityService.kt` to cover 15+ OEM SystemUI variants (Xiaomi/MIUI, OnePlus/OxygenOS, Oppo/ColorOS, Realme, Huawei/EMUI, Vivo/Funtouch, Motorola, Asus/ZenUI, Nothing OS, Nokia/HMD, Sony Xperia). Retry now fires on `systemGuard` alone — no longer requires an active focus/standalone session.
 - **Cross-OEM uninstall blocking**: Expanded `isInstallActionContext` package list in `AppBlockerAccessibilityService.kt` to include OEM package installers (Samsung legacy, Xiaomi, Realme, Vivo, OnePlus, Motorola, Asus, Nokia) and OEM Settings apps (MIUI, ColorOS, Oppo, Realme, Huawei, Vivo, OnePlus, Motorola, Asus, Nokia) so the uninstall intercept fires on non-Samsung devices.
 - **Focus tab enforcement panel spacing**: Increased `enforcementRow` padding from `SPACING.sm+2` to `SPACING.md`, switched horizontal padding to `SPACING.lg`, added `lineHeight: 16` to description text — tiles no longer look stuffed into a small space.
@@ -14,7 +24,7 @@
 - **Push FocusFlow-pc to GitHub** — Syncs `FocusFlow-pc/focusflow-pc` dir to `TITANICBHAI/FocusFlow-pc`. Requires `GITHUB_PERSONAL_ACCESS_TOKEN`.
 
 # Overview
-FocusFlow is a comprehensive productivity and focus enhancement suite designed to help users manage screen time, block distractions, and cultivate better digital habits. It includes a mobile application (FocusFlow) for Android, a desktop application (FocusFlow-pc) built with Electron, and a companion Android accessibility inspector tool (NodeSpy).
+FocusFlow is a comprehensive productivity and focus enhancement suite designed to help users manage screen time, block distractions, and cultivate better digital habits. It includes a mobile application (FocusFlow) for Android and a desktop application (FocusFlow-pc) built with Electron.
 
 The core purpose of FocusFlow is to provide robust blocking mechanisms (app blocking, keyword blocking, system protection), flexible scheduling (daily allowances, focus sessions), and insightful analytics to empower users to reclaim their focus. Key capabilities include:
 - **Distraction Blocking**: Enforces app, keyword, and system-level blocks.
@@ -22,7 +32,6 @@ The core purpose of FocusFlow is to provide robust blocking mechanisms (app bloc
 - **Time Management**: Daily allowances and weekly reporting for app usage.
 - **Customization**: User-defined rules, overlay appearance, and aversion deterrents.
 - **Cross-Platform Support**: Mobile (Android) and Desktop (Windows/macOS/Linux) applications.
-- **Companion Tooling**: NodeSpy aids in creating custom blocking rules for Android apps.
 
 The business vision is to be the leading solution for digital well-being, offering a powerful yet user-friendly experience that significantly reduces digital distractions across devices, thereby improving user productivity and mental well-being.
 
@@ -35,16 +44,15 @@ I prefer iterative development with clear communication at each stage. Please as
 - **Robust Blocking Enforcement**: Utilizes Android Accessibility Services for persistent app and system-level blocking, along with network-level blocking for FocusFlow-pc.
 - **User-Centric Design**: Prioritizes clear UI/UX for managing complex blocking rules and schedules.
 - **Data-Driven Insights**: Provides analytics and reports to help users understand and improve their digital habits.
-- **Extensibility**: Designed to integrate with companion tools like NodeSpy for advanced customization.
+- **Extensibility**: Designed to be extended with advanced customization and scheduling rules.
 
 ## FocusFlow (Android Mobile App)
-- **Technology Stack**: Expo (React Native) for the main application, pure Kotlin/Jetpack Compose for NodeSpy and core Android Accessibility Services.
+- **Technology Stack**: Expo (React Native) for the main application, pure Kotlin/Jetpack Compose for core Android Accessibility Services.
 - **Blocking Mechanisms**:
     - `AppBlockerAccessibilityService.kt`: Core service for app, keyword, and system protection.
     - `NetworkBlockModule.ts`/`.kt`: Manages network-level blocking.
     - `PackageInstallReceiver`: Automatically blocks newly installed apps during a session.
 - **Rule Management**:
-    - **Custom Node Rules**: Integrates with NodeSpy for creating and enforcing highly specific UI element blocking rules within any Android app.
     - **Keyword Blocker**: Blocks predefined or user-defined keywords within apps.
     - **Daily Allowance**: Per-app time budgets with count, time, and interval modes.
 - **Security & Resilience**:
@@ -68,15 +76,6 @@ I prefer iterative development with clear communication at each stage. Please as
 - **Navigation**: Sidebar with "More" section for sub-pages.
 - **Push to GitHub**: Automated script (`scripts/github-push-pc.mjs`) for syncing the desktop app codebase to a dedicated GitHub repository.
 
-## NodeSpy (Android Accessibility Inspector)
-- **Technology Stack**: Pure Kotlin, Jetpack Compose.
-- **Functionality**:
-    - Captures live node trees (class, text, bounds, flags) from any foreground app.
-    - **Inspector Screens**: "Pick" (screenshot canvas for tap-to-select), "Marked" (selected nodes), "Suggestions".
-    - **Rule Generation**: Scores pinned nodes, recommends selectors (resource-id, label), compares stability across captures, warns about weak rules, exports `ruleQuality`, `selectorRecommendations`, and `recommendedRules`.
-    - **REGION Drag-Select**: Allows bulk-pinning of intersecting nodes on the visual canvas.
-- **Integration with FocusFlow**: Exports `NodeSpyCaptureV1` JSON, which FocusFlow imports to create custom node blocking rules.
-
 ## Data & Analytics
 - **Task Management**: Tracks tasks, their completion, and duration.
 - **Streaks**: Calculates daily completion streaks using `daily_completions` derived from task history.
@@ -86,13 +85,13 @@ I prefer iterative development with clear communication at each stage. Please as
 # External Dependencies
 - **Expo**: For React Native mobile app development.
 - **React Native**: Core framework for the mobile application.
-- **Kotlin/Jetpack Compose**: For native Android Accessibility Services and the NodeSpy application.
+- **Kotlin/Jetpack Compose**: For native Android Accessibility Services.
 - **Electron**: For the desktop application framework.
 - **React**: For UI development in the desktop application.
 - **TypeScript**: For type-safe development across both mobile and desktop applications.
 - **Tailwind CSS**: For styling the desktop application.
 - **better-sqlite3**: For local database management in the Electron desktop application.
 - **AsyncStorage**: For persistent key-value storage in the mobile app (e.g., tip states, logs).
-- **GitHub Actions**: For CI/CD, particularly for NodeSpy APK builds and `FocusFlow-pc` repository syncing.
+- **GitHub Actions**: For CI/CD, particularly for `FocusFlow-pc` repository syncing.
 - **Android System APIs**: `AccessibilityService`, `SharedPreferences`, `ACTION_CREATE_DOCUMENT`, `PackageInstallReceiver`, `BootReceiver`.
 - **Third-Party Blocker Imports**: Supports importing blocklists from apps like AppBlock, StayFree, ActionDash, Digital Wellbeing, Lock Me Out, and Stay Focused.
