@@ -2031,6 +2031,21 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         if (!prefs.getBoolean("net_block_vpn", true)) return
         if (NetworkBlockerVpnService.isRunning) return   // already active
 
+        // Per-app VPN: if a non-empty package selection list is configured,
+        // only apply network blocking to packages that appear in that list.
+        val vpnSelectedJson = prefs.getString("vpn_selected_packages", "[]") ?: "[]"
+        if (vpnSelectedJson != "[]" && vpnSelectedJson != "null") {
+            val inList = try {
+                val arr = org.json.JSONArray(vpnSelectedJson)
+                var found = false
+                for (i in 0 until arr.length()) {
+                    if (arr.optString(i) == blockedPackage) { found = true; break }
+                }
+                found
+            } catch (_: Exception) { true /* malformed JSON — apply to all */ }
+            if (!inList) return
+        }
+
         // VPN permission check — prepare() returns null if permission is already held
         try {
             val permissionIntent = VpnService.prepare(applicationContext)

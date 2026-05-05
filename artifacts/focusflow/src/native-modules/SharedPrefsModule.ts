@@ -148,6 +148,26 @@ export const SharedPrefsModule = {
     return SharedPrefs.setBlockInstagramReelsEnabled(enabled);
   },
 
+  /**
+   * Enables or disables the VPN network-blocking layer.
+   * Writes the "net_block_enabled" boolean read by AppBlockerAccessibilityService
+   * before it attempts to start NetworkBlockerVpnService for a blocked package.
+   */
+  async setNetworkBlockEnabled(enabled: boolean): Promise<void> {
+    if (!hasSharedPrefsMethod('setNetworkBlockEnabled')) return;
+    return SharedPrefs.setNetworkBlockEnabled(enabled);
+  },
+
+  /**
+   * Writes the per-app VPN package list (JSON array string) to SharedPreferences.
+   * When non-empty, only listed packages trigger network blocking.
+   * When empty, all blocked packages trigger network blocking (if vpnBlockEnabled).
+   */
+  async setVpnSelectedPackages(packages: string[]): Promise<void> {
+    if (!hasSharedPrefsMethod('setVpnSelectedPackages')) return;
+    return SharedPrefs.setVpnSelectedPackages(JSON.stringify(packages));
+  },
+
   async putString(key: string, value: string): Promise<void> {
     if (!hasSharedPrefsMethod('putString')) return;
     return SharedPrefs.putString(key, value);

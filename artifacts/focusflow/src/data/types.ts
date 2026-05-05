@@ -193,6 +193,8 @@ export interface AppSettings {
   blockInstallActionsEnabled: boolean;   // Intercept Play Store / packageinstaller install/update/uninstall confirmation dialogs
   blockYoutubeShortsEnabled: boolean;    // Intercept the YouTube Shorts player (YouTube itself stays usable)
   blockInstagramReelsEnabled: boolean;   // Intercept the Instagram Reels player / clips viewer (Instagram itself stays usable)
+  vpnBlockEnabled: boolean;             // Tunnel blocked apps through VPN to cut their network access (requires VPN permission)
+  standaloneVpnPackages: string[];      // Per-app VPN: packages selected to receive network blocking in addition to accessibility blocking
   // Focus session behaviour
   // When true, finishing a task before its scheduled end time keeps the focus session
   // running until the original end time (the task is marked done in your stats, but
@@ -246,6 +248,7 @@ export interface PendingPresets {
     blockInstallActionsEnabled?: boolean;
     blockYoutubeShortsEnabled?: boolean;
     blockInstagramReelsEnabled?: boolean;
+    vpnBlockEnabled?: boolean;
     blockedWords?: string[];
     sourceName?: string;
     importedAt: string;

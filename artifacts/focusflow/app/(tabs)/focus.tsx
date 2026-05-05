@@ -287,10 +287,11 @@ function FocusScreen() {
             blockUntil={settings.standaloneBlockUntil}
             locked={standaloneActive}
             dailyAllowanceEntries={settings.dailyAllowanceEntries ?? []}
+            vpnPackages={settings.standaloneVpnPackages ?? []}
             blockPresets={blockPresets}
             recurringBlockSchedules={settings.recurringBlockSchedules ?? []}
-            onSave={async (packages, untilMs, allowanceEntries) => {
-              await setStandaloneBlockAndAllowance(packages, untilMs, allowanceEntries);
+            onSave={async (packages, untilMs, allowanceEntries, vpnPackages) => {
+              await setStandaloneBlockAndAllowance(packages, untilMs, allowanceEntries, vpnPackages);
             }}
             onSavePreset={handleSaveBlockPreset}
             onDeletePreset={handleDeleteBlockPreset}
@@ -540,10 +541,11 @@ function FocusScreen() {
           blockUntil={settings.standaloneBlockUntil}
           locked={false}
           dailyAllowanceEntries={settings.dailyAllowanceEntries ?? []}
+          vpnPackages={settings.standaloneVpnPackages ?? []}
           blockPresets={blockPresets}
           recurringBlockSchedules={settings.recurringBlockSchedules ?? []}
-          onSave={async (packages, untilMs, allowanceEntries) => {
-            await setStandaloneBlockAndAllowance(packages, untilMs, allowanceEntries);
+          onSave={async (packages, untilMs, allowanceEntries, vpnPackages) => {
+            await setStandaloneBlockAndAllowance(packages, untilMs, allowanceEntries, vpnPackages);
           }}
           onSavePreset={handleSaveBlockPreset}
           onDeletePreset={handleDeleteBlockPreset}
@@ -898,10 +900,11 @@ function FocusScreen() {
         blockUntil={settings.standaloneBlockUntil}
         locked={standaloneActive}
         dailyAllowanceEntries={settings.dailyAllowanceEntries ?? []}
+        vpnPackages={settings.standaloneVpnPackages ?? []}
         blockPresets={blockPresets}
         recurringBlockSchedules={settings.recurringBlockSchedules ?? []}
-        onSave={async (packages, untilMs, allowanceEntries) => {
-          await setStandaloneBlockAndAllowance(packages, untilMs, allowanceEntries);
+        onSave={async (packages, untilMs, allowanceEntries, vpnPackages) => {
+          await setStandaloneBlockAndAllowance(packages, untilMs, allowanceEntries, vpnPackages);
         }}
         onSavePreset={handleSaveBlockPreset}
         onDeletePreset={handleDeleteBlockPreset}

@@ -136,6 +136,8 @@ const defaultSettings: AppSettings = {
   blockInstallActionsEnabled: false,
   blockYoutubeShortsEnabled: false,
   blockInstagramReelsEnabled: false,
+  vpnBlockEnabled: false,
+  standaloneVpnPackages: [],
   keepFocusActiveUntilTaskEnd: false,
   overlayWallpaper: '',
   overlayQuotes: [],
@@ -189,7 +191,7 @@ interface AppContextValue {
 
   updateSettings: (settings: AppSettings) => Promise<void>;
   setStandaloneBlock: (packages: string[], untilMs: number | null) => Promise<void>;
-  setStandaloneBlockAndAllowance: (packages: string[], untilMs: number | null, allowanceEntries: DailyAllowanceEntry[]) => Promise<void>;
+  setStandaloneBlockAndAllowance: (packages: string[], untilMs: number | null, allowanceEntries: DailyAllowanceEntry[], vpnPackages?: string[]) => Promise<void>;
   setDailyAllowanceEntries: (entries: DailyAllowanceEntry[]) => Promise<void>;
   setBlockedWords: (words: string[]) => Promise<void>;
   setRecurringBlockSchedules: (schedules: RecurringBlockSchedule[]) => Promise<void>;
@@ -606,6 +608,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await SharedPrefsModule.setBlockInstagramReelsEnabled(settings.blockInstagramReelsEnabled ?? false);
     } catch (e) {
       void logger.warn('AppContext', `instagram-reels guard sync failed: ${String(e)}`);
+    }
+    try {
+      await SharedPrefsModule.setNetworkBlockEnabled(settings.vpnBlockEnabled ?? false);
+    } catch (e) {
+      void logger.warn('AppContext', `vpn block enabled sync failed: ${String(e)}`);
+    }
+    try {
+      await SharedPrefsModule.setVpnSelectedPackages(settings.standaloneVpnPackages ?? []);
+    } catch (e) {
+      void logger.warn('AppContext', `vpn selected packages sync failed: ${String(e)}`);
     }
   }
 
@@ -1418,6 +1430,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     packages: string[],
     untilMs: number | null,
     allowanceEntries: DailyAllowanceEntry[],
+    vpnPackages?: string[],
   ) => {
     const untilIso = untilMs ? new Date(untilMs).toISOString() : null;
     // Auto-copy to always-on list if the toggle is on and packages are being added
@@ -1426,18 +1439,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const merged = new Set([...alwaysOnPackages, ...packages]);
       alwaysOnPackages = Array.from(merged);
     }
+    // Preserve existing vpnPackages if not explicitly passed
+    const resolvedVpnPackages = vpnPackages ?? state.settings.standaloneVpnPackages ?? [];
     const newSettings: AppSettings = {
       ...state.settings,
       standaloneBlockPackages: packages,
       standaloneBlockUntil: untilIso,
       dailyAllowanceEntries: allowanceEntries,
       alwaysOnPackages,
+      standaloneVpnPackages: resolvedVpnPackages,
     };
     await dbSaveSettings(newSettings);
     dispatch({ type: 'SET_SETTINGS', payload: newSettings });
     const active = packages.length > 0 && untilMs !== null && untilMs > Date.now();
     await SharedPrefsModule.setStandaloneBlock(active, packages, untilMs ?? 0);
     await SharedPrefsModule.setDailyAllowanceConfig(allowanceEntries);
+    await SharedPrefsModule.setVpnSelectedPackages(resolvedVpnPackages).catch(() => {});
     // Sync always-on enforcement using the dedicated alwaysOnPackages list
     const alwaysOnActive2 = (newSettings.alwaysOnEnforcementEnabled !== false) &&
       ((newSettings.alwaysOnPackages ?? []).length > 0 || allowanceEntries.length > 0);

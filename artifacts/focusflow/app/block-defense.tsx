@@ -122,6 +122,14 @@ export default function BlockDefenseScreen() {
     await update({ blockInstagramReelsEnabled: enabled });
   };
 
+  const handleVpnToggle = async (enabled: boolean) => {
+    if (!enabled && blockProtectionActive) {
+      Alert.alert('Protection is active', 'Cannot disable while a block is active.');
+      return;
+    }
+    await update({ vpnBlockEnabled: enabled });
+  };
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       {/* Header */}
@@ -244,6 +252,18 @@ export default function BlockDefenseScreen() {
               value={settings.blockInstagramReelsEnabled ?? false}
               onValueChange={handleReelsToggle}
               disabled={blockProtectionActive && (settings.blockInstagramReelsEnabled ?? false)}
+              theme={theme}
+            />
+            <SwitchRow
+              label="Network blocking (VPN)"
+              description={
+                blockProtectionActive && (settings.vpnBlockEnabled ?? false)
+                  ? 'Locked on — active block in progress'
+                  : 'Tunnels blocked apps through VPN to cut their internet access — requires VPN permission (one-time prompt)'
+              }
+              value={settings.vpnBlockEnabled ?? false}
+              onValueChange={handleVpnToggle}
+              disabled={blockProtectionActive && (settings.vpnBlockEnabled ?? false)}
               theme={theme}
               isLast
             />

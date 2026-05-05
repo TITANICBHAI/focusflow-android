@@ -176,9 +176,10 @@ interface Props {
   blockUntil: string | null;
   locked?: boolean;
   dailyAllowanceEntries?: DailyAllowanceEntry[];
+  vpnPackages?: string[];
   blockPresets?: BlockPreset[];
   recurringBlockSchedules?: RecurringBlockSchedule[];
-  onSave: (packages: string[], untilMs: number | null, allowanceEntries: DailyAllowanceEntry[]) => void | Promise<void>;
+  onSave: (packages: string[], untilMs: number | null, allowanceEntries: DailyAllowanceEntry[], vpnPackages?: string[]) => void | Promise<void>;
   onSavePreset?: (preset: BlockPreset) => void | Promise<void>;
   onDeletePreset?: (id: string) => void | Promise<void>;
   onSaveRecurringSchedules?: (schedules: RecurringBlockSchedule[]) => void | Promise<void>;
@@ -226,6 +227,7 @@ export function StandaloneBlockModal({
   blockUntil,
   locked = false,
   dailyAllowanceEntries = [],
+  vpnPackages = [],
   blockPresets = [],
   recurringBlockSchedules = [],
   onSave,
@@ -245,6 +247,7 @@ export function StandaloneBlockModal({
     new Set(dailyAllowanceEntries.map((e) => e.packageName))
   );
   const dailyAllowed = useMemo(() => new Set(dailyEntriesMap.keys()), [dailyEntriesMap]);
+  const [vpnPkgsSet, setVpnPkgsSet] = useState<Set<string>>(new Set(vpnPackages));
   const [search, setSearch] = useState('');
   const [loadingApps, setLoadingApps] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -264,6 +267,7 @@ export function StandaloneBlockModal({
     setSelected(new Set(blockedPackages));
     setDailyEntriesMap(new Map(dailyAllowanceEntries.map((e) => [e.packageName, e])));
     setOriginalDailyPkgs(new Set(dailyAllowanceEntries.map((e) => e.packageName)));
+    setVpnPkgsSet(new Set(vpnPackages));
     setSearch('');
     setManualInput('');
     setShowAdvanced(false);
@@ -496,7 +500,7 @@ export function StandaloneBlockModal({
     try {
       // Pass both block packages and daily allowance entries together so the
       // parent can save them atomically in a single state + DB update.
-      await onSave(Array.from(selected), untilDate.getTime(), Array.from(dailyEntriesMap.values()));
+      await onSave(Array.from(selected), untilDate.getTime(), Array.from(dailyEntriesMap.values()), Array.from(vpnPkgsSet));
       onClose();
     } catch (e) {
       console.error('[StandaloneBlockModal] Failed to save', e);
@@ -516,7 +520,7 @@ export function StandaloneBlockModal({
           style: 'destructive',
           onPress: async () => {
             try {
-              await onSave([], null, Array.from(dailyEntriesMap.values()));
+              await onSave([], null, Array.from(dailyEntriesMap.values()), []);
               onClose();
             } catch (e) {
               console.error('[StandaloneBlockModal] Failed to clear', e);
@@ -555,6 +559,40 @@ export function StandaloneBlockModal({
     if (entry.mode === 'time_budget') return `${entry.budgetMinutes ?? 30} min/day`;
     if (entry.mode === 'interval') return `${entry.intervalMinutes ?? 5} min every ${entry.intervalHours ?? 1}hr`;
     return `${entry.countPerDay ?? 1}×/day`;
+  };
+
+  const toggleVpn = (packageName: string) => {
+    if (locked) return;
+    setVpnPkgsSet((prev) => {
+      const next = new Set(prev);
+      if (next.has(packageName)) next.delete(packageName);
+      else next.add(packageName);
+      return next;
+    });
+  };
+
+  const renderVpnControl = (packageName: string) => {
+    const isBlocked = selected.has(packageName);
+    if (!isBlocked) return null;
+    const isVpn = vpnPkgsSet.has(packageName);
+    return (
+      <View style={[styles.vpnRow, { backgroundColor: theme.surface, borderTopColor: theme.border }, isVpn && styles.vpnRowActive]}>
+        <TouchableOpacity
+          style={styles.dailyToggle}
+          onPress={() => toggleVpn(packageName)}
+          activeOpacity={locked ? 1 : 0.7}
+        >
+          <Ionicons
+            name={isVpn ? (locked ? 'lock-closed-outline' : 'shield-checkmark-outline') : 'shield-outline'}
+            size={13}
+            color={isVpn ? (locked ? COLORS.muted : COLORS.primary) : COLORS.muted}
+          />
+          <Text style={[styles.dailyText, isVpn && !locked && styles.vpnTextActive]}>
+            {isVpn ? (locked ? 'Network block (locked)' : 'Network block: on') : 'Add network block (VPN)'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
   };
 
   const renderDailyControls = (packageName: string) => {
@@ -673,6 +711,7 @@ export function StandaloneBlockModal({
           </View>
         </TouchableOpacity>
         {renderDailyControls(item.packageName)}
+        {renderVpnControl(item.packageName)}
       </View>
     );
   };
@@ -694,6 +733,7 @@ export function StandaloneBlockModal({
           </View>
         </TouchableOpacity>
         {renderDailyControls(pkg)}
+        {renderVpnControl(pkg)}
       </View>
     );
   };
@@ -1290,6 +1330,26 @@ const styles = StyleSheet.create({
   dailyRowActive: {
     backgroundColor: COLORS.orange + '15',
     borderTopColor: COLORS.orange + '33',
+  },
+  vpnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    marginTop: -2,
+    backgroundColor: COLORS.surface,
+    borderBottomLeftRadius: RADIUS.md,
+    borderBottomRightRadius: RADIUS.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.border,
+  },
+  vpnRowActive: {
+    backgroundColor: COLORS.primary + '12',
+    borderTopColor: COLORS.primary + '33',
+  },
+  vpnTextActive: {
+    color: COLORS.primary,
+    fontWeight: '600',
   },
   dailyToggle: {
     flexDirection: 'row',

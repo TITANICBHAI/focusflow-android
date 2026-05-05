@@ -323,6 +323,37 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
     }
 
     /**
+     * Enables or disables the VPN network-blocking layer for blocked apps.
+     *
+     * When true, AppBlockerAccessibilityService calls triggerNetworkBlock() whenever a
+     * blocked app is detected, launching NetworkBlockerVpnService to null-route its traffic.
+     * Writes the "net_block_enabled" boolean that triggerNetworkBlock() gates on.
+     */
+    @ReactMethod
+    fun setNetworkBlockEnabled(enabled: Boolean, promise: Promise) {
+        prefs().edit()
+            .putBoolean("net_block_enabled", enabled)
+            .apply()
+        promise.resolve(null)
+    }
+
+    /**
+     * Writes the per-app VPN package list to SharedPreferences.
+     * When non-empty, only packages in this list trigger network blocking;
+     * the global vpnBlockEnabled flag must also be true.
+     * When empty, network blocking applies to ALL blocked packages (if enabled).
+     *
+     * @param packagesJson  JSON array string of package names, e.g. ["com.instagram.android"]
+     */
+    @ReactMethod
+    fun setVpnSelectedPackages(packagesJson: String, promise: Promise) {
+        prefs().edit()
+            .putString("vpn_selected_packages", packagesJson)
+            .apply()
+        promise.resolve(null)
+    }
+
+    /**
      * Writes the rich daily allowance config JSON to SharedPreferences.
      * Format: JSON array of DailyAllowanceEntry objects with fields:
      *   packageName, mode ("count"|"time_budget"|"interval"),

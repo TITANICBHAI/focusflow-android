@@ -91,8 +91,8 @@ function SettingsScreen() {
   const focusActive = state.focusSession?.isActive === true;
   const blockProtectionActive = focusActive || standaloneActive;
 
-  const handleSaveStandaloneBlock = async (packages: string[], untilMs: number | null, allowanceEntries: DailyAllowanceEntry[]) => {
-    await setStandaloneBlockAndAllowance(packages, untilMs, allowanceEntries);
+  const handleSaveStandaloneBlock = async (packages: string[], untilMs: number | null, allowanceEntries: DailyAllowanceEntry[], vpnPackages?: string[]) => {
+    await setStandaloneBlockAndAllowance(packages, untilMs, allowanceEntries, vpnPackages);
   };
 
   const handleSaveBlockPreset = async (preset: import('@/data/types').BlockPreset) => {
@@ -660,6 +660,7 @@ function SettingsScreen() {
         blockUntil={settings.standaloneBlockUntil}
         locked={standaloneActive}
         dailyAllowanceEntries={settings.dailyAllowanceEntries ?? []}
+        vpnPackages={settings.standaloneVpnPackages ?? []}
         blockPresets={settings.blockPresets ?? []}
         onSave={handleSaveStandaloneBlock}
         onSavePreset={handleSaveBlockPreset}
