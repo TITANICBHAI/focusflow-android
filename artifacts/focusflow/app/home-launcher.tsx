@@ -69,6 +69,7 @@ export default function HomeLauncherScreen() {
   }, []);
 
   useEffect(() => {
+    if (!__DEV__) return;
     void checkDefault();
     InstalledAppsModule.getInstalledApps()
       .then(setApps)
@@ -77,6 +78,7 @@ export default function HomeLauncherScreen() {
   }, [checkDefault]);
 
   useEffect(() => {
+    if (!__DEV__) return;
     const sub = AppState.addEventListener('change', (s) => {
       if (s === 'active') void checkDefault();
     });
@@ -130,6 +132,41 @@ export default function HomeLauncherScreen() {
     },
     [settings.launcherDockPackages, update],
   );
+
+  // ── Release build: show "coming soon" screen ──────────────────────────────────
+  if (!__DEV__) {
+    return (
+      <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
+        <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
+          <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Ionicons name="chevron-back" size={24} color={theme.text} />
+          </TouchableOpacity>
+          <View style={{ flex: 1, marginLeft: SPACING.sm }}>
+            <Text style={[styles.title, { color: theme.text }]}>Home Launcher</Text>
+            <Text style={[styles.subtitle, { color: theme.muted }]}>
+              FocusFlow as your default home screen
+            </Text>
+          </View>
+        </View>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl }}>
+          <View style={[styles.lockedCard, { backgroundColor: theme.card, borderColor: COLORS.primary + '44', alignItems: 'center' }]}>
+            <View style={[styles.lockedIconRing, { backgroundColor: COLORS.primary + '18' }]}>
+              <Ionicons name="construct-outline" size={32} color={COLORS.primary} />
+            </View>
+            <Text style={[styles.lockedHeading, { color: theme.text, textAlign: 'center' }]}>Still Working on It</Text>
+            <Text style={[styles.lockedBody, { color: theme.muted, textAlign: 'center' }]}>
+              The Home Launcher feature is being polished and will be available in an upcoming update.{'\n\n'}
+              All other blocking features work fully in the meantime!
+            </Text>
+            <TouchableOpacity style={styles.lockedBackBtn} onPress={() => router.back()} activeOpacity={0.8}>
+              <Ionicons name="chevron-back" size={16} color="#fff" />
+              <Text style={styles.lockedBackText}>Go Back</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   // ── Drawer visibility ─────────────────────────────────────────────────────────
   const toggleHidden = useCallback(

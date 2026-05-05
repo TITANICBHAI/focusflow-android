@@ -216,8 +216,8 @@ const PERMISSIONS: PermissionItem[] = [
       );
     },
   },
-  {
-    id: 'launcher',
+  ...(__DEV__ ? [{
+    id: 'launcher' as PermissionId,
     title: 'Home Launcher',
     description:
       'Sets FocusFlow as your default home screen so every app tap is intercepted before Android even sees it — zero reaction delay, no brief flash of a blocked app.',
@@ -228,7 +228,7 @@ const PERMISSIONS: PermissionItem[] = [
       'Accessibility service reaction latency still applies',
       'Launcher drawer filtering and pinned-app grid will not be shown',
     ],
-    icon: 'home-outline',
+    icon: 'home-outline' as keyof typeof Ionicons.glyphMap,
     deepLinkLabel: 'Set as Default Home App',
     optional: true,
     check: async (): Promise<PermStatus> => {
@@ -246,7 +246,7 @@ const PERMISSIONS: PermissionItem[] = [
         )
       );
     },
-  },
+  }] : []),
   {
     id: 'overlay',
     title: 'Appear on Top',

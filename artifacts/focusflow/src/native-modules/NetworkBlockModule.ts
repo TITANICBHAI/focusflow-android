@@ -25,6 +25,16 @@ function has(name: string): boolean {
 }
 
 export const NetworkBlockModule = {
+  async isVpnPermissionGranted(): Promise<boolean> {
+    if (!has('isVpnPermissionGranted')) return false;
+    return NetworkBlock.isVpnPermissionGranted();
+  },
+
+  async requestVpnPermission(): Promise<void> {
+    if (!has('requestVpnPermission')) return;
+    return NetworkBlock.requestVpnPermission();
+  },
+
   async startNetworkBlock(packages: string[]): Promise<void> {
     if (!has('startNetworkBlock')) return;
     return NetworkBlock.startNetworkBlock(packages);
