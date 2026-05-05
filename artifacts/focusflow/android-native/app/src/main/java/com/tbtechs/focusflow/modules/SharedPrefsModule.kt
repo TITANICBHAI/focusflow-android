@@ -291,6 +291,14 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
+    fun setLauncherDockPackages(packagesJson: String, promise: Promise) {
+        prefs().edit()
+            .putString("launcher_dock_packages", packagesJson)
+            .apply()
+        promise.resolve(null)
+    }
+
+    @ReactMethod
     fun setSystemGuardEnabled(enabled: Boolean, promise: Promise) {
         prefs().edit()
             .putBoolean(AppBlockerAccessibilityService.PREF_SYSTEM_GUARD_ENABLED, enabled)

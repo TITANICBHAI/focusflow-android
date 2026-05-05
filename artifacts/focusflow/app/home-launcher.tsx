@@ -8,8 +8,6 @@
  *   - Permissions screen → Home Launcher card (when granted) → "Configure Launcher Settings"
  *
  * Locked during active standalone block (same pattern as permissions.tsx).
- * NOT blocked even if user adds com.android.settings to block list — this
- * screen lives inside the FocusFlow package which is never intercepted.
  */
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
@@ -34,8 +32,6 @@ import { useTheme } from '@/hooks/useTheme';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 import { InstalledAppsModule, InstalledApp } from '@/native-modules/InstalledAppsModule';
-
-const CLOCK_STYLES = ['digital', 'analog'] as const;
 
 export default function HomeLauncherScreen() {
   const insets = useSafeAreaInsets();
@@ -102,6 +98,7 @@ export default function HomeLauncherScreen() {
     );
   };
 
+  // ── Home screen grid (pinned) ────────────────────────────────────────────────
   const togglePinned = useCallback(
     (pkg: string) => {
       const pinned = new Set(settings.launcherPinnedPackages ?? []);
@@ -112,6 +109,29 @@ export default function HomeLauncherScreen() {
     [settings.launcherPinnedPackages, update],
   );
 
+  // ── Dock ─────────────────────────────────────────────────────────────────────
+  const toggleDock = useCallback(
+    (pkg: string) => {
+      const dock = [...(settings.launcherDockPackages ?? [])];
+      const idx = dock.indexOf(pkg);
+      if (idx >= 0) {
+        dock.splice(idx, 1);
+      } else {
+        if (dock.length >= 5) {
+          Alert.alert(
+            'Dock is full',
+            'The dock holds up to 5 apps. Remove one first before adding another.',
+          );
+          return;
+        }
+        dock.push(pkg);
+      }
+      void update({ launcherDockPackages: dock });
+    },
+    [settings.launcherDockPackages, update],
+  );
+
+  // ── Drawer visibility ─────────────────────────────────────────────────────────
   const toggleHidden = useCallback(
     (pkg: string) => {
       const hidden = new Set(settings.launcherHiddenPackages ?? []);
@@ -131,14 +151,9 @@ export default function HomeLauncherScreen() {
     [settings.launcherHiddenPackages, blockedPackages, update],
   );
 
-  const pinnedSet = useMemo(
-    () => new Set(settings.launcherPinnedPackages ?? []),
-    [settings.launcherPinnedPackages],
-  );
-  const hiddenSet = useMemo(
-    () => new Set(settings.launcherHiddenPackages ?? []),
-    [settings.launcherHiddenPackages],
-  );
+  const pinnedSet = useMemo(() => new Set(settings.launcherPinnedPackages ?? []), [settings.launcherPinnedPackages]);
+  const dockSet   = useMemo(() => new Set(settings.launcherDockPackages ?? []),   [settings.launcherDockPackages]);
+  const hiddenSet = useMemo(() => new Set(settings.launcherHiddenPackages ?? []), [settings.launcherHiddenPackages]);
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
@@ -220,19 +235,36 @@ export default function HomeLauncherScreen() {
             )}
           </View>
 
+          {/* ── How the launcher is laid out ─────────────────────────── */}
+          <View style={[styles.layoutPreview, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <Text style={[styles.layoutTitle, { color: theme.text }]}>Launcher Layout</Text>
+            <View style={styles.layoutRow}>
+              <LayoutZone icon="time-outline" label="Clock + Date" desc="Always at the top" color={COLORS.primary} />
+              <LayoutZone icon="grid-outline" label="Home Grid" desc="App shortcuts (4 col)" color={COLORS.green} />
+              <LayoutZone icon="ellipse-outline" label="Dock" desc="Up to 5 pinned apps" color={COLORS.orange} />
+            </View>
+            <Text style={[styles.layoutHint, { color: theme.muted }]}>
+              Swipe up from anywhere to open the full app drawer. Long-press any icon to add/remove or move between Home and Dock.
+            </Text>
+          </View>
+
           {/* ── Appearance ───────────────────────────────────────────── */}
-          <SectionHeader icon="color-palette-outline" title="Appearance" description="Customise how the FocusFlow home screen looks." theme={theme} />
+          <SectionHeader
+            icon="color-palette-outline"
+            title="Appearance"
+            description="Customise how the FocusFlow home screen looks."
+            theme={theme}
+          />
           <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            {/* Clock style */}
             <View style={[styles.settingRow, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border }]}>
               <View style={{ flex: 1, gap: 2 }}>
                 <Text style={[styles.settingLabel, { color: theme.text }]}>Clock style</Text>
                 <Text style={[styles.settingDesc, { color: theme.muted }]}>
-                  {settings.launcherClockStyle === 'analog' ? 'Analog clock face' : 'Large digital time display'}
+                  {settings.launcherClockStyle === 'analog' ? 'Analog clock face' : 'Large digital time display (respects 24 h system setting)'}
                 </Text>
               </View>
               <View style={styles.segmentControl}>
-                {CLOCK_STYLES.map((style) => (
+                {(['digital', 'analog'] as const).map((style) => (
                   <TouchableOpacity
                     key={style}
                     style={[
@@ -253,17 +285,13 @@ export default function HomeLauncherScreen() {
               </View>
             </View>
 
-            {/* Wallpaper placeholder */}
             <TouchableOpacity
               style={styles.settingRow}
               onPress={() =>
                 Alert.alert(
-                  'Custom Wallpaper',
-                  'Set a custom background for the FocusFlow launcher.\n\nRequires Media & Files permission — grant it from the Permissions screen first.',
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Go to Permissions', onPress: () => router.push('/permissions') },
-                  ],
+                  'Wallpaper',
+                  'The launcher uses your Android system wallpaper by default.\n\nTo change it, use Android\'s built-in wallpaper picker from your previous home screen, or long-press the home screen background.',
+                  [{ text: 'Got it' }],
                 )
               }
               activeOpacity={0.75}
@@ -271,18 +299,18 @@ export default function HomeLauncherScreen() {
               <View style={{ flex: 1, gap: 2 }}>
                 <Text style={[styles.settingLabel, { color: theme.text }]}>Wallpaper</Text>
                 <Text style={[styles.settingDesc, { color: theme.muted }]}>
-                  {settings.launcherWallpaperUri ? 'Custom image set' : 'Default dark gradient'}
+                  Uses your system wallpaper — change it from Android settings
                 </Text>
               </View>
               <Ionicons name="image-outline" size={18} color={theme.muted} />
             </TouchableOpacity>
           </View>
 
-          {/* ── Pinned Apps ──────────────────────────────────────────── */}
+          {/* ── Dock ─────────────────────────────────────────────────── */}
           <SectionHeader
-            icon="pin-outline"
-            title="Pinned Apps"
-            description="Apps shown as large icons on the home screen. Tap an app below to pin or unpin it."
+            icon="ellipse-outline"
+            title="Dock"
+            description="Up to 5 apps always visible at the bottom of the home screen — your most-used apps go here."
             theme={theme}
           />
           <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -296,30 +324,68 @@ export default function HomeLauncherScreen() {
                 <Text style={[styles.emptyText, { color: theme.muted }]}>No apps found — EAS build required</Text>
               </View>
             ) : (
-              apps.slice(0, 24).map((app, idx) => (
+              apps.slice(0, 30).map((app, idx) => (
+                <AppToggleRow
+                  key={app.packageName}
+                  app={app}
+                  checked={dockSet.has(app.packageName)}
+                  onToggle={() => toggleDock(app.packageName)}
+                  theme={theme}
+                  isLast={idx === Math.min(apps.length, 30) - 1}
+                  badge={blockedPackages.has(app.packageName) ? 'blocked' : undefined}
+                  disabled={!dockSet.has(app.packageName) && dockSet.size >= 5}
+                />
+              ))
+            )}
+          </View>
+          {(settings.launcherDockPackages ?? []).length >= 5 && (
+            <Text style={[styles.moreAppsHint, { color: COLORS.orange }]}>
+              Dock is full (5/5). Remove a dock app to add another.
+            </Text>
+          )}
+
+          {/* ── Home Screen Grid ──────────────────────────────────────── */}
+          <SectionHeader
+            icon="grid-outline"
+            title="Home Screen Grid"
+            description="Apps shown in the 4-column grid on the main home screen. Long-press any icon on the home screen to add or remove. You can also use the list below."
+            theme={theme}
+          />
+          <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            {loadingApps ? (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator size="small" color={COLORS.primary} />
+                <Text style={[styles.loadingText, { color: theme.muted }]}>Loading installed apps…</Text>
+              </View>
+            ) : apps.length === 0 ? (
+              <View style={styles.emptyRow}>
+                <Text style={[styles.emptyText, { color: theme.muted }]}>No apps found — EAS build required</Text>
+              </View>
+            ) : (
+              apps.slice(0, 30).map((app, idx) => (
                 <AppToggleRow
                   key={app.packageName}
                   app={app}
                   checked={pinnedSet.has(app.packageName)}
                   onToggle={() => togglePinned(app.packageName)}
                   theme={theme}
-                  isLast={idx === Math.min(apps.length, 24) - 1}
+                  isLast={idx === Math.min(apps.length, 30) - 1}
                   badge={blockedPackages.has(app.packageName) ? 'blocked' : undefined}
                 />
               ))
             )}
           </View>
-          {apps.length > 24 && (
+          {apps.length > 30 && (
             <Text style={[styles.moreAppsHint, { color: theme.muted }]}>
-              Showing first 24 apps. Use search in the launcher drawer for full list.
+              Showing first 30 apps. Search the full list in the launcher drawer, or long-press any icon there to add it.
             </Text>
           )}
 
-          {/* ── Drawer Visibility ────────────────────────────────────── */}
+          {/* ── App Drawer Visibility ────────────────────────────────── */}
           <SectionHeader
             icon="eye-off-outline"
             title="App Drawer Visibility"
-            description="Hide blocked apps completely from the launcher drawer. Only apps already in your block list can be hidden."
+            description="Completely hide blocked apps from the drawer so they don't appear at all. Only apps already in your block list can be hidden."
             theme={theme}
           />
           <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -363,13 +429,6 @@ export default function HomeLauncherScreen() {
               value={settings.launcherLockDuringStandalone ?? true}
               onValueChange={(v) => void update({ launcherLockDuringStandalone: v })}
               theme={theme}
-            />
-            <SwitchRow
-              label="Block uninstall from long-press"
-              description="Suppresses the 'Uninstall' option in the launcher long-press context menu during active blocks, independent of System Protection"
-              value={settings.launcherBlockUninstall ?? false}
-              onValueChange={(v) => void update({ launcherBlockUninstall: v })}
-              theme={theme}
               isLast
             />
           </View>
@@ -378,12 +437,24 @@ export default function HomeLauncherScreen() {
             <Ionicons name="bulb-outline" size={16} color={COLORS.primary} />
             <Text style={[styles.tipText, { color: theme.muted }]}>
               <Text style={{ fontWeight: '700', color: theme.text }}>How it works: </Text>
-              FocusFlow's launcher reads your block list directly from storage — no accessibility service round-trip needed. When you tap a blocked app, the block overlay appears instantly, before the app process even starts.
+              The launcher reads your block list directly from storage — no accessibility service round-trip needed. Blocked apps dim immediately and the block overlay appears before the app even starts. Unblocked apps launch normally.
             </Text>
           </View>
         </ScrollView>
       )}
     </SafeAreaView>
+  );
+}
+
+function LayoutZone({ icon, label, desc, color }: { icon: keyof typeof Ionicons.glyphMap; label: string; desc: string; color: string }) {
+  return (
+    <View style={styles.layoutZone}>
+      <View style={[styles.layoutZoneIcon, { backgroundColor: color + '20' }]}>
+        <Ionicons name={icon} size={20} color={color} />
+      </View>
+      <Text style={styles.layoutZoneLabel}>{label}</Text>
+      <Text style={styles.layoutZoneDesc}>{desc}</Text>
+    </View>
   );
 }
 
@@ -452,6 +523,7 @@ function AppToggleRow({
   theme,
   isLast,
   badge,
+  disabled = false,
 }: {
   app: { packageName: string; appName: string; isIme: boolean };
   checked: boolean;
@@ -459,15 +531,17 @@ function AppToggleRow({
   theme: ReturnType<typeof useTheme>['theme'];
   isLast?: boolean;
   badge?: 'blocked';
+  disabled?: boolean;
 }) {
   return (
     <TouchableOpacity
       style={[
         styles.appRow,
         !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border },
+        disabled && { opacity: 0.45 },
       ]}
-      onPress={onToggle}
-      activeOpacity={0.7}
+      onPress={disabled ? undefined : onToggle}
+      activeOpacity={disabled ? 1 : 0.7}
     >
       <View style={[styles.appIconPlaceholder, { backgroundColor: COLORS.primary + '18' }]}>
         <Ionicons name="apps-outline" size={18} color={COLORS.primary} />
@@ -489,7 +563,8 @@ function AppToggleRow({
       </View>
       <Switch
         value={checked}
-        onValueChange={onToggle}
+        onValueChange={disabled ? undefined : onToggle}
+        disabled={disabled}
         trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
         thumbColor={checked ? COLORS.primary : COLORS.muted}
       />
@@ -542,6 +617,26 @@ const styles = StyleSheet.create({
   },
   setDefaultBtnText: { color: '#fff', fontSize: FONT.sm, fontWeight: '700' },
 
+  layoutPreview: {
+    borderRadius: RADIUS.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: SPACING.md,
+    gap: SPACING.sm,
+  },
+  layoutTitle: { fontSize: FONT.sm, fontWeight: '700' },
+  layoutRow: { flexDirection: 'row', gap: SPACING.sm },
+  layoutZone: { flex: 1, alignItems: 'center', gap: 4 },
+  layoutZoneIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: RADIUS.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  layoutZoneLabel: { fontSize: FONT.xs, fontWeight: '700', color: '#FFFFFF', textAlign: 'center' },
+  layoutZoneDesc: { fontSize: 10, color: '#888', textAlign: 'center', lineHeight: 14 },
+  layoutHint: { fontSize: FONT.xs, lineHeight: 17 },
+
   sectionHeader: { gap: 4, marginBottom: SPACING.xs },
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   sectionIcon: {
@@ -589,12 +684,39 @@ const styles = StyleSheet.create({
   switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.sm,
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm + 2,
+    paddingVertical: SPACING.sm,
+    gap: SPACING.sm,
   },
   switchLabel: { fontSize: FONT.sm, fontWeight: '600' },
   switchDesc: { fontSize: FONT.xs, lineHeight: 17 },
+
+  appRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    gap: SPACING.sm,
+  },
+  appIconPlaceholder: {
+    width: 36,
+    height: 36,
+    borderRadius: RADIUS.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  appName: { fontSize: FONT.sm, fontWeight: '600' },
+  appPkg: { fontSize: 11 },
+  blockedBadge: {
+    backgroundColor: COLORS.orange + '22',
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderWidth: 1,
+    borderColor: COLORS.orange + '55',
+  },
+  blockedBadgeText: { fontSize: 9, color: COLORS.orange, fontWeight: '700' },
 
   loadingRow: {
     flexDirection: 'row',
@@ -609,36 +731,8 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
     padding: SPACING.md,
   },
-  emptyText: { flex: 1, fontSize: FONT.sm, lineHeight: 18 },
-
-  appRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    gap: SPACING.sm,
-  },
-  appIconPlaceholder: {
-    width: 38,
-    height: 38,
-    borderRadius: RADIUS.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  appName: { fontSize: FONT.sm, fontWeight: '600' },
-  appPkg: { fontSize: FONT.xs },
-  blockedBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: RADIUS.full,
-    backgroundColor: COLORS.red + '22',
-    borderWidth: 1,
-    borderColor: COLORS.red + '44',
-  },
-  blockedBadgeText: { fontSize: 9, fontWeight: '700', color: COLORS.red },
-
-  moreAppsHint: { fontSize: FONT.xs, textAlign: 'center', marginTop: -SPACING.xs },
+  emptyText: { fontSize: FONT.xs, flex: 1, lineHeight: 17 },
+  moreAppsHint: { fontSize: FONT.xs, textAlign: 'center', marginTop: -SPACING.xs, lineHeight: 17 },
 
   tipCard: {
     flexDirection: 'row',
@@ -653,8 +747,9 @@ const styles = StyleSheet.create({
   lockedScreen: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
   lockedCard: {
     width: '100%',
+    maxWidth: 340,
     borderRadius: RADIUS.xl,
-    borderWidth: 2,
+    borderWidth: 1,
     padding: SPACING.xl,
     alignItems: 'center',
     gap: SPACING.md,
@@ -663,24 +758,22 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: COLORS.orange + '1A',
+    backgroundColor: COLORS.orange + '18',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: COLORS.orange + '55',
     marginBottom: SPACING.xs,
   },
-  lockedHeading: { fontSize: 24, fontWeight: '800', textAlign: 'center' },
-  lockedBody: { fontSize: FONT.sm, textAlign: 'center', lineHeight: 20 },
+  lockedHeading: { fontSize: FONT.xl, fontWeight: '800', textAlign: 'center' },
+  lockedBody: { fontSize: FONT.sm, textAlign: 'center', lineHeight: 21 },
   lockedBackBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: COLORS.orange,
-    borderRadius: RADIUS.md,
+    gap: 4,
+    backgroundColor: COLORS.primary,
+    paddingVertical: SPACING.sm + 2,
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    marginTop: SPACING.sm,
+    borderRadius: RADIUS.md,
+    marginTop: SPACING.xs,
   },
-  lockedBackText: { fontSize: FONT.sm, fontWeight: '700', color: '#fff' },
+  lockedBackText: { color: '#fff', fontSize: FONT.sm, fontWeight: '700' },
 });

@@ -142,6 +142,7 @@ const defaultSettings: AppSettings = {
   launcherEnabled: false,
   launcherHiddenPackages: [],
   launcherPinnedPackages: [],
+  launcherDockPackages: [],
   launcherWallpaperUri: null,
   launcherClockStyle: 'digital' as const,
   launcherBlockUninstall: false,
@@ -602,11 +603,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       void logger.warn('AppContext', `system guard sync failed: ${String(e)}`);
     }
     try {
-      await SharedPrefsModule.setBlockInstallActionsEnabled(settings.blockInstallActionsEnabled ?? false);
-    } catch (e) {
-      void logger.warn('AppContext', `install-actions guard sync failed: ${String(e)}`);
-    }
-    try {
       await SharedPrefsModule.setBlockYoutubeShortsEnabled(settings.blockYoutubeShortsEnabled ?? false);
     } catch (e) {
       void logger.warn('AppContext', `youtube-shorts guard sync failed: ${String(e)}`);
@@ -630,6 +626,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await SharedPrefsModule.setLauncherHiddenPackages(settings.launcherHiddenPackages ?? []);
     } catch (e) {
       void logger.warn('AppContext', `launcher hidden packages sync failed: ${String(e)}`);
+    }
+    try {
+      await SharedPrefsModule.setLauncherDockPackages(settings.launcherDockPackages ?? []);
+    } catch (e) {
+      void logger.warn('AppContext', `launcher dock packages sync failed: ${String(e)}`);
     }
     try {
       await SharedPrefsModule.setLauncherLockDuringStandalone(settings.launcherLockDuringStandalone ?? true);

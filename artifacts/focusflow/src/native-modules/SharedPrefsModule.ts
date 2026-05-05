@@ -178,6 +178,15 @@ export const SharedPrefsModule = {
   },
 
   /**
+   * Writes the ordered list of packages for the home launcher's persistent
+   * bottom dock (max 5). Stored as a JSON array string in SharedPreferences.
+   */
+  async setLauncherDockPackages(packages: string[]): Promise<void> {
+    if (!hasSharedPrefsMethod('setLauncherDockPackages')) return;
+    return SharedPrefs.setLauncherDockPackages(JSON.stringify(packages));
+  },
+
+  /**
    * Controls whether the default-home-app chooser in Android Settings is
    * intercepted and redirected HOME when a standalone block is active.
    * Defaults to true — prevents swapping away from the FocusFlow launcher

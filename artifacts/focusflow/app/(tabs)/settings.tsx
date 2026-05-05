@@ -231,17 +231,6 @@ function SettingsScreen() {
     await update({ systemGuardEnabled: enabled });
   };
 
-  const handleBlockInstallActionsToggle = async (enabled: boolean) => {
-    if (!enabled && blockProtectionActive) {
-      Alert.alert(
-        'Protection is active',
-        'Install / uninstall protection cannot be turned off while Focus Mode or an app block is active.',
-      );
-      return;
-    }
-    await update({ blockInstallActionsEnabled: enabled });
-  };
-
   const handleBlockYoutubeShortsToggle = async (enabled: boolean) => {
     if (!enabled && blockProtectionActive) {
       Alert.alert(
@@ -420,23 +409,6 @@ function SettingsScreen() {
               disabled={blockProtectionActive && (settings.systemGuardEnabled ?? true)}
               trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
               thumbColor={(settings.systemGuardEnabled ?? true) ? COLORS.primary : COLORS.muted}
-            />
-          </SettingRow>
-
-          <SettingRow
-            label="Block install / uninstall actions"
-            description={
-              blockProtectionActive && (settings.blockInstallActionsEnabled ?? false)
-                ? 'Locked on until Focus Mode or the active app block ends'
-                : 'Intercepts Play Store install / update and any uninstall confirmation dialogs during active blocks'
-            }
-          >
-            <Switch
-              value={settings.blockInstallActionsEnabled ?? false}
-              onValueChange={handleBlockInstallActionsToggle}
-              disabled={blockProtectionActive && (settings.blockInstallActionsEnabled ?? false)}
-              trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
-              thumbColor={(settings.blockInstallActionsEnabled ?? false) ? COLORS.primary : COLORS.muted}
             />
           </SettingRow>
 

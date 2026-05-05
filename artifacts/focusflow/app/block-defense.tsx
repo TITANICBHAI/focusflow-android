@@ -98,14 +98,6 @@ export default function BlockDefenseScreen() {
     await update({ systemGuardEnabled: enabled });
   };
 
-  const handleInstallToggle = async (enabled: boolean) => {
-    if (!enabled && blockProtectionActive) {
-      Alert.alert('Protection is active', 'Cannot disable while a block is active.');
-      return;
-    }
-    await update({ blockInstallActionsEnabled: enabled });
-  };
-
   const handleYoutubeToggle = async (enabled: boolean) => {
     if (!enabled && blockProtectionActive) {
       Alert.alert('Protection is active', 'Cannot disable while a block is active.');
@@ -216,18 +208,6 @@ export default function BlockDefenseScreen() {
               value={settings.systemGuardEnabled ?? true}
               onValueChange={handleSystemGuardToggle}
               disabled={blockProtectionActive && (settings.systemGuardEnabled ?? true)}
-              theme={theme}
-            />
-            <SwitchRow
-              label="Block install / uninstall"
-              description={
-                blockProtectionActive && (settings.blockInstallActionsEnabled ?? false)
-                  ? 'Locked on — active block in progress'
-                  : 'Stops Play Store installs & package-installer dialogs from slipping through — runs all the time when on'
-              }
-              value={settings.blockInstallActionsEnabled ?? false}
-              onValueChange={handleInstallToggle}
-              disabled={blockProtectionActive && (settings.blockInstallActionsEnabled ?? false)}
               theme={theme}
             />
             <SwitchRow

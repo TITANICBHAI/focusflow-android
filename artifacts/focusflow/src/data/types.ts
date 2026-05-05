@@ -202,8 +202,9 @@ export interface AppSettings {
   // accessibility-service reaction delay.
   launcherEnabled?: boolean;              // User has enabled the launcher feature
   launcherHiddenPackages?: string[];      // Apps completely hidden from the app drawer (only blocked apps can be hidden)
-  launcherPinnedPackages?: string[];      // Ordered list of packages pinned to the home screen grid
-  launcherWallpaperUri?: string | null;   // Path to custom wallpaper image (null = default dark gradient)
+  launcherPinnedPackages?: string[];      // Ordered list of packages on the home screen grid
+  launcherDockPackages?: string[];        // Up to 5 apps pinned in the persistent bottom dock
+  launcherWallpaperUri?: string | null;   // Path to custom wallpaper image (null = use system wallpaper)
   launcherClockStyle?: 'digital' | 'analog'; // Clock widget style on the home screen
   launcherBlockUninstall?: boolean;       // Intercept long-press "Uninstall" option in any launcher during active blocks
   launcherLockDuringStandalone?: boolean; // Prevent changing the default home app while a standalone block is active

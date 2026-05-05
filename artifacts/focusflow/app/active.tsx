@@ -68,12 +68,11 @@ export default function ActiveScreen() {
     key: string;
     label: string;
     on: boolean;
-    icon: 'lock-closed-outline' | 'download-outline' | 'logo-youtube' | 'logo-instagram' | 'text-outline';
+    icon: 'lock-closed-outline' | 'logo-youtube' | 'logo-instagram' | 'text-outline';
     count?: number;
     route?: string;
   }> = [
     { key: 'systemGuard', label: 'System Protection',     on: settings.systemGuardEnabled ?? false,         icon: 'lock-closed-outline', route: '/block-defense?tab=system' },
-    { key: 'install',     label: 'Install/Uninstall Block', on: settings.blockInstallActionsEnabled ?? false, icon: 'download-outline',    route: '/block-defense?tab=system' },
     { key: 'shorts',      label: 'YouTube Shorts Block',  on: settings.blockYoutubeShortsEnabled ?? false,  icon: 'logo-youtube',        route: '/block-defense?tab=system' },
     { key: 'reels',       label: 'Instagram Reels Block', on: settings.blockInstagramReelsEnabled ?? false, icon: 'logo-instagram',      route: '/block-defense?tab=system' },
     { key: 'keywords',    label: 'Keyword Blocker',       on: (settings.blockedWords ?? []).length > 0,     icon: 'text-outline', count: (settings.blockedWords ?? []).length, route: '/keyword-blocker' },
