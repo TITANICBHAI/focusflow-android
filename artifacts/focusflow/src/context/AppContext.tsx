@@ -1062,7 +1062,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       await dbInsertTask(task);
       dispatch({ type: 'ADD_TASK', payload: task });
-      await scheduleTaskReminders(task);
+      const s = stateRef.current.settings;
+      await scheduleTaskReminders(task, {
+        notificationsEnabled: s.notificationsEnabled !== false,
+        pomodoroEnabled: s.pomodoroEnabled === true,
+        pomodoroDuration: s.pomodoroDuration ?? 25,
+        pomodoroBreak: s.pomodoroBreak ?? 5,
+      });
     } catch (e) {
       void logger.error('AppContext', `addTask failed: ${String(e)}`);
       throw e;
@@ -1074,7 +1080,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await dbUpdateTask(task);
       dispatch({ type: 'UPDATE_TASK', payload: task });
       await cancelTaskReminders(task.id);
-      await scheduleTaskReminders(task);
+      const s = stateRef.current.settings;
+      await scheduleTaskReminders(task, {
+        notificationsEnabled: s.notificationsEnabled !== false,
+        pomodoroEnabled: s.pomodoroEnabled === true,
+        pomodoroDuration: s.pomodoroDuration ?? 25,
+        pomodoroBreak: s.pomodoroBreak ?? 5,
+      });
     } catch (e) {
       void logger.error('AppContext', `updateTask failed: ${String(e)}`);
       throw e;
@@ -1198,13 +1210,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         // Reschedule the extended task at its new end time
         await cancelTaskReminders(taskId);
-        await scheduleTaskReminders(extended);
+        const pomOpts = {
+          notificationsEnabled: stateRef.current.settings.notificationsEnabled !== false,
+          pomodoroEnabled: stateRef.current.settings.pomodoroEnabled === true,
+          pomodoroDuration: stateRef.current.settings.pomodoroDuration ?? 25,
+          pomodoroBreak: stateRef.current.settings.pomodoroBreak ?? 5,
+        };
+        await scheduleTaskReminders(extended, pomOpts);
 
         // Reschedule every task that was shifted to new times — their old
         // pre-start / mid-session / end notifications would fire at wrong times.
         for (const t of shifted) {
           await cancelTaskReminders(t.id);
-          await scheduleTaskReminders(t);
+          await scheduleTaskReminders(t, pomOpts);
         }
 
         // Cancel notifications for tasks the scheduler auto-skipped — they
