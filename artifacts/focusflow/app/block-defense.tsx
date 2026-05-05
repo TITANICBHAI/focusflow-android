@@ -345,6 +345,74 @@ export default function BlockDefenseScreen() {
           </View>
         </View>
 
+        {/* ── Home Launcher ────────────────────────────────────────── */}
+        <View collapsable={false}>
+          <SectionHeader
+            icon="home-outline"
+            title="Home Launcher"
+            description="Replace your default home screen with FocusFlow's built-in launcher — every app tap is intercepted before the OS even sees it. Blocked apps dim in the drawer and tap straight to the block overlay."
+            theme={theme}
+          />
+          <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <SwitchRow
+              label="Lock launcher during standalone block"
+              description={
+                standaloneActive && (settings.launcherLockDuringStandalone ?? true)
+                  ? 'Locked on — standalone block in progress'
+                  : 'Intercepts the "Default home app" Settings page and presses HOME while a standalone block is active — prevents switching away from FocusFlow launcher mid-session'
+              }
+              value={settings.launcherLockDuringStandalone ?? true}
+              onValueChange={(v) => {
+                if (!v && standaloneActive) {
+                  Alert.alert('Block is active', 'Cannot disable while a standalone block is running.');
+                  return;
+                }
+                void update({ launcherLockDuringStandalone: v });
+              }}
+              disabled={standaloneActive && (settings.launcherLockDuringStandalone ?? true)}
+              theme={theme}
+            />
+            <SwitchRow
+              label="Block uninstall from launcher long-press"
+              description={
+                blockProtectionActive && (settings.launcherBlockUninstall ?? false)
+                  ? 'Locked on — active block in progress'
+                  : 'Suppresses "Uninstall" in the long-press context menu of any launcher, independent of System Protection'
+              }
+              value={settings.launcherBlockUninstall ?? false}
+              onValueChange={(v) => {
+                if (!v && blockProtectionActive) {
+                  Alert.alert('Block is active', 'Cannot disable while a block is running.');
+                  return;
+                }
+                void update({ launcherBlockUninstall: v });
+              }}
+              disabled={blockProtectionActive && (settings.launcherBlockUninstall ?? false)}
+              theme={theme}
+            />
+            <TouchableOpacity
+              style={styles.cardButton}
+              onPress={() => {
+                if (standaloneActive) {
+                  Alert.alert('Block is active', 'Launcher settings are locked while a standalone block is running.');
+                  return;
+                }
+                router.push('/home-launcher');
+              }}
+            >
+              <View style={styles.cardButtonContent}>
+                <Text style={[styles.cardButtonLabel, { color: theme.text }]}>Configure Home Launcher</Text>
+                <Text style={[styles.cardButtonDesc, { color: theme.muted }]}>
+                  {(settings.launcherEnabled ?? false)
+                    ? `Enabled — ${(settings.launcherPinnedPackages ?? []).length} pinned app${(settings.launcherPinnedPackages ?? []).length !== 1 ? 's' : ''}, ${(settings.launcherHiddenPackages ?? []).length} hidden`
+                    : 'Pinned apps, drawer visibility, wallpaper, clock style'}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={theme.border} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* ── Block Schedules ─────────────────────────────────────── */}
         <View ref={sectionRefs.greyout} collapsable={false}>
           <SectionHeader

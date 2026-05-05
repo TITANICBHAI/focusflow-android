@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
 
-type PermissionId = 'accessibility' | 'usage' | 'battery' | 'notifications' | 'device_admin' | 'overlay' | 'media_files';
+type PermissionId = 'accessibility' | 'usage' | 'battery' | 'notifications' | 'device_admin' | 'overlay' | 'media_files' | 'launcher';
 
 type Brand = {
   id: string;
@@ -226,6 +226,7 @@ const PERM_LABELS: Record<PermissionId, { label: string; icon: keyof typeof Ioni
   device_admin:  { label: 'Device Admin',          icon: 'shield-outline'       },
   overlay:       { label: 'Appear on Top',         icon: 'layers-outline'       },
   media_files:   { label: 'Media Files Access',    icon: 'images-outline'       },
+  launcher:      { label: 'Home Launcher',         icon: 'home-outline'         },
 };
 
 interface Props {

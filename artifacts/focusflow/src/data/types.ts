@@ -195,6 +195,18 @@ export interface AppSettings {
   blockInstagramReelsEnabled: boolean;   // Intercept the Instagram Reels player / clips viewer (Instagram itself stays usable)
   vpnBlockEnabled: boolean;             // Tunnel blocked apps through VPN to cut their network access (requires VPN permission)
   standaloneVpnPackages: string[];      // Per-app VPN: packages selected to receive network blocking in addition to accessibility blocking
+
+  // ── Home Launcher ──────────────────────────────────────────────────────────
+  // FocusFlow can act as the device's home screen. When set as default launcher,
+  // every app tap routes through FocusFlow first — instant enforcement with no
+  // accessibility-service reaction delay.
+  launcherEnabled?: boolean;              // User has enabled the launcher feature
+  launcherHiddenPackages?: string[];      // Apps completely hidden from the app drawer (only blocked apps can be hidden)
+  launcherPinnedPackages?: string[];      // Ordered list of packages pinned to the home screen grid
+  launcherWallpaperUri?: string | null;   // Path to custom wallpaper image (null = default dark gradient)
+  launcherClockStyle?: 'digital' | 'analog'; // Clock widget style on the home screen
+  launcherBlockUninstall?: boolean;       // Intercept long-press "Uninstall" option in any launcher during active blocks
+  launcherLockDuringStandalone?: boolean; // Prevent changing the default home app while a standalone block is active
   // Focus session behaviour
   // When true, finishing a task before its scheduled end time keeps the focus session
   // running until the original end time (the task is marked done in your stats, but

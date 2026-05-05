@@ -16,7 +16,7 @@ import { router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { NativeImagePickerModule } from '@/native-modules/NativeImagePickerModule';
 import { UsageStatsModule, isUsageStatsAvailable } from '@/native-modules/UsageStatsModule';
-import { isSharedPrefsAvailable } from '@/native-modules/SharedPrefsModule';
+import { SharedPrefsModule, isSharedPrefsAvailable } from '@/native-modules/SharedPrefsModule';
 import { ForegroundLaunchModule } from '@/native-modules/ForegroundLaunchModule';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { TroubleshootModal } from '@/components/TroubleshootModal';
@@ -25,7 +25,7 @@ import { useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/useTheme';
 
 type PermStatus = 'granted' | 'denied' | 'unknown';
-type PermissionId = 'accessibility' | 'usage' | 'battery' | 'notifications' | 'device_admin' | 'overlay' | 'media_files';
+type PermissionId = 'accessibility' | 'usage' | 'battery' | 'notifications' | 'device_admin' | 'overlay' | 'media_files' | 'launcher';
 
 interface PermissionItem {
   id: PermissionId;
@@ -213,6 +213,37 @@ const PERMISSIONS: PermissionItem[] = [
     open: () => {
       UsageStatsModule.openDeviceAdminSettings().catch(() =>
         Linking.openSettings()
+      );
+    },
+  },
+  {
+    id: 'launcher',
+    title: 'Home Launcher',
+    description:
+      'Sets FocusFlow as your default home screen so every app tap is intercepted before Android even sees it — zero reaction delay, no brief flash of a blocked app.',
+    whyNeeded:
+      'Without this, FocusFlow relies on the accessibility service to detect and redirect blocked apps after they open. As the home launcher, the interception happens before the app even launches.',
+    brokenWithout: [
+      'Blocked apps may flash briefly before the block overlay appears',
+      'Accessibility service reaction latency still applies',
+      'Launcher drawer filtering and pinned-app grid will not be shown',
+    ],
+    icon: 'home-outline',
+    deepLinkLabel: 'Set as Default Home App',
+    optional: true,
+    check: async (): Promise<PermStatus> => {
+      try {
+        const isDefault = await SharedPrefsModule.isDefaultLauncher();
+        return isDefault ? 'granted' : 'denied';
+      } catch {
+        return 'unknown';
+      }
+    },
+    open: () => {
+      Linking.sendIntent('android.settings.HOME_SETTINGS').catch(() =>
+        Linking.sendIntent('android.settings.MANAGE_DEFAULT_APPS_SETTINGS').catch(() =>
+          Linking.openSettings()
+        )
       );
     },
   },
@@ -493,6 +524,18 @@ export default function PermissionsScreen() {
                       </TouchableOpacity>
                     )}
                   </View>
+
+                  {/* Launcher-specific: quick link to launcher settings when granted */}
+                  {perm.id === 'launcher' && status === 'granted' && (
+                    <TouchableOpacity
+                      style={styles.launcherConfigBtn}
+                      onPress={() => router.push('/home-launcher')}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="settings-outline" size={14} color={COLORS.primary} />
+                      <Text style={styles.launcherConfigBtnText}>Configure Launcher Settings →</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               )}
             </View>
@@ -809,5 +852,20 @@ const styles = StyleSheet.create({
     fontSize: FONT.xs,
     fontWeight: '700',
     color: '#fff',
+  },
+
+  launcherConfigBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    marginTop: SPACING.sm,
+    paddingTop: SPACING.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.border,
+  },
+  launcherConfigBtnText: {
+    fontSize: FONT.sm,
+    fontWeight: '600',
+    color: COLORS.primary,
   },
 });

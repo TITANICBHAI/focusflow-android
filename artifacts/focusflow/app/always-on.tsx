@@ -148,7 +148,7 @@ export default function AlwaysOnScreen() {
         </View>
         {selected.size > 0 && (
           <TouchableOpacity onPress={handleClearAll} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={[styles.clearBtn, { color: COLORS.danger ?? '#ef4444' }]}>Clear</Text>
+            <Text style={[styles.clearBtn, { color: (COLORS as Record<string, string>).danger ?? '#ef4444' }]}>Clear</Text>
           </TouchableOpacity>
         )}
       </View>

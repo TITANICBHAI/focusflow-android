@@ -471,6 +471,58 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
         promise.resolve(null)
     }
 
+    // ── Home Launcher prefs ────────────────────────────────────────────────────
+
+    /**
+     * Writes the JSON-encoded list of packages to hide from FocusFlow's home
+     * launcher app drawer. LauncherActivity reads this at drawer-open time.
+     */
+    @ReactMethod
+    fun setLauncherHiddenPackages(packagesJson: String, promise: Promise) {
+        prefs().edit().putString("launcher_hidden_packages", packagesJson).apply()
+        promise.resolve(null)
+    }
+
+    /**
+     * When true, the AccessibilityService will intercept "Default home app"
+     * / "Choose home app" Settings pages and press HOME while a standalone
+     * block is active — preventing the user from switching away from
+     * FocusFlow's launcher mid-session.
+     */
+    @ReactMethod
+    fun setLauncherLockDuringStandalone(enabled: Boolean, promise: Promise) {
+        prefs().edit().putBoolean("launcher_lock_during_standalone", enabled).apply()
+        promise.resolve(null)
+    }
+
+    /**
+     * When true, an additional accessibility-level guard intercepts long-press
+     * "Uninstall" in any launcher package, independent of the main System
+     * Protection toggle.  FocusFlow's own LauncherActivity never shows the
+     * Uninstall option natively, so this primarily protects other launchers.
+     */
+    @ReactMethod
+    fun setLauncherBlockUninstall(enabled: Boolean, promise: Promise) {
+        prefs().edit().putBoolean("launcher_block_uninstall", enabled).apply()
+        promise.resolve(null)
+    }
+
+    /**
+     * Returns true if FocusFlow is the currently registered default home app.
+     * Uses PackageManager to resolve ACTION_MAIN + CATEGORY_HOME and compares
+     * the result's packageName to our own package.
+     */
+    @ReactMethod
+    fun isDefaultLauncher(promise: Promise) {
+        val intent = android.content.Intent(android.content.Intent.ACTION_MAIN)
+            .addCategory(android.content.Intent.CATEGORY_HOME)
+        val resolveInfo = reactContext.packageManager.resolveActivity(
+            intent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY
+        )
+        val isDefault = resolveInfo?.activityInfo?.packageName == reactContext.packageName
+        promise.resolve(isDefault)
+    }
+
     @ReactMethod
     fun resetDailyAllowanceUsage(packageName: String?, promise: Promise) {
         val editor = prefs().edit()

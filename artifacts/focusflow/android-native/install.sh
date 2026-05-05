@@ -187,6 +187,19 @@ else
   echo "   ✓ TaskAlarmActivity already registered"
 fi
 
+# ── LauncherActivity ──────────────────────────────────────────────────────────
+# Home-screen replacement launcher with HOME + DEFAULT intent-filter.
+# Set FocusFlow as the default home app in Android Settings to enable
+# zero-delay, pre-launch app interception and a filtered app drawer.
+# taskAffinity="" ensures HOME press creates its own task root.
+
+if ! grep -q "LauncherActivity" "$MANIFEST"; then
+  sed -i 's|</application>|        <activity\n            android:name="com.tbtechs.focusflow.services.LauncherActivity"\n            android:launchMode="singleTask"\n            android:excludeFromRecents="true"\n            android:exported="true"\n            android:taskAffinity="">\n            <intent-filter>\n                <action android:name="android.intent.action.MAIN" />\n                <category android:name="android.intent.category.HOME" />\n                <category android:name="android.intent.category.DEFAULT" />\n            </intent-filter>\n        </activity>\n    </application>|' "$MANIFEST"
+  echo "   ✓ LauncherActivity registered"
+else
+  echo "   ✓ LauncherActivity already registered"
+fi
+
 echo ""
 echo "✅  All native files installed and manifest patched."
 echo ""

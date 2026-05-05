@@ -40,6 +40,15 @@ const DEFAULT_SETTINGS: AppSettings = {
   tipsCardDismissed: false,
   alwaysOnEnforcementEnabled: true,
   lastShownStreakMilestone: 0,
+  vpnBlockEnabled: false,
+  standaloneVpnPackages: [],
+  launcherEnabled: false,
+  launcherHiddenPackages: [],
+  launcherPinnedPackages: [],
+  launcherWallpaperUri: null,
+  launcherClockStyle: 'digital',
+  launcherBlockUninstall: true,
+  launcherLockDuringStandalone: true,
 };
 
 /**

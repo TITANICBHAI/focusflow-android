@@ -14,6 +14,35 @@ type Entry = {
 
 const CHANGELOG: Entry[] = [
   {
+    version: '1.0.1',
+    date: 'May 2026',
+    sections: [
+      {
+        heading: 'Home Launcher',
+        icon: 'home-outline',
+        items: [
+          'FocusFlow can now be set as your default Android home screen — every app tap routes through FocusFlow first, giving instant enforcement with no accessibility-service reaction delay',
+          'Selective app hiding: any blocked app can be individually flagged to disappear from the launcher drawer entirely — only apps you choose to hide are hidden; all other blocked apps remain visible but dimmed',
+          'Pinned app grid on the home screen — choose which apps live one tap away; long-press to rearrange',
+          'Uninstall intercept: when any blocked app\'s uninstall menu appears (long-press context or Play Store dialog) during an active standalone block, FocusFlow dismisses it immediately',
+          'Safe-mode escape closed: System Protection (already locked on during standalone blocks) catches and dismisses the power menu before Safe mode can be tapped',
+          'Launcher lock: while a standalone block is active, the "Default home app" chooser in Android Settings is intercepted and closed — you cannot switch away from FocusFlow until the block ends',
+          'New "Home Launcher" section in Block Enforcement → dedicated settings page with status card, pinned apps, drawer visibility controls, appearance options (wallpaper, clock style), and launcher protections',
+        ],
+      },
+      {
+        heading: 'VPN Network Blocking',
+        icon: 'shield-outline',
+        items: [
+          'New global "Network blocking (VPN)" toggle in Block Enforcement → System Protection — tunnels all blocked apps through a local VPN to cut their internet access entirely',
+          'Per-app VPN control: each app in the Standalone Block list now has an independent "Add network block (VPN)" toggle — enable it only for the apps that need network cut, leave others untouched',
+          'VPN toggle follows the same lock-during-active-block pattern as all other System Protection toggles',
+          'Native: new setNetworkBlockEnabled and setVpnSelectedPackages bridge methods; AccessibilityService filters VPN by selected packages (global mode when list is empty)',
+        ],
+      },
+    ],
+  },
+  {
     version: 'c1.0.9',
     date: 'April 2026',
     sections: [

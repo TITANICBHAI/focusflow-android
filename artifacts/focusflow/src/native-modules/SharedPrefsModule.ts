@@ -168,6 +168,49 @@ export const SharedPrefsModule = {
     return SharedPrefs.setVpnSelectedPackages(JSON.stringify(packages));
   },
 
+  /**
+   * Writes the list of packages that are hidden from FocusFlow's home launcher
+   * app drawer. Only blocked packages should be hidden — enforced by UI, not native.
+   */
+  async setLauncherHiddenPackages(packages: string[]): Promise<void> {
+    if (!hasSharedPrefsMethod('setLauncherHiddenPackages')) return;
+    return SharedPrefs.setLauncherHiddenPackages(JSON.stringify(packages));
+  },
+
+  /**
+   * Controls whether the default-home-app chooser in Android Settings is
+   * intercepted and redirected HOME when a standalone block is active.
+   * Defaults to true — prevents swapping away from the FocusFlow launcher
+   * during a block session.
+   */
+  async setLauncherLockDuringStandalone(enabled: boolean): Promise<void> {
+    if (!hasSharedPrefsMethod('setLauncherLockDuringStandalone')) return;
+    return SharedPrefs.setLauncherLockDuringStandalone(enabled);
+  },
+
+  /**
+   * When true, any long-press "Uninstall" option shown by a launcher package
+   * is suppressed via the accessibility service even if System Protection is
+   * off — gives the FocusFlow launcher its own independent uninstall guard.
+   */
+  async setLauncherBlockUninstall(enabled: boolean): Promise<void> {
+    if (!hasSharedPrefsMethod('setLauncherBlockUninstall')) return;
+    return SharedPrefs.setLauncherBlockUninstall(enabled);
+  },
+
+  /**
+   * Checks whether FocusFlow is the currently configured default home app.
+   * Returns false on non-Android or when the native bridge is unavailable.
+   */
+  async isDefaultLauncher(): Promise<boolean> {
+    if (!hasSharedPrefsMethod('isDefaultLauncher')) return false;
+    try {
+      return Boolean(await SharedPrefs.isDefaultLauncher());
+    } catch {
+      return false;
+    }
+  },
+
   async putString(key: string, value: string): Promise<void> {
     if (!hasSharedPrefsMethod('putString')) return;
     return SharedPrefs.putString(key, value);

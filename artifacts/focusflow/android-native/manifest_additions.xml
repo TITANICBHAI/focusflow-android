@@ -148,6 +148,35 @@
         android:exported="false" />
 
     <!--
+      LauncherActivity — FocusFlow's built-in home-screen replacement.
+
+      Set FocusFlow as the default home app (via Settings → Default home app) to
+      enable instant, zero-delay app interception.  When set as home:
+        • Every HOME press lands on FocusFlow's launcher
+        • Blocked apps show the block overlay before their process even starts
+        • Hidden packages are filtered from the drawer entirely
+        • No brief flash of the blocked app (unlike accessibility-only mode)
+
+      Key attributes:
+        launchMode singleTask  — re-uses existing instance on HOME press
+        excludeFromRecents     — never appears in the app switcher
+        exported true          — required for the HOME intent-filter to work
+        taskAffinity ""        — own task root so HOME doesn't re-enter app stack
+    -->
+    <activity
+        android:name="...services.LauncherActivity"
+        android:launchMode="singleTask"
+        android:excludeFromRecents="true"
+        android:exported="true"
+        android:taskAffinity="">
+        <intent-filter>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
+            <category android:name="android.intent.category.DEFAULT" />
+        </intent-filter>
+    </activity>
+
+    <!--
       NetworkBlockerVpnService — null-routing VPN tunnel that drops all packets
       for blocked apps. The BIND_VPN_SERVICE permission is required for all VPN
       services; android:permission ensures only the system can bind to it.

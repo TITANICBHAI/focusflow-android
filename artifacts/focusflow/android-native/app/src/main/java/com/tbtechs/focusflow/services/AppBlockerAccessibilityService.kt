@@ -122,6 +122,14 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         const val PREF_ALWAYS_BLOCK      = "always_block_active"
         const val PREF_ALWAYS_BLOCK_PKGS = "always_block_packages"
 
+        // ── Home Launcher prefs (read by LauncherActivity + this service) ────────
+        /** Whether the user wants the home-app chooser intercepted during standalone. */
+        const val PREF_LAUNCHER_LOCK_DURING_SA  = "launcher_lock_during_standalone"
+        /** Whether to suppress long-press Uninstall independently of systemGuard. */
+        const val PREF_LAUNCHER_BLOCK_UNINSTALL = "launcher_block_uninstall"
+        /** JSON array of package names hidden from the FocusFlow launcher drawer. */
+        const val PREF_LAUNCHER_HIDDEN_PKGS     = "launcher_hidden_packages"
+
         /** Notification channel used to launch the block overlay via full-screen intent. */
         private const val BLOCK_ALERT_CHANNEL  = "focusday_block_alert"
         private const val BLOCK_ALERT_NOTIF_ID = 9001
@@ -870,6 +878,15 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                     handleBlockedApp(pkg)
                     return
                 }
+                // Block "Default home app" / "Choose home app" Settings page during active
+                // standalone block when launcherLockDuringStandalone is enabled.
+                // Fires GLOBAL_ACTION_HOME instead of the block overlay — the user just
+                // can't change the default home app while a block session is running.
+                val launcherLockEnabled = prefs.getBoolean(PREF_LAUNCHER_LOCK_DURING_SA, true)
+                if (launcherLockEnabled && saActive && isHomeAppChooserPage(ev)) {
+                    handler.post { performGlobalAction(GLOBAL_ACTION_HOME) }
+                    return
+                }
             }
             return
         }
@@ -888,6 +905,19 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             isUninstallDialog(ev)
         ) {
             handleBlockedApp(pkg)
+            return
+        }
+
+        // ── Launcher uninstall guard (independent of System Protection) ──────────
+        // When launcherBlockUninstall is on, suppress "Uninstall" from any package
+        // not already caught above — e.g. a 3rd-party launcher that is neither in
+        // INSTALLER_PACKAGES nor BLOCKABLE_AFTER_WARNING.  Uses HOME press rather
+        // than the full block overlay so the home screen stays visible.
+        if (prefs.getBoolean(PREF_LAUNCHER_BLOCK_UNINSTALL, false) &&
+            (focusActive || saActive || alwaysBlockActive) &&
+            isUninstallDialog(ev)
+        ) {
+            handler.post { performGlobalAction(GLOBAL_ACTION_HOME) }
             return
         }
 
@@ -1686,6 +1716,32 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             ("recent apps" in eventText || "overview" in eventText)) return true
 
         return false
+    }
+
+    /**
+     * Returns true when the current window looks like the Android "Default home app"
+     * or "Choose home app" Settings page.
+     *
+     * Android displays this under various titles and class names across OEM skins:
+     *   • "Default home app"  (AOSP Settings)
+     *   • "Home app"          (Samsung One UI)
+     *   • "Choose home app"   (some Xiaomi / MIUI variants)
+     *
+     * When matched during a standalone block with launcherLockDuringStandalone=true,
+     * the service fires GLOBAL_ACTION_HOME to prevent the user from swapping the
+     * default launcher mid-session without dismissing the block first.
+     */
+    private fun isHomeAppChooserPage(event: AccessibilityEvent): Boolean {
+        val cls   = event.className?.toString() ?: ""
+        val title = buildString {
+            event.text.forEach { append(it); append(' ') }
+        }.lowercase()
+        return title.contains("default home") ||
+               title.contains("home app") ||
+               title.contains("choose home") ||
+               cls.contains("DefaultHomeFragment",      ignoreCase = true) ||
+               cls.contains("HomeAppPicker",            ignoreCase = true) ||
+               cls.contains("DefaultAppPickerFragment", ignoreCase = true)
     }
 
     private fun isSpecialAccessPage(event: AccessibilityEvent): Boolean {

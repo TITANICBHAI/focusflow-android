@@ -139,6 +139,13 @@ const defaultSettings: AppSettings = {
   vpnBlockEnabled: false,
   standaloneVpnPackages: [],
   keepFocusActiveUntilTaskEnd: false,
+  launcherEnabled: false,
+  launcherHiddenPackages: [],
+  launcherPinnedPackages: [],
+  launcherWallpaperUri: null,
+  launcherClockStyle: 'digital' as const,
+  launcherBlockUninstall: false,
+  launcherLockDuringStandalone: true,
   overlayWallpaper: '',
   overlayQuotes: [],
   customNodeRules: [],
@@ -618,6 +625,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await SharedPrefsModule.setVpnSelectedPackages(settings.standaloneVpnPackages ?? []);
     } catch (e) {
       void logger.warn('AppContext', `vpn selected packages sync failed: ${String(e)}`);
+    }
+    try {
+      await SharedPrefsModule.setLauncherHiddenPackages(settings.launcherHiddenPackages ?? []);
+    } catch (e) {
+      void logger.warn('AppContext', `launcher hidden packages sync failed: ${String(e)}`);
+    }
+    try {
+      await SharedPrefsModule.setLauncherLockDuringStandalone(settings.launcherLockDuringStandalone ?? true);
+    } catch (e) {
+      void logger.warn('AppContext', `launcher lock sync failed: ${String(e)}`);
+    }
+    try {
+      await SharedPrefsModule.setLauncherBlockUninstall(settings.launcherBlockUninstall ?? false);
+    } catch (e) {
+      void logger.warn('AppContext', `launcher block uninstall sync failed: ${String(e)}`);
     }
   }
 
