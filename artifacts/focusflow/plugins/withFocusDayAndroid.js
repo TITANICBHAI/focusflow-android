@@ -10,9 +10,12 @@
  *   6. Declares DeviceAdminReceiver (FocusDayDeviceAdminReceiver)
  *   7. Declares NotificationActionReceiver with COMPLETE / EXTEND / SKIP intent-filters
  *   8. Declares FocusFlowWidget (AppWidgetProvider) with APPWIDGET_UPDATE intent-filter
- *   9. Adds <queries> block for Android 11+ package visibility
- *  10. Registers FocusDayPackage via withMainApplication (reliable for RN 0.76+)
- *  11. Copies all Kotlin source files from android-native/ into the project
+ *   9. Declares TaskAlarmActivity (full-screen alarm, showWhenLocked + turnScreenOn)
+ *  10. Declares LauncherActivity with HOME + DEFAULT intent-filter
+ *  11. Declares NetworkBlockerVpnService with BIND_VPN_SERVICE permission
+ *  12. Adds <queries> block for Android 11+ package visibility
+ *  13. Registers FocusDayPackage via withMainApplication (reliable for RN 0.76+)
+ *  14. Copies all Kotlin source files from android-native/ into the project
  *
  * Applied automatically during `npx expo prebuild --platform android`.
  * No manual XML or Kotlin editing required.
@@ -130,6 +133,14 @@ function withFocusDayManifest(config) {
       // packages with matching <queries> entries are visible. This is how Stay Focused,
       // Google Family Link, and other app-blocker apps enumerate the installed app list.
       'android.permission.QUERY_ALL_PACKAGES',
+      // Required for launching the block overlay and task-alarm via full-screen notification
+      // intent (PendingIntent used in setFullScreenIntent). Without it the notification
+      // shows normally but never opens the full-screen activity.
+      'android.permission.USE_FULL_SCREEN_INTENT',
+      // Required for NetworkBlockerVpnService — allows the app to establish a VPN tunnel
+      // that null-routes packets from blocked apps. Android enforces this separately from
+      // FOREGROUND_SERVICE; the service declaration also needs android:permission set.
+      'android.permission.BIND_VPN_SERVICE',
     ];
 
     const existing = (manifest.manifest['uses-permission'] || []).map(
@@ -360,6 +371,80 @@ function withFocusDayManifest(config) {
           data: [
             { $: { 'android:scheme': 'package' } },
           ],
+        }],
+      });
+    }
+
+    // ── TaskAlarmActivity ─────────────────────────────────────────────────────
+    // Full-screen alarm activity shown when a task timer ends. Must be able to
+    // render over the lock screen (showWhenLocked + turnScreenOn).  noHistory
+    // prevents it appearing in recents after dismissal; singleInstance avoids
+    // stacking duplicate alarm screens on re-trigger.
+    const taskAlarmExists = (app.activity || []).some(
+      (a) => a.$['android:name'] === 'com.tbtechs.focusflow.services.TaskAlarmActivity'
+    );
+    if (!taskAlarmExists) {
+      if (!app.activity) app.activity = [];
+      app.activity.push({
+        $: {
+          'android:name':              'com.tbtechs.focusflow.services.TaskAlarmActivity',
+          'android:launchMode':        'singleInstance',
+          'android:excludeFromRecents': 'true',
+          'android:showWhenLocked':    'true',
+          'android:turnScreenOn':      'true',
+          'android:noHistory':         'true',
+          'android:taskAffinity':      '',
+          'android:theme':             '@android:style/Theme.NoTitleBar.Fullscreen',
+          'android:exported':          'false',
+        },
+      });
+    }
+
+    // ── LauncherActivity ──────────────────────────────────────────────────────
+    // Home-screen replacement. Set FocusFlow as the default home app to enable
+    // zero-delay pre-launch interception and a filtered app drawer.
+    // HOME + DEFAULT intent-filter is what makes Android offer FocusFlow as a
+    // home app option in Settings → Default apps → Home app.
+    const launcherExists = (app.activity || []).some(
+      (a) => a.$['android:name'] === 'com.tbtechs.focusflow.services.LauncherActivity'
+    );
+    if (!launcherExists) {
+      if (!app.activity) app.activity = [];
+      app.activity.push({
+        $: {
+          'android:name':              'com.tbtechs.focusflow.services.LauncherActivity',
+          'android:launchMode':        'singleTask',
+          'android:excludeFromRecents': 'true',
+          'android:exported':          'true',
+          'android:taskAffinity':      '',
+        },
+        'intent-filter': [{
+          action:   [{ $: { 'android:name': 'android.intent.action.MAIN' } }],
+          category: [
+            { $: { 'android:name': 'android.intent.category.HOME' } },
+            { $: { 'android:name': 'android.intent.category.DEFAULT' } },
+          ],
+        }],
+      });
+    }
+
+    // ── NetworkBlockerVpnService ──────────────────────────────────────────────
+    // Null-routing VPN service that drops packets from blocked apps.
+    // android:permission BIND_VPN_SERVICE is mandatory — the system enforces it
+    // and will refuse to bind any service that lacks this permission declaration.
+    const vpnExists = (app.service || []).some(
+      (s) => s.$['android:name'] === 'com.tbtechs.focusflow.services.NetworkBlockerVpnService'
+    );
+    if (!vpnExists) {
+      if (!app.service) app.service = [];
+      app.service.push({
+        $: {
+          'android:name':       'com.tbtechs.focusflow.services.NetworkBlockerVpnService',
+          'android:permission': 'android.permission.BIND_VPN_SERVICE',
+          'android:exported':   'false',
+        },
+        'intent-filter': [{
+          action: [{ $: { 'android:name': 'android.net.VpnService' } }],
         }],
       });
     }
