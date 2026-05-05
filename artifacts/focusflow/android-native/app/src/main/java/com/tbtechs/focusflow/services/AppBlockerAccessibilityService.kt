@@ -183,7 +183,11 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             // Specific dangerous sub-pages are blocked via content inspection below.
             "com.android.settings",
             "com.samsung.android.app.settings",
-            "com.samsung.android.settings"
+            "com.samsung.android.settings",
+            // Samsung OneUI 4+ dedicated GlobalActions / power-menu package.
+            // Must be in BLOCKABLE_AFTER_WARNING so the system-guard power-menu
+            // interception code runs when this package fires events.
+            "com.samsung.android.globalactions",
         )
 
         /**
@@ -288,20 +292,71 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
         /**
          * Package names for Android system package installers and uninstallers across OEMs.
+         * Used by the System Guard to block uninstall dialogs shown by installer packages
+         * rather than com.android.settings (which is caught by the BLOCKABLE_AFTER_WARNING path).
+         * Must be kept in sync with the full OEM list inside isInstallActionContext().
          */
         val INSTALLER_PACKAGES: Set<String> = setOf(
+            // ── Google / AOSP ────────────────────────────────────────────
             "com.android.packageinstaller",
             "com.google.android.packageinstaller",
+            "com.android.uninstaller",
+            // ── Samsung ──────────────────────────────────────────────────
             "com.samsung.android.packageinstaller",
+            "com.sec.android.packageinstaller",           // Samsung legacy
+            // ── Xiaomi / MIUI / HyperOS ──────────────────────────────────
             "com.miui.packageinstaller",
+            "com.miui.global.packageinstaller",           // MIUI global variant
+            "com.xiaomi.packageinstaller",
+            // ── Oppo / ColorOS ───────────────────────────────────────────
             "com.coloros.packageinstaller",
             "com.oppo.packageinstaller",
-            "com.oneplus.packageinstaller",
-            "com.huawei.appmarket",
+            // ── Realme UI ────────────────────────────────────────────────
+            "com.realme.packageinstaller",
+            // ── Huawei / EMUI / HarmonyOS ────────────────────────────────
             "com.huawei.packageinstaller",
-            "com.bbk.packageinstaller",
+            "com.huawei.appmarket",
+            // ── Honor (Huawei spin-off) ───────────────────────────────────
+            "com.hihonor.packageinstaller",
+            // ── Vivo / Funtouch / OriginOS / BBK ─────────────────────────
             "com.vivo.packageinstaller",
-            "com.android.uninstaller",
+            "com.bbk.packageinstaller",
+            // ── OnePlus / OxygenOS / OPlusOS ─────────────────────────────
+            "com.oneplus.packageinstaller",
+            // ── Motorola ─────────────────────────────────────────────────
+            "com.motorola.packageinstaller",
+            // ── Asus / ZenUI / ROG Phone ─────────────────────────────────
+            "com.asus.packageinstaller",
+            "com.asus.ims.packageinstallerproxy",
+            // ── Nokia / HMD Global ───────────────────────────────────────
+            "com.hmdglobal.packageinstaller",
+            "com.nokia.packageinstaller",
+            // ── Sony Xperia ──────────────────────────────────────────────
+            "com.sonyericsson.android.packageinstaller",
+            "com.sonymobile.android.packageinstaller",
+            // ── LG ───────────────────────────────────────────────────────
+            "com.lge.packageinstaller",
+            // ── Meizu / Flyme OS ─────────────────────────────────────────
+            "com.meizu.packageinstaller",
+            "com.flyme.packageinstaller",
+            // ── Lenovo / ZUI ─────────────────────────────────────────────
+            "com.lenovo.packageinstaller",
+            "com.zui.packageinstaller",
+            // ── HTC / Sense UI ───────────────────────────────────────────
+            "com.htc.packageinstaller",
+            // ── TCL / Alcatel ─────────────────────────────────────────────
+            "com.tcl.packageinstaller",
+            "com.tct.packageinstaller",
+            // ── ZTE / MiFavor UI ─────────────────────────────────────────
+            "com.zte.packageinstaller",
+            // ── Wiko ─────────────────────────────────────────────────────
+            "com.wiko.packageinstaller",
+            // ── Transsion / Infinix / Tecno / itel ───────────────────────
+            "com.transsion.packageinstaller",
+            "com.infinix.packageinstaller",
+            "com.tecno.packageinstaller",
+            // ── Black Shark (Xiaomi gaming) ───────────────────────────────
+            "com.blackshark.packageinstaller",
         )
 
         /** Max number of rapid re-check attempts after a block dismissal. */
@@ -611,13 +666,18 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                     pkg == "com.sec.android.app.systemui" ||
                     pkg == "com.samsung.android.systemui" ||
                     pkg == "com.samsung.desktopsystemui" ||
+                    // Samsung OneUI 4+ dedicated GlobalActions / power-menu package
+                    // (separate app from SystemUI — hosts power menu on OneUI 4+)
+                    pkg == "com.samsung.android.globalactions" ||
                     // Xiaomi / MIUI / HyperOS
                     pkg == "com.miui.systemui" ||
                     pkg == "com.xiaomi.systemui" ||
                     pkg == "miui.systemui.plugin" ||
+                    pkg == "com.miui.global.systemui" ||       // MIUI global variant
                     // OnePlus / OxygenOS / OPlusOS
                     pkg == "com.oneplus.systemui" ||
                     pkg == "com.oplusos.systemui" ||
+                    pkg == "com.oplus.systemui" ||              // OPlus / OxygenOS 14+
                     // Oppo / ColorOS
                     pkg == "com.coloros.systemui" ||
                     pkg == "com.oppo.systemui" ||
@@ -627,15 +687,19 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                     pkg == "com.huawei.systemui" ||
                     pkg == "com.android.systemui.huawei" ||
                     pkg == "com.huawei.desktop.systemui" ||
+                    pkg == "com.huawei.systemui.plugin" ||      // EMUI overlay plugin
                     // Honor (Huawei spin-off)
                     pkg == "com.hihonor.systemui" ||
                     // Vivo / Funtouch / OriginOS / BBK
                     pkg == "com.vivo.systemui" ||
                     pkg == "com.bbk.systemui" ||
+                    pkg == "com.iqoo.systemui" ||               // iQOO (Vivo sub-brand)
                     // Motorola
                     pkg == "com.motorola.android.systemui" ||
+                    pkg == "com.motorola.systemui" ||
                     // Asus / ZenUI / ROG Phone
                     pkg == "com.asus.systemui" ||
+                    pkg == "com.asus.rogui" ||                  // ROG UI
                     // Nothing OS
                     pkg == "com.nothing.systemui" ||
                     pkg == "com.nothing.systemuitool" ||
@@ -664,6 +728,9 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                     pkg == "com.zte.systemui" ||
                     // Wiko
                     pkg == "com.wiko.systemui" ||
+                    // Transsion / Infinix / Tecno / itel
+                    pkg == "com.transsion.systemui" ||
+                    pkg == "com.infinix.systemui" ||
                     // Black Shark (Xiaomi gaming)
                     pkg == "com.blackshark.systemui"
                 if (isSystemUiPkg) {
@@ -682,24 +749,74 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                     return
                 }
 
-                // ── Launcher power-off dialog (e.g. One UI Home long-press power button) ──
-                // Some OEMs show the power-off confirmation from the launcher package rather
-                // than from SystemUI or the powerkey package.
+                // ── Launcher power-off / uninstall (e.g. One UI Home long-press) ──────
+                // Some OEMs show the power-off confirmation from the launcher package
+                // rather than from SystemUI. The same launcher package also renders the
+                // long-press app-icon context menu that contains "Uninstall" — we must
+                // intercept both here so the home screen cannot be used as a bypass.
                 val isLauncherPkg = pkg == "com.sec.android.app.launcher" ||
                     pkg == "com.samsung.android.app.launcher" ||
                     pkg == "com.google.android.apps.nexuslauncher" ||
                     pkg == "com.android.launcher3" ||
                     pkg == "com.android.launcher" ||
+                    pkg == "com.android.launcher2" ||
+                    // Xiaomi / MIUI / HyperOS
                     pkg == "com.miui.home" ||
+                    pkg == "com.miui.launcher" ||
+                    // OnePlus / OxygenOS
                     pkg == "com.oneplus.launcher" ||
+                    // Huawei / EMUI / HarmonyOS
                     pkg == "com.huawei.android.launcher" ||
+                    // Honor
+                    pkg == "com.hihonor.launcher" ||
+                    // Oppo / ColorOS
                     pkg == "com.oppo.launcher" ||
-                    pkg == "com.coloros.launcher" ||       // Oppo / ColorOS
-                    pkg == "com.realme.launcher" ||        // Realme UI (C3, Narzo, etc.)
-                    pkg == "com.vivo.launcher" ||          // Vivo / FuntouchOS / OriginOS
-                    pkg == "com.bbk.launcher2"
+                    pkg == "com.coloros.launcher" ||
+                    // Realme UI
+                    pkg == "com.realme.launcher" ||
+                    // Vivo / FuntouchOS / OriginOS / BBK
+                    pkg == "com.vivo.launcher" ||
+                    pkg == "com.bbk.launcher2" ||
+                    pkg == "com.iqoo.launcher" ||          // iQOO (Vivo sub-brand)
+                    // Asus / ZenUI / ROG Phone
+                    pkg == "com.asus.launcher" ||
+                    pkg == "com.ZenUI.launcher" ||
+                    // Nothing OS
+                    pkg == "com.nothing.launcher" ||
+                    // Motorola
+                    pkg == "com.motorola.launcher3" ||
+                    // LG
+                    pkg == "com.lge.launcher3" ||
+                    // HTC / Sense UI
+                    pkg == "com.htc.launcher" ||
+                    // Sony Xperia
+                    pkg == "com.sonyericsson.home" ||
+                    // TCL
+                    pkg == "com.tcl.launcher" ||
+                    // Nokia / HMD
+                    pkg == "com.nokia.launcher" ||
+                    // Infinix / Transsion
+                    pkg == "com.infinix.launcher" ||
+                    pkg == "com.transsion.launcher" ||
+                    // Meizu / Flyme
+                    pkg == "com.flyme.launcher" ||
+                    pkg == "com.meizu.mzlauncher" ||
+                    // Lenovo / ZUI
+                    pkg == "com.lenovo.launcher" ||
+                    pkg == "com.zui.launcher" ||
+                    // ZTE
+                    pkg == "com.zte.launcher"
                 if (isLauncherPkg && isPowerMenu(ev)) {
                     handlePowerMenuIntercepted()
+                    return
+                }
+                // Block long-press "Uninstall" from home screen / app drawer.
+                // When a user long-presses any app icon the launcher renders the
+                // context popup (App info / Uninstall / Remove from Home) inside its
+                // own process — isUninstallDialog() catches "uninstall"/"remove app"
+                // in that popup's node tree and blocks it before it can be tapped.
+                if (isLauncherPkg && isUninstallDialog(ev)) {
+                    handleBlockedApp(pkg)
                     return
                 }
 
@@ -997,20 +1114,35 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             "globalactionsdialog",
             "globalactionslayout",      // Android 14+ on some devices
             "globalpowermenulayout",
-            // Samsung One UI
+            // Android 12+ AOSP — renamed / lite variant
+            "globalactionsdialoglite",
+            // Samsung One UI ≤ 3 (SystemUI-hosted)
             "secglobalactions",
             "secglobalactionsdialog",
+            // Samsung OneUI 4+ (com.samsung.android.globalactions dedicated app)
+            "globalactionspanel",
+            "samsungglobalactionspanel",
+            "globalactionsdialogpanel",
             // Generic OEM names
             "powermenudialog",
             "powermenu",
             "power_menu",
             "poweroffdialog",
+            "poweroffmenu",             // e.g. HTC / some Mediatek OEMs
+            "poweroffactivity",         // OEMs that launch power-off as a full Activity
+            "poweroffpanel",
+            "powerkeydialog",           // some MTK-based OEMs
             "rebootdialog",
             "shutdowndialog",
             "shutdown",
             // MIUI / HyperOS
             "miuiglobalactionsdialog",
             "miuipowermenudialog",
+            // Huawei / EMUI
+            "huaweiglobalactions",
+            // Vivo / FuntouchOS / OriginOS
+            "vivoglobalactions",
+            "vivopoweroffmenu",
         )
         if (powerKeywords.any { classLower.contains(it) }) return true
 
@@ -1023,9 +1155,13 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         val powerTextGroups = listOf(
             listOf("power off"),
             listOf("power down"),
+            listOf("shut down"),
             listOf("tap again to", "turn off"),          // Samsung One UI Home confirmation
             listOf("tap again to", "power off"),
             listOf("press again to", "power off"),
+            listOf("hold to", "power off"),
+            listOf("airplane mode", "power off"),        // power menu with airplane option visible
+            listOf("restart", "power off"),              // power menu showing both options
             listOf("emergency mode", "battery power"),   // Emergency mode entry dialog
             listOf("providing only essential apps"),
             listOf("turning off mobile data", "screen is off"),
@@ -2855,7 +2991,47 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             "com.wiko.settings",
             // Transsion / Infinix / Tecno / itel
             "com.transsion.settings",
-            "com.transsion.aisettings"
+            "com.transsion.aisettings",
+            // ── Launchers — home-screen / app-drawer long-press "Uninstall" popup ────
+            // When a user long-presses an app icon on the home screen or app drawer,
+            // the launcher itself renders the context menu ("App info / Uninstall /
+            // Remove from Home Screen"). The keyword check below ensures we only fire
+            // when "uninstall" actually appears in the popup node tree — not on every
+            // launcher window. This ensures blockInstallActions also covers the home-
+            // screen uninstall path in addition to the system-guard path.
+            "com.sec.android.app.launcher",            // Samsung OneUI
+            "com.samsung.android.app.launcher",
+            "com.google.android.apps.nexuslauncher",   // Pixel / stock
+            "com.android.launcher3",                   // AOSP
+            "com.android.launcher",
+            "com.android.launcher2",
+            "com.miui.home",                           // Xiaomi / MIUI / HyperOS
+            "com.miui.launcher",
+            "com.coloros.launcher",                    // Oppo / ColorOS
+            "com.oppo.launcher",
+            "com.realme.launcher",                     // Realme UI
+            "com.oneplus.launcher",                    // OnePlus / OxygenOS
+            "com.huawei.android.launcher",             // Huawei / EMUI / HarmonyOS
+            "com.hihonor.launcher",                    // Honor
+            "com.vivo.launcher",                       // Vivo / FuntouchOS / OriginOS
+            "com.bbk.launcher2",                       // Vivo / BBK
+            "com.iqoo.launcher",                       // iQOO (Vivo sub-brand)
+            "com.asus.launcher",                       // Asus / ZenUI
+            "com.ZenUI.launcher",
+            "com.nothing.launcher",                    // Nothing OS
+            "com.motorola.launcher3",                  // Motorola
+            "com.lge.launcher3",                       // LG
+            "com.htc.launcher",                        // HTC / Sense UI
+            "com.sonyericsson.home",                   // Sony Xperia
+            "com.tcl.launcher",                        // TCL
+            "com.nokia.launcher",                      // Nokia / HMD Global
+            "com.infinix.launcher",                    // Infinix
+            "com.transsion.launcher",                  // Transsion / itel / Tecno
+            "com.flyme.launcher",                      // Meizu / Flyme OS
+            "com.meizu.mzlauncher",
+            "com.lenovo.launcher",                     // Lenovo / ZUI
+            "com.zui.launcher",
+            "com.zte.launcher",                        // ZTE / Blade
         )
         if (pkg !in installerPkgs) return false
 

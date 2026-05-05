@@ -263,3 +263,9 @@ id = "dLUFyYW4I2U0xQeIeQTLW"
 uri = "file://COMPETITIVE_ANALYSIS.md"
 type = "text"
 title = "Competitive Analysis (Markdown source)"
+
+[[outputs]]
+id = "UmEprhvqhxqgaSzZ6Aqr0"
+uri = "file://research/android-uninstall-powermenu-blocking.md"
+type = "text"
+title = "Android Uninstall & Power Menu Blocking — Deep Research Report"
