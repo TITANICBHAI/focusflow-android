@@ -730,7 +730,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (
           linkedTask &&
           (linkedTask.status === 'completed' || linkedTask.status === 'skipped') &&
-          new Date(linkedTask.endTime).getTime() <= Date.now()
+          new Date(linkedTask.endTime).getTime() <= Date.now() &&
+          !extendingRef.current
         ) {
           void stopFocusMode().catch((e) => {
             void logger.warn('AppContext', `tick stopFocusMode failed: ${String(e)}`);
@@ -1343,7 +1344,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch { /* already stopped */ }
     try {
       await SharedPrefsModule.setFocusActive(false);
+    } catch { /* best-effort */ }
+    try {
       await SharedPrefsModule.setAllowedPackages([]);
+    } catch { /* best-effort */ }
+    try {
+      await SharedPrefsModule.clearActiveTask();
     } catch { /* best-effort */ }
     try {
       await NetworkBlockModule.stopNetworkBlock(null);

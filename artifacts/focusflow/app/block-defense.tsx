@@ -60,7 +60,8 @@ export default function BlockDefenseScreen() {
   // exactly what the AccessibilityService is doing right now.
   const standalonePkgCount = (settings.standaloneBlockPackages ?? []).length;
   const allowanceEntryCount = (settings.dailyAllowanceEntries ?? []).length;
-  const alwaysOnActive = standalonePkgCount > 0 || allowanceEntryCount > 0;
+  const alwaysOnEnforcementOn = settings.alwaysOnEnforcementEnabled !== false;
+  const alwaysOnActive = alwaysOnEnforcementOn && (standalonePkgCount > 0 || allowanceEntryCount > 0);
 
   useEffect(() => {
     const tab = params.tab;
