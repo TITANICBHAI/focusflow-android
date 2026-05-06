@@ -730,8 +730,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (
           linkedTask &&
           (linkedTask.status === 'completed' || linkedTask.status === 'skipped') &&
-          new Date(linkedTask.endTime).getTime() <= Date.now() &&
-          !extendingRef.current
+          new Date(linkedTask.endTime).getTime() <= Date.now()
         ) {
           void stopFocusMode().catch((e) => {
             void logger.warn('AppContext', `tick stopFocusMode failed: ${String(e)}`);
@@ -1062,13 +1061,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       await dbInsertTask(task);
       dispatch({ type: 'ADD_TASK', payload: task });
-      const s = stateRef.current.settings;
-      await scheduleTaskReminders(task, {
-        notificationsEnabled: s.notificationsEnabled !== false,
-        pomodoroEnabled: s.pomodoroEnabled === true,
-        pomodoroDuration: s.pomodoroDuration ?? 25,
-        pomodoroBreak: s.pomodoroBreak ?? 5,
-      });
+      await scheduleTaskReminders(task);
     } catch (e) {
       void logger.error('AppContext', `addTask failed: ${String(e)}`);
       throw e;
@@ -1080,13 +1073,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await dbUpdateTask(task);
       dispatch({ type: 'UPDATE_TASK', payload: task });
       await cancelTaskReminders(task.id);
-      const s = stateRef.current.settings;
-      await scheduleTaskReminders(task, {
-        notificationsEnabled: s.notificationsEnabled !== false,
-        pomodoroEnabled: s.pomodoroEnabled === true,
-        pomodoroDuration: s.pomodoroDuration ?? 25,
-        pomodoroBreak: s.pomodoroBreak ?? 5,
-      });
+      await scheduleTaskReminders(task);
     } catch (e) {
       void logger.error('AppContext', `updateTask failed: ${String(e)}`);
       throw e;
@@ -1210,19 +1197,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         // Reschedule the extended task at its new end time
         await cancelTaskReminders(taskId);
-        const pomOpts = {
-          notificationsEnabled: stateRef.current.settings.notificationsEnabled !== false,
-          pomodoroEnabled: stateRef.current.settings.pomodoroEnabled === true,
-          pomodoroDuration: stateRef.current.settings.pomodoroDuration ?? 25,
-          pomodoroBreak: stateRef.current.settings.pomodoroBreak ?? 5,
-        };
-        await scheduleTaskReminders(extended, pomOpts);
+        await scheduleTaskReminders(extended);
 
         // Reschedule every task that was shifted to new times — their old
         // pre-start / mid-session / end notifications would fire at wrong times.
         for (const t of shifted) {
           await cancelTaskReminders(t.id);
-          await scheduleTaskReminders(t, pomOpts);
+          await scheduleTaskReminders(t);
         }
 
         // Cancel notifications for tasks the scheduler auto-skipped — they
@@ -1362,12 +1343,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch { /* already stopped */ }
     try {
       await SharedPrefsModule.setFocusActive(false);
-    } catch { /* best-effort */ }
-    try {
       await SharedPrefsModule.setAllowedPackages([]);
-    } catch { /* best-effort */ }
-    try {
-      await SharedPrefsModule.clearActiveTask();
     } catch { /* best-effort */ }
     try {
       await NetworkBlockModule.stopNetworkBlock(null);

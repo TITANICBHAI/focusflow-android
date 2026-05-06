@@ -28,7 +28,6 @@ import { useTheme } from '@/hooks/useTheme';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { GreyoutScheduleModal } from '@/components/GreyoutScheduleModal';
 import type { GreyoutWindow } from '@/data/types';
-import { NetworkBlockModule } from '@/native-modules/NetworkBlockModule';
 
 export default function BlockDefenseScreen() {
   const insets = useSafeAreaInsets();
@@ -60,8 +59,7 @@ export default function BlockDefenseScreen() {
   // exactly what the AccessibilityService is doing right now.
   const standalonePkgCount = (settings.standaloneBlockPackages ?? []).length;
   const allowanceEntryCount = (settings.dailyAllowanceEntries ?? []).length;
-  const alwaysOnEnforcementOn = settings.alwaysOnEnforcementEnabled !== false;
-  const alwaysOnActive = alwaysOnEnforcementOn && (standalonePkgCount > 0 || allowanceEntryCount > 0);
+  const alwaysOnActive = standalonePkgCount > 0 || allowanceEntryCount > 0;
 
   useEffect(() => {
     const tab = params.tab;
@@ -120,30 +118,6 @@ export default function BlockDefenseScreen() {
     if (!enabled && blockProtectionActive) {
       Alert.alert('Protection is active', 'Cannot disable while a block is active.');
       return;
-    }
-    if (enabled) {
-      try {
-        const granted = await NetworkBlockModule.isVpnPermissionGranted();
-        if (!granted) {
-          Alert.alert(
-            'VPN Permission Required',
-            'Android will show a one-time prompt asking if FocusFlow can set up a VPN. Tap "OK" on that dialog to enable network blocking.',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              {
-                text: 'Continue',
-                onPress: async () => {
-                  await NetworkBlockModule.requestVpnPermission();
-                  await update({ vpnBlockEnabled: true });
-                },
-              },
-            ],
-          );
-          return;
-        }
-      } catch {
-        // Couldn't check — proceed and let native handle it
-      }
     }
     await update({ vpnBlockEnabled: enabled });
   };
@@ -359,80 +333,64 @@ export default function BlockDefenseScreen() {
             description="Replace your default home screen with FocusFlow's built-in launcher — every app tap is intercepted before the OS even sees it. Blocked apps dim in the drawer and tap straight to the block overlay."
             theme={theme}
           />
-          {__DEV__ ? (
-            <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-              <SwitchRow
-                label="Lock launcher during standalone block"
-                description={
-                  standaloneActive && (settings.launcherLockDuringStandalone ?? true)
-                    ? 'Locked on — standalone block in progress'
-                    : 'Intercepts the "Default home app" Settings page and presses HOME while a standalone block is active — prevents switching away from FocusFlow launcher mid-session'
+          <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <SwitchRow
+              label="Lock launcher during standalone block"
+              description={
+                standaloneActive && (settings.launcherLockDuringStandalone ?? true)
+                  ? 'Locked on — standalone block in progress'
+                  : 'Intercepts the "Default home app" Settings page and presses HOME while a standalone block is active — prevents switching away from FocusFlow launcher mid-session'
+              }
+              value={settings.launcherLockDuringStandalone ?? true}
+              onValueChange={(v) => {
+                if (!v && standaloneActive) {
+                  Alert.alert('Block is active', 'Cannot disable while a standalone block is running.');
+                  return;
                 }
-                value={settings.launcherLockDuringStandalone ?? true}
-                onValueChange={(v) => {
-                  if (!v && standaloneActive) {
-                    Alert.alert('Block is active', 'Cannot disable while a standalone block is running.');
-                    return;
-                  }
-                  void update({ launcherLockDuringStandalone: v });
-                }}
-                disabled={standaloneActive && (settings.launcherLockDuringStandalone ?? true)}
-                theme={theme}
-              />
-              <SwitchRow
-                label="Block uninstall from launcher long-press"
-                description={
-                  blockProtectionActive && (settings.launcherBlockUninstall ?? false)
-                    ? 'Locked on — active block in progress'
-                    : 'Suppresses "Uninstall" in the long-press context menu of any launcher, independent of System Protection'
+                void update({ launcherLockDuringStandalone: v });
+              }}
+              disabled={standaloneActive && (settings.launcherLockDuringStandalone ?? true)}
+              theme={theme}
+            />
+            <SwitchRow
+              label="Block uninstall from launcher long-press"
+              description={
+                blockProtectionActive && (settings.launcherBlockUninstall ?? false)
+                  ? 'Locked on — active block in progress'
+                  : 'Suppresses "Uninstall" in the long-press context menu of any launcher, independent of System Protection'
+              }
+              value={settings.launcherBlockUninstall ?? false}
+              onValueChange={(v) => {
+                if (!v && blockProtectionActive) {
+                  Alert.alert('Block is active', 'Cannot disable while a block is running.');
+                  return;
                 }
-                value={settings.launcherBlockUninstall ?? false}
-                onValueChange={(v) => {
-                  if (!v && blockProtectionActive) {
-                    Alert.alert('Block is active', 'Cannot disable while a block is running.');
-                    return;
-                  }
-                  void update({ launcherBlockUninstall: v });
-                }}
-                disabled={blockProtectionActive && (settings.launcherBlockUninstall ?? false)}
-                theme={theme}
-              />
-              <TouchableOpacity
-                style={styles.cardButton}
-                onPress={() => {
-                  if (standaloneActive) {
-                    Alert.alert('Block is active', 'Launcher settings are locked while a standalone block is running.');
-                    return;
-                  }
-                  router.push('/home-launcher');
-                }}
-              >
-                <View style={styles.cardButtonContent}>
-                  <Text style={[styles.cardButtonLabel, { color: theme.text }]}>Configure Home Launcher</Text>
-                  <Text style={[styles.cardButtonDesc, { color: theme.muted }]}>
-                    {(settings.launcherEnabled ?? false)
-                      ? `Enabled — ${(settings.launcherPinnedPackages ?? []).length} pinned app${(settings.launcherPinnedPackages ?? []).length !== 1 ? 's' : ''}, ${(settings.launcherHiddenPackages ?? []).length} hidden`
-                      : 'Pinned apps, drawer visibility, wallpaper, clock style'}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color={theme.border} />
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-              <View style={styles.cardButton}>
-                <View style={[styles.cardButtonContent, { gap: 6 }]}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Ionicons name="construct-outline" size={16} color={COLORS.orange} />
-                    <Text style={[styles.cardButtonLabel, { color: theme.text }]}>Coming Soon</Text>
-                  </View>
-                  <Text style={[styles.cardButtonDesc, { color: theme.muted }]}>
-                    The Home Launcher feature is still being polished for release. Stay tuned for an upcoming update!
-                  </Text>
-                </View>
+                void update({ launcherBlockUninstall: v });
+              }}
+              disabled={blockProtectionActive && (settings.launcherBlockUninstall ?? false)}
+              theme={theme}
+            />
+            <TouchableOpacity
+              style={styles.cardButton}
+              onPress={() => {
+                if (standaloneActive) {
+                  Alert.alert('Block is active', 'Launcher settings are locked while a standalone block is running.');
+                  return;
+                }
+                router.push('/home-launcher');
+              }}
+            >
+              <View style={styles.cardButtonContent}>
+                <Text style={[styles.cardButtonLabel, { color: theme.text }]}>Configure Home Launcher</Text>
+                <Text style={[styles.cardButtonDesc, { color: theme.muted }]}>
+                  {(settings.launcherEnabled ?? false)
+                    ? `Enabled — ${(settings.launcherPinnedPackages ?? []).length} pinned app${(settings.launcherPinnedPackages ?? []).length !== 1 ? 's' : ''}, ${(settings.launcherHiddenPackages ?? []).length} hidden`
+                    : 'Pinned apps, drawer visibility, wallpaper, clock style'}
+                </Text>
               </View>
-            </View>
-          )}
+              <Ionicons name="chevron-forward" size={16} color={theme.border} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* ── Block Schedules ─────────────────────────────────────── */}

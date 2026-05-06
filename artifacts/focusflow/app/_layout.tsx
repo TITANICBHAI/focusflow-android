@@ -106,7 +106,7 @@ Notifications.addNotificationResponseReceivedListener((response) => {
   // lets it auto-open the completion sheet for that task.
   if (actionId === 'COMPLETE') {
     try {
-      router.push({ pathname: '/(tabs)/index', params: { highlightTaskId: taskId, autoComplete: '1' } });
+      router.push({ pathname: '/(tabs)', params: { highlightTaskId: taskId, autoComplete: '1' } });
     } catch {
       pendingNotificationAction.taskId  = taskId;
       pendingNotificationAction.action  = 'complete';

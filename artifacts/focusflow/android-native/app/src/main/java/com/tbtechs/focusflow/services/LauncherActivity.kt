@@ -147,48 +147,13 @@ class LauncherActivity : Activity() {
         // Intentionally swallow back — no parent activity on home screen
     }
 
-    // Intercept touch events at the Activity level before any child ScrollView
-    // can consume them. This is the only reliable way to detect swipe-up across
-    // the full screen — rootFrame.setOnTouchListener is eaten by child views.
-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        when (ev.actionMasked) {
-            MotionEvent.ACTION_DOWN -> swipeTouchStartY = ev.rawY
-            MotionEvent.ACTION_UP -> {
-                val dy = swipeTouchStartY - ev.rawY
-                if (dy > dp(60) && !isDrawerOpen) {
-                    openDrawer()
-                    return true
-                }
-            }
-        }
-        return super.dispatchTouchEvent(ev)
-    }
-
     // ── Home layout ───────────────────────────────────────────────────────────
 
     private fun buildHomeLayout() {
-        // Explicit wallpaper layer — WallpaperManager.drawable covers devices where
-        // FLAG_SHOW_WALLPAPER alone doesn't render (some launchers, live wallpaper fallback).
-        try {
-            val wm = WallpaperManager.getInstance(this)
-            val wallpaperDrawable = wm.drawable
-            if (wallpaperDrawable != null) {
-                val wallpaperView = ImageView(this).apply {
-                    setImageDrawable(wallpaperDrawable)
-                    scaleType = ImageView.ScaleType.CENTER_CROP
-                    layoutParams = FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT
-                    )
-                }
-                rootFrame.addView(wallpaperView)
-            }
-        } catch (_: Exception) { /* FLAG_SHOW_WALLPAPER is the primary path */ }
-
-        // Translucent scrim so clock/icons are always readable over any wallpaper.
-        // Kept at 33% opacity so bright wallpapers still show through clearly.
+        // Wallpaper scrim — dark translucent overlay so text is always readable
+        // The actual wallpaper is shown by FLAG_SHOW_WALLPAPER above.
         val scrim = View(this).apply {
-            setBackgroundColor(Color.parseColor("#55000000"))
+            setBackgroundColor(SCRIM_COLOR)
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
@@ -243,8 +208,23 @@ class LauncherActivity : Activity() {
 
         rootFrame.addView(column)
 
-        // Swipe-up is now handled by dispatchTouchEvent() at the Activity level,
-        // which fires before child ScrollViews can consume the touch event.
+        // ── Swipe-up gesture to open drawer ───────────────────────────────────
+        rootFrame.setOnTouchListener { _, ev ->
+            when (ev.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    swipeTouchStartY = ev.rawY
+                    false
+                }
+                MotionEvent.ACTION_UP -> {
+                    val dy = swipeTouchStartY - ev.rawY
+                    if (dy > dp(60) && !isDrawerOpen) {
+                        openDrawer()
+                        true
+                    } else false
+                }
+                else -> false
+            }
+        }
 
         refreshHomeGrid()
         refreshDock()
@@ -341,29 +321,20 @@ class LauncherActivity : Activity() {
         }
         dockWrapper.addView(divider)
 
-        // "All Apps" button — tapping opens the drawer (swipe-up also works)
+        // Swipe-up hint row
         val hintRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.topMargin = dp(4); it.bottomMargin = dp(2) }
-            isClickable = true
-            isFocusable = true
-            setOnClickListener { openDrawer() }
+            ).also { it.topMargin = dp(6) }
         }
         val hint = TextView(this).apply {
-            text = "⊞  All Apps"
-            textSize = 13f
-            setTextColor(Color.WHITE)
+            text = "⌃  All Apps"
+            textSize = 11f
+            setTextColor(TEXT_MUTED)
             gravity = Gravity.CENTER
-            setPadding(dp(24), dp(8), dp(24), dp(8))
-            background = GradientDrawable().apply {
-                cornerRadius = dp(22).toFloat()
-                setColor(Color.parseColor("#22FFFFFF"))
-                setStroke(dp(1), Color.parseColor("#44FFFFFF"))
-            }
         }
         hintRow.addView(hint)
         dockWrapper.addView(hintRow)

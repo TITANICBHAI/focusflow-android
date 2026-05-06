@@ -69,7 +69,6 @@ export default function HomeLauncherScreen() {
   }, []);
 
   useEffect(() => {
-    if (!__DEV__) return;
     void checkDefault();
     InstalledAppsModule.getInstalledApps()
       .then(setApps)
@@ -78,7 +77,6 @@ export default function HomeLauncherScreen() {
   }, [checkDefault]);
 
   useEffect(() => {
-    if (!__DEV__) return;
     const sub = AppState.addEventListener('change', (s) => {
       if (s === 'active') void checkDefault();
     });

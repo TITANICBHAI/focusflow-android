@@ -64,27 +64,8 @@ export async function setupNotificationChannels(): Promise<void> {
 
 // ─── Schedule reminders for a task ───────────────────────────────────────────
 
-export async function scheduleTaskReminders(
-  task: Task,
-  options: {
-    notificationsEnabled?: boolean;
-    pomodoroEnabled?: boolean;
-    pomodoroDuration?: number;
-    pomodoroBreak?: number;
-  } = {},
-): Promise<void> {
+export async function scheduleTaskReminders(task: Task): Promise<void> {
   await cancelTaskReminders(task.id);
-
-  // Always keep the native AlarmManager alarm even when notifications are
-  // silenced — it is the reliable focus-end trigger that survives Doze mode.
-  const notificationsEnabled = options.notificationsEnabled !== false;
-  if (!notificationsEnabled) {
-    const endMs = new Date(task.endTime).getTime();
-    if (Platform.OS === 'android' && endMs - Date.now() > 1000) {
-      void TaskAlarmModule.scheduleAlarm(task.id, task.title, endMs);
-    }
-    return;
-  }
 
   const granted = await requestPermissions();
   if (!granted) return;
@@ -189,55 +170,6 @@ export async function scheduleTaskReminders(
       } as AndroidContent,
       trigger: { type: SchedulableTriggerInputTypes.DATE, date: new Date(endMs) },
     });
-  }
-
-  // ── Pomodoro cycle notifications ──────────────────────────────────────────────
-  // Schedule work-end and break-end nudges throughout the task so the user
-  // knows when to pause and when to resume without watching a timer.
-  if (options.pomodoroEnabled) {
-    const workMs  = (options.pomodoroDuration ?? 25) * 60_000;
-    const breakMs = (options.pomodoroBreak    ??  5) * 60_000;
-    const cycleMs = workMs + breakMs;
-    let cycleStart = startMs;
-    let cycleNum   = 1;
-
-    while (cycleStart + workMs < endMs) {
-      const breakFireAt  = cycleStart + workMs;        // work interval ends
-      const resumeFireAt = breakFireAt + breakMs;       // break ends
-
-      if (breakFireAt > now + 1000) {
-        await Notifications.scheduleNotificationAsync({
-          identifier: `${task.id}-pomo-break-${cycleNum}`,
-          content: {
-            title: `☕ Pomodoro ${cycleNum} done — take a ${options.pomodoroBreak ?? 5}-min break!`,
-            body:  `Great work on "${task.title}". Step away, stretch, breathe.`,
-            data:  { taskId: task.id, type: 'pomodoro-break' },
-            sound: 'default',
-            categoryIdentifier: 'task-reminder',
-            channelId: REMINDER_CHANNEL_ID,
-          } as AndroidContent,
-          trigger: { type: SchedulableTriggerInputTypes.DATE, date: new Date(breakFireAt) },
-        });
-      }
-
-      if (resumeFireAt > now + 1000 && resumeFireAt < endMs) {
-        await Notifications.scheduleNotificationAsync({
-          identifier: `${task.id}-pomo-resume-${cycleNum}`,
-          content: {
-            title: `💪 Break over — back to "${task.title}"!`,
-            body:  `Pomodoro ${cycleNum + 1} starting. Lock in!`,
-            data:  { taskId: task.id, type: 'pomodoro-resume' },
-            sound: 'default',
-            categoryIdentifier: 'task-reminder',
-            channelId: REMINDER_CHANNEL_ID,
-          } as AndroidContent,
-          trigger: { type: SchedulableTriggerInputTypes.DATE, date: new Date(resumeFireAt) },
-        });
-      }
-
-      cycleStart += cycleMs;
-      cycleNum++;
-    }
   }
 
   // Native AlarmManager backup — the *only* mechanism that survives Doze /
