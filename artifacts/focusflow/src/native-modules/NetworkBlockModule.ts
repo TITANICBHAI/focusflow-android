@@ -44,4 +44,24 @@ export const NetworkBlockModule = {
     if (!has('isNetworkBlockActive')) return false;
     return NetworkBlock.isNetworkBlockActive();
   },
+
+  /**
+   * Returns true if the system VPN permission has already been granted.
+   * VpnService.prepare() returns null when permission is held.
+   */
+  async isVpnPermissionGranted(): Promise<boolean> {
+    if (!has('isVpnPermissionGranted')) return false;
+    return NetworkBlock.isVpnPermissionGranted();
+  },
+
+  /**
+   * Shows the system "FocusFlow wants to set up a VPN" consent dialog.
+   * Must be called from a foregrounded activity — resolves immediately after
+   * the dialog Intent is launched. Re-check isVpnPermissionGranted() after
+   * the user returns to the app.
+   */
+  async requestVpnPermission(): Promise<void> {
+    if (!has('requestVpnPermission')) return;
+    return NetworkBlock.requestVpnPermission();
+  },
 };

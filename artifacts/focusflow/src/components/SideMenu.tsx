@@ -35,6 +35,7 @@ import type { DailyAllowanceEntry } from '@/data/types';
 
 import { StandaloneBlockModal } from '@/components/StandaloneBlockModal';
 import { DailyAllowanceModal } from '@/components/DailyAllowanceModal';
+import { NuclearModeModal } from '@/components/NuclearModeModal';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const MENU_W = Math.min(SCREEN_W * 0.82, 340);
@@ -62,6 +63,7 @@ export function SideMenu({ visible, onOpen, onClose, tabBarHeight }: SideMenuPro
 
   const [blockModalVisible, setBlockModalVisible] = React.useState(false);
   const [dailyModalVisible, setDailyModalVisible] = React.useState(false);
+  const [nuclearModalVisible, setNuclearModalVisible] = React.useState(false);
 
   // Animate panel in/out
   useEffect(() => {
@@ -130,11 +132,12 @@ export function SideMenu({ visible, onOpen, onClose, tabBarHeight }: SideMenuPro
     setTimeout(() => router.push(path as never), 280);
   }, [onClose]);
 
-  const openModal = useCallback((modal: 'block' | 'daily') => {
+  const openModal = useCallback((modal: 'block' | 'daily' | 'nuclear') => {
     onClose();
     setTimeout(() => {
       if (modal === 'block') setBlockModalVisible(true);
       if (modal === 'daily') setDailyModalVisible(true);
+      if (modal === 'nuclear') setNuclearModalVisible(true);
     }, 280);
   }, [onClose]);
 
@@ -284,6 +287,13 @@ export function SideMenu({ visible, onOpen, onClose, tabBarHeight }: SideMenuPro
               }
               onPress={() => navigate('/block-defense?tab=greyout')}
               isDark={isDark}
+            />
+            <MenuItem
+              icon="nuclear-outline"
+              label="Nuclear Mode"
+              description="Permanently uninstall your most addictive apps"
+              onPress={() => openModal('nuclear')}
+              isDark={isDark}
               isLast
             />
           </MenuSection>
@@ -346,6 +356,11 @@ export function SideMenu({ visible, onOpen, onClose, tabBarHeight }: SideMenuPro
         locked={standaloneActive}
         onSave={async (entries) => { await setDailyAllowanceEntries(entries); }}
         onClose={() => setDailyModalVisible(false)}
+      />
+
+      <NuclearModeModal
+        visible={nuclearModalVisible}
+        onClose={() => setNuclearModalVisible(false)}
       />
     </>
   );

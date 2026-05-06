@@ -54,14 +54,23 @@ export default function EditTaskModal({ task, visible, onClose, onSave, onDelete
   const [tags, setTags] = useState(task.tags.join(', '));
   const [color, setColor] = useState(task.color);
   const [focusMode, setFocusMode] = useState(task.focusMode);
+  // undefined = use global setting; [] = all apps allowed (explicit override)
+  const [useGlobalApps, setUseGlobalApps] = useState<boolean>(
+    task.focusAllowedPackages === undefined,
+  );
   const [focusAllowedPackages, setFocusAllowedPackages] = useState<string[]>(
     task.focusAllowedPackages ?? [],
   );
   const [showAppPicker, setShowAppPicker] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const allowedAppsLabel =
-    focusAllowedPackages.length === 0
+  const globalAllowedCount = (state.settings.allowedInFocus ?? []).length;
+
+  const allowedAppsLabel = useGlobalApps
+    ? globalAllowedCount > 0
+      ? `Using global setting (${globalAllowedCount} app${globalAllowedCount !== 1 ? 's' : ''})`
+      : 'Using global setting (all apps allowed)'
+    : focusAllowedPackages.length === 0
       ? 'All apps allowed'
       : `${focusAllowedPackages.length} app${focusAllowedPackages.length !== 1 ? 's' : ''} allowed`;
 
@@ -102,7 +111,7 @@ export default function EditTaskModal({ task, visible, onClose, onSave, onDelete
       tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
       color,
       focusMode,
-      focusAllowedPackages: focusMode ? focusAllowedPackages : undefined,
+      focusAllowedPackages: focusMode ? (useGlobalApps ? undefined : focusAllowedPackages) : undefined,
       updatedAt: new Date().toISOString(),
     };
 
@@ -284,22 +293,63 @@ export default function EditTaskModal({ task, visible, onClose, onSave, onDelete
               </View>
             </TouchableOpacity>
 
-            {/* Allowed apps picker — shown only when focus mode is on */}
+            {/* Pomodoro toggle — shown when focus mode is on */}
             {focusMode && (
               <TouchableOpacity
-                style={[styles.allowedAppsRow, { backgroundColor: theme.card }]}
-                onPress={() => setShowAppPicker(true)}
-                activeOpacity={0.7}
+                style={[styles.toggleRow, { backgroundColor: theme.card, borderColor: theme.border }]}
+                onPress={() => { void updateSettings({ ...state.settings, pomodoroEnabled: !state.settings.pomodoroEnabled }); }}
               >
-                <View style={styles.allowedAppsIcon}>
-                  <Ionicons name="shield-checkmark-outline" size={20} color={COLORS.primary} />
+                <View style={styles.toggleInfo}>
+                  <Text style={[styles.toggleTitle, { color: theme.text }]}>Pomodoro Mode</Text>
+                  <Text style={[styles.toggleSub, { color: theme.muted }]}>
+                    {state.settings.pomodoroEnabled
+                      ? `On — ${state.settings.pomodoroDuration ?? 25}m work / ${state.settings.pomodoroBreak ?? 5}m break`
+                      : 'Off — one continuous session (global setting)'}
+                  </Text>
                 </View>
-                <View style={styles.allowedAppsInfo}>
-                  <Text style={[styles.allowedAppsLabel, { color: theme.text }]}>Allowed Apps</Text>
-                  <Text style={styles.allowedAppsValue}>{allowedAppsLabel}</Text>
+                <View style={[styles.toggle, state.settings.pomodoroEnabled && styles.toggleOn]}>
+                  <View style={[styles.toggleThumb, state.settings.pomodoroEnabled && styles.toggleThumbOn]} />
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={theme.muted} />
               </TouchableOpacity>
+            )}
+
+            {/* Allowed apps — shown when focus mode is on */}
+            {focusMode && (
+              <>
+                <TouchableOpacity
+                  style={[styles.toggleRow, { backgroundColor: theme.card, borderColor: theme.border }]}
+                  onPress={() => setUseGlobalApps((v) => !v)}
+                >
+                  <View style={styles.toggleInfo}>
+                    <Text style={[styles.toggleTitle, { color: theme.text }]}>Use Global Allowed List</Text>
+                    <Text style={[styles.toggleSub, { color: theme.muted }]}>
+                      {globalAllowedCount > 0
+                        ? `${globalAllowedCount} app${globalAllowedCount !== 1 ? 's' : ''} from Settings → Allowed In Focus`
+                        : 'All apps (configure in Settings → Allowed In Focus)'}
+                    </Text>
+                  </View>
+                  <View style={[styles.toggle, useGlobalApps && styles.toggleOn]}>
+                    <View style={[styles.toggleThumb, useGlobalApps && styles.toggleThumbOn]} />
+                  </View>
+                </TouchableOpacity>
+
+                {!useGlobalApps && (
+                  <TouchableOpacity
+                    style={[styles.allowedAppsRow, { backgroundColor: theme.card }]}
+                    onPress={() => setShowAppPicker(true)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.allowedAppsIcon}>
+                      <Ionicons name="shield-checkmark-outline" size={20} color={COLORS.primary} />
+                    </View>
+                    <View style={styles.allowedAppsInfo}>
+                      <Text style={[styles.allowedAppsLabel, { color: theme.text }]}>Allowed Apps</Text>
+                      <Text style={styles.allowedAppsValue}>{allowedAppsLabel}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={theme.muted} />
+                  </TouchableOpacity>
+                )}
+              </>
             )}
           </View>
         </ScrollView>

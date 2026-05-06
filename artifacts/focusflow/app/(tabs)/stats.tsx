@@ -88,15 +88,19 @@ function StatsScreen() {
   //    their own fetch from the DB. Refreshes whenever today's task list
   //    changes (so a just-completed task is reflected without re-mounting).
   const [historicalTasks, setHistoricalTasks] = useState<Task[]>([]);
+  const [historicalError, setHistoricalError] = useState(false);
   useEffect(() => {
     void (async () => {
       try {
+        setHistoricalError(false);
         const end = new Date();
         const start = new Date();
         start.setDate(start.getDate() - 30);
         const rows = await dbGetTasksInDateRange(start.toISOString(), end.toISOString());
         setHistoricalTasks(rows);
-      } catch { /* DB unavailable — leave empty */ }
+      } catch {
+        setHistoricalError(true);
+      }
     })();
   }, [state.tasks]);
   // Use the historical set as the canonical source for the breakdown screens.
@@ -395,6 +399,16 @@ function StatsScreen() {
           );
         })}
       </View>
+
+      {/* DB error banner — shown when historical data could not be loaded */}
+      {historicalError && filter !== 'today' && (
+        <View style={[styles.dbErrorBanner, { backgroundColor: COLORS.orange + '18', borderColor: COLORS.orange + '44' }]}>
+          <Ionicons name="warning-outline" size={16} color={COLORS.orange} />
+          <Text style={[styles.dbErrorText, { color: COLORS.orange }]}>
+            History unavailable — could not read task database. Today's data is unaffected.
+          </Text>
+        </View>
+      )}
 
       {/* ════════════════ YESTERDAY ═════════════════════════════════════ */}
       {filter === 'yesterday' && (
@@ -1053,6 +1067,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   filterLabel: { fontSize: FONT.sm, fontWeight: '800', letterSpacing: 0.3 },
+
+  dbErrorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginHorizontal: SPACING.md,
+    marginTop: SPACING.sm,
+    padding: SPACING.sm,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+  },
+  dbErrorText: { flex: 1, fontSize: FONT.sm, lineHeight: 18 },
 
   card: { borderRadius: RADIUS.lg, padding: SPACING.md, gap: SPACING.sm },
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

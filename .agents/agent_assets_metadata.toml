@@ -269,3 +269,9 @@ id = "UmEprhvqhxqgaSzZ6Aqr0"
 uri = "file://research/android-uninstall-powermenu-blocking.md"
 type = "text"
 title = "Android Uninstall & Power Menu Blocking — Deep Research Report"
+
+[[outputs]]
+id = "iGCH82-DKkXWh7-QzHV0I"
+uri = "file://focusflow-vs-appblock-negatives.pdf"
+type = "pdf"
+title = "FocusFlow vs AppBlock — Comprehensive Negatives Report (v2)"

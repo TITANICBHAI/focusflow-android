@@ -18,10 +18,12 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import { NetworkBlockModule } from '@/native-modules/NetworkBlockModule';
 
 import { useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/useTheme';
@@ -118,6 +120,14 @@ export default function BlockDefenseScreen() {
     if (!enabled && blockProtectionActive) {
       Alert.alert('Protection is active', 'Cannot disable while a block is active.');
       return;
+    }
+    if (enabled && Platform.OS === 'android') {
+      try {
+        const granted = await NetworkBlockModule.isVpnPermissionGranted();
+        if (!granted) {
+          await NetworkBlockModule.requestVpnPermission();
+        }
+      } catch { /* ignore — native module may not be present in Expo Go */ }
     }
     await update({ vpnBlockEnabled: enabled });
   };

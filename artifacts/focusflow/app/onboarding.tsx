@@ -27,6 +27,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { NativeImagePickerModule } from '@/native-modules/NativeImagePickerModule';
+import { NetworkBlockModule } from '@/native-modules/NetworkBlockModule';
 import { Alert } from 'react-native';
 import { useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/useTheme';
@@ -48,6 +49,7 @@ interface PermItem {
   brokenWithout: string[];
   deepLinkLabel: string;
   grantAction: 'auto' | 'manual';
+  optional?: boolean;
 }
 
 const PERMISSIONS: PermItem[] = [
@@ -139,6 +141,21 @@ const PERMISSIONS: PermItem[] = [
     deepLinkLabel: 'Open Accessibility Settings',
     grantAction: 'manual',
   },
+  {
+    id: 'vpn',
+    icon: 'shield-half-outline',
+    title: 'VPN Permission',
+    description: 'Required to cut the network connection of blocked apps when Network Blocking is enabled.',
+    whyNeeded:
+      'Android requires a one-time consent dialog before any app may create a VPN. Without it the "Network Blocking" toggle in Block Enforcement will have no effect.',
+    brokenWithout: [
+      'Network Blocking (Block Enforcement → System Protection) will not start',
+      'Blocked apps will still have full internet access during a focus session',
+    ],
+    deepLinkLabel: 'Allow VPN',
+    grantAction: 'auto',
+    optional: true,
+  },
 ];
 
 async function checkStatus(id: string): Promise<PermStatus> {
@@ -168,11 +185,15 @@ async function checkStatus(id: string): Promise<PermStatus> {
         const ok = await ForegroundLaunchModule.hasOverlayPermission();
         return ok ? 'granted' : 'denied';
       }
+      case 'vpn': {
+        const ok = await NetworkBlockModule.isVpnPermissionGranted();
+        return ok ? 'granted' : 'denied';
+      }
       default:
-        return 'unknown';
+        return 'denied';
     }
   } catch {
-    return 'unknown';
+    return 'denied';
   }
 }
 
@@ -232,6 +253,12 @@ export default function OnboardingScreen() {
         await UsageStatsModule.openAccessibilitySettings();
       } else if (perm.id === 'overlay') {
         await ForegroundLaunchModule.requestOverlayPermission();
+      } else if (perm.id === 'vpn') {
+        await NetworkBlockModule.requestVpnPermission();
+        setTimeout(async () => {
+          const s = await checkStatus('vpn');
+          setStatuses((prev) => ({ ...prev, vpn: s }));
+        }, 800);
       }
     } catch {
       try {
@@ -242,8 +269,10 @@ export default function OnboardingScreen() {
     }
   };
 
-  const grantedCount = PERMISSIONS.filter((p) => statuses[p.id] === 'granted').length;
-  const allGranted = grantedCount === PERMISSIONS.length;
+  const requiredPerms = PERMISSIONS.filter((p) => !p.optional);
+  const optionalPerms = PERMISSIONS.filter((p) => p.optional);
+  const grantedCount = requiredPerms.filter((p) => statuses[p.id] === 'granted').length;
+  const allGranted = grantedCount === requiredPerms.length;
 
   const handleFinish = async () => {
     // Don't mark onboardingComplete here — user-profile.tsx does that
@@ -292,7 +321,7 @@ export default function OnboardingScreen() {
           <View style={styles.progressLabelRow}>
             <Text style={[styles.progressLabel, { color: theme.muted }]}>Permissions granted</Text>
             <Text style={[styles.progressCount, allGranted && styles.progressCountDone]}>
-              {grantedCount} / {PERMISSIONS.length}
+              {grantedCount} / {requiredPerms.length}
             </Text>
           </View>
           <View style={[styles.progressBar, { backgroundColor: theme.border }]}>
@@ -300,7 +329,7 @@ export default function OnboardingScreen() {
               style={[
                 styles.progressFill,
                 {
-                  width: `${(grantedCount / PERMISSIONS.length) * 100}%` as any,
+                  width: `${(grantedCount / requiredPerms.length) * 100}%` as any,
                   backgroundColor: allGranted ? COLORS.green : COLORS.primary,
                 },
               ]}
@@ -314,10 +343,10 @@ export default function OnboardingScreen() {
         </View>
 
         {/* Section label */}
-        <Text style={[styles.sectionLabel, { color: theme.muted }]}>TAP A CARD TO SEE DETAILS</Text>
+        <Text style={[styles.sectionLabel, { color: theme.muted }]}>REQUIRED — TAP A CARD TO SEE DETAILS</Text>
 
-        {/* Permission cards */}
-        {PERMISSIONS.map((perm) => {
+        {/* Required permission cards */}
+        {requiredPerms.map((perm) => {
           const status = statuses[perm.id] ?? 'unknown';
           const isExpanded = expandedId === perm.id;
           const isLoading = actionLoading === perm.id;
@@ -375,6 +404,89 @@ export default function OnboardingScreen() {
                   )}
 
                   {/* Grant button */}
+                  {status !== 'granted' && (
+                    <TouchableOpacity
+                      style={styles.grantBtn}
+                      onPress={() => handleGrant(perm)}
+                      disabled={isLoading}
+                    >
+                      {isLoading ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <>
+                          <Ionicons name="open-outline" size={14} color="#fff" />
+                          <Text style={styles.grantBtnText}>{perm.deepLinkLabel}</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+            </View>
+          );
+        })}
+
+        {/* Optional permission cards */}
+        <Text style={[styles.sectionLabel, { color: theme.muted, marginTop: SPACING.sm }]}>OPTIONAL ENHANCEMENTS</Text>
+        <Text style={[styles.optionalHint, { color: theme.muted }]}>
+          These are not required to use FocusFlow, but unlock additional features.
+        </Text>
+        {optionalPerms.map((perm) => {
+          const status = statuses[perm.id] ?? 'unknown';
+          const isExpanded = expandedId === perm.id;
+          const isLoading = actionLoading === perm.id;
+
+          return (
+            <View
+              key={perm.id}
+              style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }, status === 'granted' && styles.cardGranted]}
+            >
+              <TouchableOpacity
+                style={styles.cardMain}
+                onPress={() => setExpandedId(isExpanded ? null : perm.id)}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.iconWrap, { backgroundColor: statusColor(status) + '22' }]}>
+                  <Ionicons name={perm.icon} size={22} color={statusColor(status)} />
+                </View>
+
+                <View style={styles.cardBody}>
+                  <View style={styles.cardTitleRow}>
+                    <Text style={[styles.cardTitle, { color: theme.text }]}>{perm.title}</Text>
+                    <View style={[badge.wrap, { backgroundColor: COLORS.primary + '18', borderColor: COLORS.primary + '33', marginRight: 4 }]}>
+                      <Text style={[badge.text, { color: COLORS.primary }]}>Optional</Text>
+                    </View>
+                    <StatusBadge status={status} />
+                  </View>
+                  <Text style={[styles.cardDesc, { color: theme.muted }]} numberOfLines={isExpanded ? undefined : 2}>
+                    {perm.description}
+                  </Text>
+                </View>
+
+                <Ionicons
+                  name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={16}
+                  color={theme.muted}
+                />
+              </TouchableOpacity>
+
+              {isExpanded && (
+                <View style={[styles.expandedSection, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
+                  <View style={styles.whyBox}>
+                    <Ionicons name="bulb-outline" size={14} color={COLORS.orange} />
+                    <Text style={styles.whyText}>{perm.whyNeeded}</Text>
+                  </View>
+                  {status !== 'granted' && (
+                    <View style={styles.brokenSection}>
+                      <Text style={[styles.brokenTitle, { color: theme.text }]}>Without this permission:</Text>
+                      {perm.brokenWithout.map((item, i) => (
+                        <View key={i} style={styles.brokenRow}>
+                          <Ionicons name="close-circle" size={14} color={COLORS.red} />
+                          <Text style={[styles.brokenText, { color: theme.textSecondary }]}>{item}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
                   {status !== 'granted' && (
                     <TouchableOpacity
                       style={styles.grantBtn}
@@ -543,6 +655,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.muted,
     letterSpacing: 1,
+  },
+
+  optionalHint: {
+    fontSize: FONT.sm,
+    lineHeight: 18,
+    marginTop: -SPACING.xs,
+    marginBottom: SPACING.xs,
   },
 
   // Cards

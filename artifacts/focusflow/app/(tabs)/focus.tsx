@@ -20,6 +20,7 @@ import { router } from 'expo-router';
 import dayjs from 'dayjs';
 import { useApp } from '@/context/AppContext';
 import { useTaskTimer } from '@/hooks/useTimer';
+import { usePomodoro } from '@/hooks/usePomodoro';
 import { formatTime, isAwaitingDecision } from '@/services/taskService';
 import { dbLogFocusOverride } from '@/data/database';
 import { UsageStatsModule } from '@/native-modules/UsageStatsModule';
@@ -52,6 +53,13 @@ function FocusScreen() {
   const awaitingDecision = task ? isAwaitingDecision(task) : false;
   const otherActiveCount = Math.max(0, activeTasks.filter((t) => t.id !== task?.id).length);
   const blockPresets = settings.blockPresets ?? [];
+
+  const pomodoro = usePomodoro(
+    isFocusing && (settings.pomodoroEnabled ?? false),
+    state.focusSession?.startedAt ?? null,
+    settings.pomodoroDuration ?? 25,
+    settings.pomodoroBreak ?? 5,
+  );
 
   const handleSaveBlockPreset = async (preset: import('@/data/types').BlockPreset) => {
     const presets = [...blockPresets, preset];
@@ -132,7 +140,7 @@ function FocusScreen() {
         const granted = await UsageStatsModule.hasAccessibilityPermission();
         setHasAccessibilityPermission(granted);
       } catch {
-        setHasAccessibilityPermission(null);
+        setHasAccessibilityPermission(false);
       }
     };
     void checkPermission();
@@ -616,7 +624,11 @@ function FocusScreen() {
         <View style={styles.statusRow}>
           <View style={[styles.statusDot, { backgroundColor: isFocusing ? COLORS.green : COLORS.muted }]} />
           <Text style={[styles.statusText, { color: theme.textSecondary }]}>
-            {isFocusing ? 'Focus Mode Active' : 'Task In Progress'}
+            {isFocusing
+              ? (settings.pomodoroEnabled ?? false)
+                ? `Focus Mode Active · ${pomodoro.phase === 'work' ? '🎯 Work' : '☕ Break'} Phase`
+                : 'Focus Mode Active'
+              : 'Task In Progress'}
           </Text>
         </View>
 
@@ -697,6 +709,15 @@ function FocusScreen() {
         <Text style={[styles.taskTime, { color: theme.textSecondary }]}>
           {formatTime(task.startTime)} – {formatTime(task.endTime)}
         </Text>
+
+        {/* Pomodoro strip — shown only when focus mode is active and Pomodoro is enabled */}
+        {isFocusing && (settings.pomodoroEnabled ?? false) && (
+          <PomodoroStrip
+            pomodoro={pomodoro}
+            workMinutes={settings.pomodoroDuration ?? 25}
+            breakMinutes={settings.pomodoroBreak ?? 5}
+          />
+        )}
 
         {/* "+N more active" chip when overlapping tasks exist */}
         {otherActiveCount > 0 && (
@@ -1015,6 +1036,57 @@ function TimerDisplay({
       </Text>
       <Text style={timerStyles.label}>{timer.isOverdue ? 'overdue' : 'remaining'}</Text>
       <Text style={timerStyles.progress}>{Math.round(timer.progress * 100)}%</Text>
+    </View>
+  );
+}
+
+function PomodoroStrip({
+  pomodoro,
+  workMinutes,
+  breakMinutes,
+}: {
+  pomodoro: import('@/hooks/usePomodoro').PomodoroState;
+  workMinutes: number;
+  breakMinutes: number;
+}) {
+  const isWork = pomodoro.phase === 'work';
+  const accentColor = isWork ? COLORS.primary : COLORS.green;
+  const mins = Math.floor(pomodoro.secondsLeft / 60);
+  const secs = pomodoro.secondsLeft % 60;
+  const timeStr = `${mins}:${secs.toString().padStart(2, '0')}`;
+  const progressPct = Math.min(100, Math.round(pomodoro.phaseProgress * 100));
+
+  return (
+    <View style={[pomStyles.card, { backgroundColor: accentColor + '12', borderColor: accentColor + '40' }]}>
+      <View style={pomStyles.topRow}>
+        <View style={[pomStyles.phaseBadge, { backgroundColor: accentColor + '22' }]}>
+          <Text style={[pomStyles.phaseLabel, { color: accentColor }]}>
+            {isWork ? '🎯 WORK' : '☕ BREAK'}
+          </Text>
+        </View>
+        <Text style={[pomStyles.countdown, { color: accentColor }]}>{timeStr}</Text>
+        <View style={[pomStyles.cycleBadge, { borderColor: accentColor + '40' }]}>
+          <Text style={[pomStyles.cycleText, { color: accentColor }]}>
+            Cycle {pomodoro.cycleCount + 1}
+          </Text>
+        </View>
+      </View>
+      <View style={[pomStyles.progressTrack, { backgroundColor: accentColor + '20' }]}>
+        <View
+          style={[
+            pomStyles.progressFill,
+            {
+              backgroundColor: accentColor,
+              width: `${progressPct}%` as any,
+            },
+          ]}
+        />
+      </View>
+      <Text style={[pomStyles.hint, { color: accentColor + 'bb' }]}>
+        {isWork
+          ? `${mins}m left → ${breakMinutes}m break`
+          : `${mins}m rest left → back to ${workMinutes}m work`}
+      </Text>
     </View>
   );
 }
@@ -1447,6 +1519,66 @@ const styles = StyleSheet.create({
     fontSize: FONT.xs,
     color: COLORS.textSecondary,
     lineHeight: 16,
+  },
+});
+
+const pomStyles = StyleSheet.create({
+  card: {
+    width: '90%',
+    borderRadius: RADIUS.lg,
+    borderWidth: 1.5,
+    padding: SPACING.md,
+    gap: SPACING.xs,
+    marginTop: SPACING.md,
+    alignSelf: 'center',
+  },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: SPACING.sm,
+  },
+  phaseBadge: {
+    borderRadius: RADIUS.full,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 4,
+  },
+  phaseLabel: {
+    fontSize: FONT.xs,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+  },
+  countdown: {
+    fontSize: 28,
+    fontWeight: '800',
+    letterSpacing: -1,
+    flex: 1,
+    textAlign: 'center',
+  },
+  cycleBadge: {
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 3,
+  },
+  cycleText: {
+    fontSize: FONT.xs,
+    fontWeight: '700',
+  },
+  progressTrack: {
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  progressFill: {
+    height: 4,
+    borderRadius: 2,
+  },
+  hint: {
+    fontSize: 11,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });
 
