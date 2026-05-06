@@ -24,8 +24,14 @@ type AndroidContent = Notifications.NotificationContentInput & {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-export const REMINDER_CHANNEL_ID   = 'task-reminders';
+export const REMINDER_CHANNEL_ID       = 'task-reminders';
 export const MORNING_DIGEST_CHANNEL_ID = 'morning-digest';
+export const WEEKLY_REPORT_CHANNEL_ID  = 'weekly-report';
+
+// weeklyReviewDay → expo-notifications weekday number (1=Sun … 7=Sat)
+const WEEKDAY_MAP: Record<NonNullable<UserProfile['weeklyReviewDay']>, number> = {
+  sun: 1, mon: 2, tue: 3, wed: 4, thu: 5, fri: 6, sat: 7,
+};
 
 // ─── Permissions ──────────────────────────────────────────────────────────────
 
@@ -58,6 +64,14 @@ export async function setupNotificationChannels(): Promise<void> {
     importance: Notifications.AndroidImportance.DEFAULT,
     vibrationPattern: [0, 200],
     lightColor: '#f59e0b',
+    sound: 'default',
+  });
+  // Weekly report channel — fires once per week on the user's chosen review day.
+  await Notifications.setNotificationChannelAsync(WEEKLY_REPORT_CHANNEL_ID, {
+    name: 'Weekly Report',
+    importance: Notifications.AndroidImportance.DEFAULT,
+    vibrationPattern: [0, 200],
+    lightColor: '#6366f1',
     sound: 'default',
   });
 }
@@ -323,6 +337,64 @@ export async function scheduleMorningDigest(
 
 export async function cancelMorningDigest(): Promise<void> {
   await Notifications.cancelScheduledNotificationAsync('morning-digest').catch(() => {});
+}
+
+// ─── Weekly report notification ───────────────────────────────────────────────
+// Fires once per week on the day the user chose in their profile (weeklyReviewDay).
+// Time matches their wakeUpTime if set, otherwise defaults to 9:00 am.
+// Uses a WEEKLY repeating trigger so it re-fires automatically each week.
+// Identifier 'weekly-report' means re-scheduling always replaces the old one.
+
+export async function scheduleWeeklyReport(
+  profile: UserProfile | undefined,
+  weeklyReportEnabled: boolean,
+): Promise<void> {
+  await Notifications.cancelScheduledNotificationAsync('weekly-report').catch(() => {});
+
+  if (!weeklyReportEnabled) return;
+  if (!profile?.weeklyReviewDay) return;
+
+  const granted = await requestPermissions();
+  if (!granted) return;
+
+  const weekday = WEEKDAY_MAP[profile.weeklyReviewDay];
+
+  // Fire at the user's configured wake-up time, or 9:00 am as a sensible default.
+  let hour   = 9;
+  let minute = 0;
+  if (profile.wakeUpTime) {
+    const [hStr, mStr] = profile.wakeUpTime.split(':');
+    const parsedH = parseInt(hStr, 10);
+    const parsedM = parseInt(mStr, 10);
+    if (!isNaN(parsedH) && !isNaN(parsedM)) {
+      hour   = parsedH;
+      minute = parsedM;
+    }
+  }
+
+  const firstName = profile.name?.split(' ')[0] ?? null;
+  const title = firstName ? `${firstName}'s weekly review 📊` : 'Weekly review 📊';
+
+  await Notifications.scheduleNotificationAsync({
+    identifier: 'weekly-report',
+    content: {
+      title,
+      body: 'Tap to see how your week went — focus time, streaks, and completed tasks.',
+      data:  { type: 'weekly-report' },
+      sound: 'default',
+      channelId: WEEKLY_REPORT_CHANNEL_ID,
+    } as AndroidContent,
+    trigger: {
+      type: SchedulableTriggerInputTypes.WEEKLY,
+      weekday,
+      hour,
+      minute,
+    },
+  });
+}
+
+export async function cancelWeeklyReport(): Promise<void> {
+  await Notifications.cancelScheduledNotificationAsync('weekly-report').catch(() => {});
 }
 
 // ─── Late-start warning ───────────────────────────────────────────────────────

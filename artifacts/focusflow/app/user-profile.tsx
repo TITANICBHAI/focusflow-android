@@ -17,7 +17,7 @@ import { useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/useTheme';
 import type { UserProfile } from '@/data/types';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
-import { scheduleMorningDigest } from '@/services/notificationService';
+import { scheduleMorningDigest, scheduleWeeklyReport } from '@/services/notificationService';
 import { pickAndImportBackup } from '@/services/backupService';
 import {
   dbGetTodayFocusMinutes,
@@ -259,6 +259,15 @@ export default function UserProfileScreen() {
         } catch {
           // Non-fatal — notification permission may not be granted yet.
         }
+      }
+
+      // Schedule (or cancel) the weekly report notification using the day
+      // the user just chose. Passing weeklyReportEnabled from current settings
+      // so the master switch in Block Defense is respected.
+      try {
+        await scheduleWeeklyReport(profile, state.settings.weeklyReportEnabled ?? false);
+      } catch {
+        // Non-fatal.
       }
 
       if (isEditMode) {

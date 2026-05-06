@@ -25,9 +25,9 @@ function has(name: string): boolean {
 }
 
 export const NetworkBlockModule = {
-  async startNetworkBlock(packages: string[]): Promise<void> {
+  async startNetworkBlock(packagesJson: string): Promise<void> {
     if (!has('startNetworkBlock')) return;
-    return NetworkBlock.startNetworkBlock(packages);
+    return NetworkBlock.startNetworkBlock(packagesJson);
   },
 
   /**
