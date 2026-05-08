@@ -7,15 +7,13 @@
  *   • Side Menu → Keyword Blocker
  *   • Active page → "Keyword Blocker" enforcement tile
  *
- * Sections:
- *   1. Header with explainer
- *   2. Status card    — On/Off + count
- *   3. Manage list    — opens BlockedWordsModal
- *   4. Quick presets  — one-tap suggested keyword groups for common pitfalls
- *   5. Footer note    — explains where the block applies (focus + always-on)
+ * PIN gating:
+ *   - Adding keywords → no password required
+ *   - Removing keywords (via BlockedWordsModal or "Clear all") → defense password required
+ *     when standalone block is NOT active. When standalone IS active → existing lock behavior.
  */
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -32,6 +30,8 @@ import { useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/useTheme';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { BlockedWordsModal } from '@/components/BlockedWordsModal';
+import { PinVerifyModal } from '@/components/PinVerifyModal';
+import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 
 interface QuickPreset {
   id: string;
@@ -93,11 +93,12 @@ export default function KeywordBlockerScreen() {
   const { settings } = state;
 
   const [modalVisible, setModalVisible] = useState(false);
+  const [pinVerifyVisible, setPinVerifyVisible] = useState(false);
+  const pendingAction = useRef<(() => void) | null>(null);
 
   const blockedWords = settings.blockedWords ?? [];
   const isOn = blockedWords.length > 0;
 
-  // Locked when standalone block is active — user can add keywords but not remove them.
   const isLocked = (() => {
     if (!settings.standaloneBlockUntil) return false;
     if ((settings.standaloneBlockPackages ?? []).length === 0) return false;
@@ -109,7 +110,6 @@ export default function KeywordBlockerScreen() {
   };
 
   const handleAddPreset = (preset: QuickPreset) => {
-    // Merge — never overwrite the user's existing list. De-duped case-insensitively.
     const existing = new Set(blockedWords.map((w) => w.toLowerCase()));
     const additions = preset.words.filter((w) => !existing.has(w.toLowerCase()));
     if (additions.length === 0) {
@@ -132,20 +132,39 @@ export default function KeywordBlockerScreen() {
     );
   };
 
+  /**
+   * Runs action immediately if no defense PIN is set,
+   * otherwise shows the verify modal first.
+   */
+  const withDefensePin = (action: () => void) => {
+    SharedPrefsModule.getString('defense_pin_hash')
+      .then((hash) => {
+        if (!hash) {
+          action();
+        } else {
+          pendingAction.current = action;
+          setPinVerifyVisible(true);
+        }
+      })
+      .catch(() => action());
+  };
+
   const handleClearAll = () => {
     if (blockedWords.length === 0) return;
-    Alert.alert(
-      'Clear all keywords?',
-      `Removes all ${blockedWords.length} keywords from the block list. This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear',
-          style: 'destructive',
-          onPress: () => { void updateSettings({ ...settings, blockedWords: [] }); },
-        },
-      ],
-    );
+    withDefensePin(() => {
+      Alert.alert(
+        'Clear all keywords?',
+        `Removes all ${blockedWords.length} keywords from the block list. This cannot be undone.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Clear',
+            style: 'destructive',
+            onPress: () => { void updateSettings({ ...settings, blockedWords: [] }); },
+          },
+        ],
+      );
+    });
   };
 
   return (
@@ -258,8 +277,25 @@ export default function KeywordBlockerScreen() {
         visible={modalVisible}
         words={blockedWords}
         locked={isLocked}
+        requireDefensePin={!isLocked}
         onSave={handleSaveWords}
         onClose={() => setModalVisible(false)}
+      />
+
+      <PinVerifyModal
+        visible={pinVerifyVisible}
+        pinType="defense"
+        title="Defense Password Required"
+        description="Enter your defense password to remove keywords from the block list."
+        onVerified={() => {
+          setPinVerifyVisible(false);
+          pendingAction.current?.();
+          pendingAction.current = null;
+        }}
+        onCancel={() => {
+          setPinVerifyVisible(false);
+          pendingAction.current = null;
+        }}
       />
     </SafeAreaView>
   );

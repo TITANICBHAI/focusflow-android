@@ -7,9 +7,13 @@
  *   /block-defense?tab=system     → scroll to System Protection
  *   /block-defense?tab=aversion   → scroll to Aversion Deterrents
  *   /block-defense?tab=greyout    → scroll to Greyout Schedule
+ *
+ * PIN Protection section manages both passwords:
+ *   Focus Session password — gates ending any focus session (native SessionPinModule)
+ *   Defense password       — gates disabling any protection toggle below (JS layer, SharedPrefs)
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -24,12 +28,27 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { NetworkBlockModule } from '@/native-modules/NetworkBlockModule';
+import { SessionPinModule } from '@/native-modules/SessionPinModule';
+import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 
 import { useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/useTheme';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { GreyoutScheduleModal } from '@/components/GreyoutScheduleModal';
+import { PinVerifyModal } from '@/components/PinVerifyModal';
+import { PinSetupModal } from '@/components/PinSetupModal';
 import type { GreyoutWindow } from '@/data/types';
+
+type PinModalState =
+  | { type: 'none' }
+  | {
+      type: 'verify';
+      pinType: 'focus' | 'defense';
+      title: string;
+      description: string;
+      onVerified: (hash: string) => void;
+    }
+  | { type: 'setup'; pinType: 'focus' | 'defense' };
 
 export default function BlockDefenseScreen() {
   const insets = useSafeAreaInsets();
@@ -39,6 +58,9 @@ export default function BlockDefenseScreen() {
   const params = useLocalSearchParams<{ tab?: string }>();
 
   const [greyoutModalVisible, setGreyoutModalVisible] = useState(false);
+  const [pinModal, setPinModal] = useState<PinModalState>({ type: 'none' });
+  const [focusPinSet, setFocusPinSet] = useState(false);
+  const [defensePinSet, setDefensePinSet] = useState(false);
 
   const scrollRef = useRef<ScrollView>(null);
   const sectionRefs = {
@@ -55,18 +77,29 @@ export default function BlockDefenseScreen() {
   })();
   const blockProtectionActive = focusActive || standaloneActive;
 
-  // Always-on enforcement is active whenever standalone packages OR allowance
-  // entries exist — those rules are enforced even with no timed session running.
-  // Mirrors the logic in AppContext._syncAlwaysBlock so the banner reflects
-  // exactly what the AccessibilityService is doing right now.
   const standalonePkgCount = (settings.standaloneBlockPackages ?? []).length;
   const allowanceEntryCount = (settings.dailyAllowanceEntries ?? []).length;
   const alwaysOnActive = standalonePkgCount > 0 || allowanceEntryCount > 0;
 
+  // Load PIN status on mount and after any PIN change
+  const loadPinStatus = useCallback(async () => {
+    try {
+      const [focusSet, defenseHash] = await Promise.all([
+        SessionPinModule.isPinSet(),
+        SharedPrefsModule.getString('defense_pin_hash'),
+      ]);
+      setFocusPinSet(focusSet);
+      setDefensePinSet(!!defenseHash);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    void loadPinStatus();
+  }, [loadPinStatus]);
+
   useEffect(() => {
     const tab = params.tab;
     if (!tab) return;
-    // Keyword Blocker has moved to its own page; redirect any old deep-links.
     if (tab === 'keywords') {
       router.replace('/keyword-blocker');
       return;
@@ -82,7 +115,6 @@ export default function BlockDefenseScreen() {
           () => {},
         );
       }
-      // Auto-open the appropriate modal
       if (tab === 'greyout') setGreyoutModalVisible(true);
     }, 400);
     return () => clearTimeout(timeout);
@@ -92,28 +124,77 @@ export default function BlockDefenseScreen() {
     await updateSettings({ ...settings, ...partial });
   };
 
-  const handleSystemGuardToggle = async (enabled: boolean) => {
+  /**
+   * Requires the defense PIN before running `action`.
+   * If no defense PIN is set, runs action immediately.
+   */
+  const requireDefensePin = useCallback(
+    (title: string, description: string, action: () => void) => {
+      SharedPrefsModule.getString('defense_pin_hash')
+        .then((hash) => {
+          if (!hash) {
+            action();
+          } else {
+            setPinModal({
+              type: 'verify',
+              pinType: 'defense',
+              title,
+              description,
+              onVerified: () => action(),
+            });
+          }
+        })
+        .catch(() => action());
+    },
+    [],
+  );
+
+  const handleSystemGuardToggle = (enabled: boolean) => {
     if (!enabled && blockProtectionActive) {
       Alert.alert('Protection is active', 'Cannot disable while Focus Mode or a block is active.');
       return;
     }
-    await update({ systemGuardEnabled: enabled });
+    if (!enabled) {
+      requireDefensePin(
+        'Disable System Protection',
+        'Enter your defense password to turn off system protection.',
+        () => void update({ systemGuardEnabled: false }),
+      );
+      return;
+    }
+    void update({ systemGuardEnabled: true });
   };
 
-  const handleYoutubeToggle = async (enabled: boolean) => {
+  const handleYoutubeToggle = (enabled: boolean) => {
     if (!enabled && blockProtectionActive) {
       Alert.alert('Protection is active', 'Cannot disable while a block is active.');
       return;
     }
-    await update({ blockYoutubeShortsEnabled: enabled });
+    if (!enabled) {
+      requireDefensePin(
+        'Disable YouTube Shorts Block',
+        'Enter your defense password to turn this off.',
+        () => void update({ blockYoutubeShortsEnabled: false }),
+      );
+      return;
+    }
+    void update({ blockYoutubeShortsEnabled: true });
   };
 
-  const handleReelsToggle = async (enabled: boolean) => {
+  const handleReelsToggle = (enabled: boolean) => {
     if (!enabled && blockProtectionActive) {
       Alert.alert('Protection is active', 'Cannot disable while a block is active.');
       return;
     }
-    await update({ blockInstagramReelsEnabled: enabled });
+    if (!enabled) {
+      requireDefensePin(
+        'Disable Instagram Reels Block',
+        'Enter your defense password to turn this off.',
+        () => void update({ blockInstagramReelsEnabled: false }),
+      );
+      return;
+    }
+    void update({ blockInstagramReelsEnabled: true });
   };
 
   const handleVpnToggle = async (enabled: boolean) => {
@@ -121,22 +202,48 @@ export default function BlockDefenseScreen() {
       Alert.alert('Protection is active', 'Cannot disable while a block is active.');
       return;
     }
-    if (enabled && Platform.OS === 'android') {
+    if (!enabled) {
+      requireDefensePin(
+        'Disable Network Blocking (VPN)',
+        'Enter your defense password to turn off VPN blocking.',
+        () => void update({ vpnBlockEnabled: false }),
+      );
+      return;
+    }
+    if (Platform.OS === 'android') {
       try {
         const granted = await NetworkBlockModule.isVpnPermissionGranted();
-        if (!granted) {
-          await NetworkBlockModule.requestVpnPermission();
-        }
-      } catch { /* ignore — native module may not be present in Expo Go */ }
+        if (!granted) await NetworkBlockModule.requestVpnPermission();
+      } catch {}
     }
-    await update({ vpnBlockEnabled: enabled });
+    void update({ vpnBlockEnabled: true });
+  };
+
+  const handleAlwaysOnEnforcementToggle = (enabled: boolean) => {
+    if (!enabled) {
+      requireDefensePin(
+        'Disable Always-On Enforcement',
+        'Enter your defense password to pause the always-on block list.',
+        () => void update({ alwaysOnEnforcementEnabled: false }),
+      );
+      return;
+    }
+    void update({ alwaysOnEnforcementEnabled: true });
+  };
+
+  const handlePinSaved = () => {
+    setPinModal({ type: 'none' });
+    void loadPinStatus();
   };
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
           <Ionicons name="chevron-back" size={24} color={theme.text} />
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: SPACING.sm }}>
@@ -152,7 +259,7 @@ export default function BlockDefenseScreen() {
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingBottom: 40 + insets.bottom }]}
       >
-        {/* Slight inline hint when nothing is blocking — points to Active page */}
+        {/* Nothing blocking hint */}
         {!blockProtectionActive && !alwaysOnActive && (
           <TouchableOpacity
             style={[styles.hintBanner, { backgroundColor: COLORS.primary + '0E', borderColor: COLORS.primary + '33' }]}
@@ -171,8 +278,102 @@ export default function BlockDefenseScreen() {
         <View style={[styles.introBanner, { backgroundColor: COLORS.primary + '12', borderColor: COLORS.primary + '33' }]}>
           <Ionicons name="shield-checkmark" size={20} color={COLORS.primary} />
           <Text style={[styles.introText, { color: theme.text }]}>
-            These tools run continuously in the background whenever they are switched on — they do not need a Focus session or standalone block to be active. While a block IS running, the toggles below stay locked on so they can&apos;t be disabled mid-session.
+            These tools run continuously in the background whenever they are switched on — they do not
+            need a Focus session or standalone block to be active. While a block IS running, the toggles
+            below stay locked on so they can&apos;t be disabled mid-session.
           </Text>
+        </View>
+
+        {/* ── Password Protection ──────────────────────────────────── */}
+        <View collapsable={false}>
+          <SectionHeader
+            icon="key-outline"
+            title="Password Protection"
+            description="Add a password that must be entered before ending a focus session or disabling any protection. The raw password is never stored — only its SHA-256 hash."
+            theme={theme}
+          />
+          <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <PinRow
+              icon="hourglass-outline"
+              label="Focus Session Password"
+              description={
+                focusPinSet
+                  ? 'Set — required to end any active focus session'
+                  : 'Not set — focus sessions can be ended freely'
+              }
+              isSet={focusPinSet}
+              onSet={() => setPinModal({ type: 'setup', pinType: 'focus' })}
+              onChange={() =>
+                setPinModal({
+                  type: 'verify',
+                  pinType: 'focus',
+                  title: 'Verify Current Password',
+                  description: 'Enter your current focus session password to change it.',
+                  onVerified: async (hash: string) => {
+                    try { await SessionPinModule.clearPin(hash); } catch {}
+                    setFocusPinSet(false);
+                    setPinModal({ type: 'setup', pinType: 'focus' });
+                  },
+                })
+              }
+              onRemove={() =>
+                setPinModal({
+                  type: 'verify',
+                  pinType: 'focus',
+                  title: 'Remove Focus Session Password',
+                  description: 'Enter your current password to remove it.',
+                  onVerified: async (hash: string) => {
+                    try { await SessionPinModule.clearPin(hash); } catch {}
+                    setFocusPinSet(false);
+                    setPinModal({ type: 'none' });
+                    void loadPinStatus();
+                  },
+                })
+              }
+              theme={theme}
+            />
+            <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: theme.border }} />
+            <PinRow
+              icon="shield-half-outline"
+              label="Defense Password"
+              description={
+                defensePinSet
+                  ? 'Set — gates disabling protections and removing restrictions'
+                  : 'Not set — protections can be changed without a password'
+              }
+              isSet={defensePinSet}
+              isLast
+              onSet={() => setPinModal({ type: 'setup', pinType: 'defense' })}
+              onChange={() =>
+                setPinModal({
+                  type: 'verify',
+                  pinType: 'defense',
+                  title: 'Verify Current Password',
+                  description: 'Enter your current defense password to change it.',
+                  onVerified: async () => {
+                    await SharedPrefsModule.putString('defense_pin_hash', '');
+                    setDefensePinSet(false);
+                    setPinModal({ type: 'setup', pinType: 'defense' });
+                  },
+                })
+              }
+              onRemove={() =>
+                setPinModal({
+                  type: 'verify',
+                  pinType: 'defense',
+                  title: 'Remove Defense Password',
+                  description: 'Enter your current defense password to remove it.',
+                  onVerified: async () => {
+                    await SharedPrefsModule.putString('defense_pin_hash', '');
+                    setDefensePinSet(false);
+                    setPinModal({ type: 'none' });
+                    void loadPinStatus();
+                  },
+                })
+              }
+              theme={theme}
+            />
+          </View>
         </View>
 
         {/* ── Focus Session Behaviour ──────────────────────────────── */}
@@ -192,7 +393,7 @@ export default function BlockDefenseScreen() {
                   : 'Off — completing a task immediately ends the focus session (default)'
               }
               value={settings.keepFocusActiveUntilTaskEnd ?? false}
-              onValueChange={(v) => update({ keepFocusActiveUntilTaskEnd: v })}
+              onValueChange={(v) => void update({ keepFocusActiveUntilTaskEnd: v })}
               theme={theme}
               isLast
             />
@@ -252,7 +453,7 @@ export default function BlockDefenseScreen() {
                   : 'Tunnels blocked apps through VPN to cut their internet access — requires VPN permission (one-time prompt)'
               }
               value={settings.vpnBlockEnabled ?? false}
-              onValueChange={handleVpnToggle}
+              onValueChange={(v) => void handleVpnToggle(v)}
               disabled={blockProtectionActive && (settings.vpnBlockEnabled ?? false)}
               theme={theme}
               isLast
@@ -273,21 +474,21 @@ export default function BlockDefenseScreen() {
               label="Screen Dimmer"
               description="Near-black overlay appears while a blocked app is open"
               value={settings.aversionDimmerEnabled}
-              onValueChange={(v) => update({ aversionDimmerEnabled: v })}
+              onValueChange={(v) => void update({ aversionDimmerEnabled: v })}
               theme={theme}
             />
             <SwitchRow
               label="Vibration Harassment"
               description="Repeated pulse vibration while a blocked app is in foreground"
               value={settings.aversionVibrateEnabled}
-              onValueChange={(v) => update({ aversionVibrateEnabled: v })}
+              onValueChange={(v) => void update({ aversionVibrateEnabled: v })}
               theme={theme}
             />
             <SwitchRow
               label="Sound Alert"
               description="Startling sound plays the moment a blocked app launches"
               value={settings.aversionSoundEnabled}
-              onValueChange={(v) => update({ aversionSoundEnabled: v })}
+              onValueChange={(v) => void update({ aversionSoundEnabled: v })}
               theme={theme}
               isLast
             />
@@ -299,7 +500,7 @@ export default function BlockDefenseScreen() {
           <SectionHeader
             icon="infinite-outline"
             title="Always-On Block List"
-            description="A permanent list of apps that are blocked 24/7 — no session, no timer. Use auto-copy to build this list automatically from your standalone blocks."
+            description="A permanent list of apps that are blocked 24/7 — no session, no timer. Disabling this toggle requires your defense password."
             theme={theme}
           />
           <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -311,14 +512,14 @@ export default function BlockDefenseScreen() {
                   : 'Off — always-on list is paused (list is preserved, not deleted)'
               }
               value={settings.alwaysOnEnforcementEnabled ?? true}
-              onValueChange={(v) => update({ alwaysOnEnforcementEnabled: v })}
+              onValueChange={handleAlwaysOnEnforcementToggle}
               theme={theme}
             />
             <SwitchRow
               label="Auto-copy from standalone block"
               description="When you add apps to a standalone block, they are automatically added to this always-on list too — so they stay blocked after the timer ends"
               value={settings.autoCopyToAlwaysOn ?? false}
-              onValueChange={(v) => update({ autoCopyToAlwaysOn: v })}
+              onValueChange={(v) => void update({ autoCopyToAlwaysOn: v })}
               theme={theme}
             />
             <TouchableOpacity style={styles.cardButton} onPress={() => router.push('/always-on')}>
@@ -427,14 +628,108 @@ export default function BlockDefenseScreen() {
         </View>
       </ScrollView>
 
-      {/* Modals */}
+      {/* ── Modals ─────────────────────────────────────────────────── */}
       <GreyoutScheduleModal
         visible={greyoutModalVisible}
         windows={settings.greyoutSchedule ?? []}
         onSave={async (windows: GreyoutWindow[]) => { await update({ greyoutSchedule: windows }); }}
         onClose={() => setGreyoutModalVisible(false)}
       />
+
+      <PinVerifyModal
+        visible={pinModal.type === 'verify'}
+        pinType={pinModal.type === 'verify' ? pinModal.pinType : 'defense'}
+        title={pinModal.type === 'verify' ? pinModal.title : undefined}
+        description={pinModal.type === 'verify' ? pinModal.description : undefined}
+        onVerified={(hash) => {
+          if (pinModal.type === 'verify') {
+            pinModal.onVerified(hash);
+          }
+        }}
+        onCancel={() => setPinModal({ type: 'none' })}
+      />
+
+      <PinSetupModal
+        visible={pinModal.type === 'setup'}
+        pinType={pinModal.type === 'setup' ? pinModal.pinType : 'focus'}
+        onSaved={handlePinSaved}
+        onCancel={() => setPinModal({ type: 'none' })}
+      />
     </SafeAreaView>
+  );
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function PinRow({
+  icon,
+  label,
+  description,
+  isSet,
+  isLast = false,
+  onSet,
+  onChange,
+  onRemove,
+  theme,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  description: string;
+  isSet: boolean;
+  isLast?: boolean;
+  onSet: () => void;
+  onChange: () => void;
+  onRemove: () => void;
+  theme: ReturnType<typeof useTheme>['theme'];
+}) {
+  return (
+    <View
+      style={[
+        styles.pinRow,
+        !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border },
+      ]}
+    >
+      <View style={styles.pinRowTop}>
+        <View style={[styles.pinIcon, { backgroundColor: isSet ? COLORS.primary + '18' : theme.border + '44' }]}>
+          <Ionicons name={icon} size={16} color={isSet ? COLORS.primary : theme.muted} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.pinLabel, { color: theme.text }]}>{label}</Text>
+          <Text style={[styles.pinDesc, { color: isSet ? COLORS.primary : theme.muted }]} numberOfLines={2}>
+            {description}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.pinBtns}>
+        {!isSet ? (
+          <TouchableOpacity
+            style={[styles.pinBtn, { backgroundColor: COLORS.primary }]}
+            onPress={onSet}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="add" size={14} color="#fff" />
+            <Text style={[styles.pinBtnText, { color: '#fff' }]}>Set Password</Text>
+          </TouchableOpacity>
+        ) : (
+          <>
+            <TouchableOpacity
+              style={[styles.pinBtn, { borderWidth: 1, borderColor: COLORS.primary + 'AA' }]}
+              onPress={onChange}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.pinBtnText, { color: COLORS.primary }]}>Change</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.pinBtn, { borderWidth: 1, borderColor: COLORS.red + '66' }]}
+              onPress={onRemove}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.pinBtnText, { color: COLORS.red }]}>Remove</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
+    </View>
   );
 }
 
@@ -480,7 +775,12 @@ function SwitchRow({
   isLast?: boolean;
 }) {
   return (
-    <View style={[styles.switchRow, !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border }]}>
+    <View
+      style={[
+        styles.switchRow,
+        !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border },
+      ]}
+    >
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={[styles.switchLabel, { color: theme.text }]}>{label}</Text>
         <Text style={[styles.switchDesc, { color: theme.muted }]}>{description}</Text>
@@ -528,10 +828,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   hintBannerText: { flex: 1, fontSize: FONT.xs, lineHeight: 17 },
-  sectionHeader: {
-    gap: 4,
-    marginBottom: SPACING.xs,
-  },
+
+  sectionHeader: { gap: 4, marginBottom: 2 },
   sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -540,33 +838,73 @@ const styles = StyleSheet.create({
   sectionIcon: {
     width: 28,
     height: 28,
-    borderRadius: RADIUS.sm,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sectionTitle: { fontSize: FONT.md, fontWeight: '700' },
-  sectionDesc: { fontSize: FONT.xs, lineHeight: 18, paddingLeft: 28 + SPACING.sm },
+  sectionTitle: { fontSize: FONT.md, fontWeight: '800' },
+  sectionDesc: { fontSize: FONT.xs, lineHeight: 17, paddingLeft: 28 + SPACING.sm },
+
   card: {
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.lg,
     borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
   },
-  cardButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: SPACING.md,
-    gap: SPACING.sm,
-  },
-  cardButtonContent: { flex: 1, gap: 2 },
-  cardButtonLabel: { fontSize: FONT.sm, fontWeight: '600' },
-  cardButtonDesc: { fontSize: FONT.xs },
   switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.sm,
+    gap: SPACING.md,
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm + 2,
+    paddingVertical: SPACING.md,
   },
   switchLabel: { fontSize: FONT.sm, fontWeight: '600' },
-  switchDesc: { fontSize: FONT.xs, lineHeight: 17 },
+  switchDesc: { fontSize: FONT.xs, lineHeight: 16, marginTop: 1 },
+
+  cardButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'transparent',
+  },
+  cardButtonContent: { flex: 1, gap: 2 },
+  cardButtonLabel: { fontSize: FONT.sm, fontWeight: '600' },
+  cardButtonDesc: { fontSize: FONT.xs, lineHeight: 16 },
+
+  pinRow: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    gap: SPACING.sm,
+  },
+  pinRowTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.sm,
+  },
+  pinIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    marginTop: 1,
+  },
+  pinLabel: { fontSize: FONT.sm, fontWeight: '700' },
+  pinDesc: { fontSize: FONT.xs, lineHeight: 16, marginTop: 2 },
+  pinBtns: {
+    flexDirection: 'row',
+    gap: SPACING.xs,
+    paddingLeft: 30 + SPACING.sm,
+  },
+  pinBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: SPACING.xs + 2,
+    paddingHorizontal: SPACING.md,
+    borderRadius: RADIUS.md,
+  },
+  pinBtnText: { fontSize: FONT.xs, fontWeight: '700' },
 });

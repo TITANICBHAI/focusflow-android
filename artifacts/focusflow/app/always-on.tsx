@@ -4,9 +4,13 @@
  * Always-On Enforcement screen — a persistent app block list that runs
  * 24/7 with no timer. Apps in this list stay blocked forever until the
  * user explicitly removes them. No sessions, no expiry — just tick and save.
+ *
+ * PIN gating:
+ *   - Adding apps → no password required
+ *   - Removing apps (save with fewer apps than original) → defense password required
  */
 
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -25,6 +29,8 @@ import { useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/useTheme';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { InstalledAppsModule, InstalledApp } from '@/native-modules/InstalledAppsModule';
+import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
+import { PinVerifyModal } from '@/components/PinVerifyModal';
 
 const SYSTEM_NEVER_BLOCK = new Set([
   'com.android.dialer',
@@ -46,6 +52,10 @@ export default function AlwaysOnScreen() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [pinVerifyVisible, setPinVerifyVisible] = useState(false);
+
+  // Track the original selection at mount time to detect removals
+  const originalPkgsRef = useRef<Set<string>>(new Set(settings.alwaysOnPackages ?? []));
 
   useEffect(() => {
     InstalledAppsModule.getInstalledApps()
@@ -73,7 +83,7 @@ export default function AlwaysOnScreen() {
     });
   }, []);
 
-  const handleSave = async () => {
+  const doSave = useCallback(async () => {
     setSaving(true);
     try {
       const pkgs = Array.from(selected);
@@ -84,6 +94,24 @@ export default function AlwaysOnScreen() {
     } finally {
       setSaving(false);
     }
+  }, [selected, settings, updateSettings]);
+
+  const handleSave = async () => {
+    // Detect if any originally-present packages are being removed
+    const originalPkgs = originalPkgsRef.current;
+    const isRemoving = [...originalPkgs].some((pkg) => !selected.has(pkg));
+
+    if (isRemoving) {
+      try {
+        const hash = await SharedPrefsModule.getString('defense_pin_hash');
+        if (hash) {
+          setPinVerifyVisible(true);
+          return;
+        }
+      } catch {}
+    }
+
+    await doSave();
   };
 
   const handleClearAll = () => {
@@ -148,7 +176,7 @@ export default function AlwaysOnScreen() {
         </View>
         {selected.size > 0 && (
           <TouchableOpacity onPress={handleClearAll} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={[styles.clearBtn, { color: (COLORS as Record<string, string>).danger ?? '#ef4444' }]}>Clear</Text>
+            <Text style={[styles.clearBtn, { color: COLORS.red }]}>Clear</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -158,6 +186,10 @@ export default function AlwaysOnScreen() {
         <Ionicons name="infinite-outline" size={16} color={COLORS.primary} />
         <Text style={[styles.bannerText, { color: theme.text }]}>
           These apps are blocked continuously — no session or timer needed. They stay blocked until you untick them here.
+          {'\n'}
+          <Text style={{ color: theme.muted }}>
+            Removing apps requires your defense password (if set).
+          </Text>
         </Text>
       </View>
 
@@ -214,6 +246,19 @@ export default function AlwaysOnScreen() {
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Defense PIN verify modal — shown when saving removes apps */}
+      <PinVerifyModal
+        visible={pinVerifyVisible}
+        pinType="defense"
+        title="Defense Password Required"
+        description="You are removing apps from the always-on block list. Enter your defense password to confirm."
+        onVerified={() => {
+          setPinVerifyVisible(false);
+          void doSave();
+        }}
+        onCancel={() => setPinVerifyVisible(false)}
+      />
     </SafeAreaView>
   );
 }

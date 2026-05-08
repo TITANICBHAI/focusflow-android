@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,14 +14,22 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { InstalledAppsModule, InstalledApp } from '@/native-modules/InstalledAppsModule';
+import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
 import type { DailyAllowanceEntry, AllowanceMode } from '@/data/types';
+import { PinVerifyModal } from '@/components/PinVerifyModal';
 
 interface Props {
   visible: boolean;
   selectedEntries: DailyAllowanceEntry[];
   locked?: boolean;
+  /**
+   * When true and a defense PIN is set, removing an app from the allowance list
+   * requires the user to enter the defense password first.
+   * Has no effect when `locked` is true (block-active lock takes precedence).
+   */
+  requireDefensePin?: boolean;
   onSave: (entries: DailyAllowanceEntry[]) => void | Promise<void>;
   onClose: () => void;
 }
@@ -51,7 +59,14 @@ function makeDefaultEntry(pkg: string): DailyAllowanceEntry {
  * mode: Count (N opens/day), Time Budget (N total minutes/day), or Interval
  * (N minutes every Y hours). Selecting an app shows its configuration inline.
  */
-export function DailyAllowanceModal({ visible, selectedEntries, locked = false, onSave, onClose }: Props) {
+export function DailyAllowanceModal({
+  visible,
+  selectedEntries,
+  locked = false,
+  requireDefensePin = false,
+  onSave,
+  onClose,
+}: Props) {
   const { theme } = useTheme();
   const [apps, setApps] = useState<InstalledApp[]>([]);
   const [entriesMap, setEntriesMap] = useState<Map<string, DailyAllowanceEntry>>(new Map());
@@ -60,6 +75,10 @@ export function DailyAllowanceModal({ visible, selectedEntries, locked = false, 
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Defense PIN verify state
+  const [pinVerifyVisible, setPinVerifyVisible] = useState(false);
+  const pendingRemovePkg = useRef<string | 'clear' | null>(null);
 
   useEffect(() => {
     if (!visible) return;
@@ -86,22 +105,73 @@ export function DailyAllowanceModal({ visible, selectedEntries, locked = false, 
     );
   }, [apps, search]);
 
-  const isEntryLocked = useCallback((pkg: string) => locked && originalPkgs.has(pkg), [locked, originalPkgs]);
+  const isEntryLocked = useCallback(
+    (pkg: string) => locked && originalPkgs.has(pkg),
+    [locked, originalPkgs],
+  );
 
-  const toggle = useCallback((pkg: string) => {
+  const doRemovePkg = useCallback((pkg: string) => {
     setEntriesMap((prev) => {
       const next = new Map(prev);
-      if (next.has(pkg)) {
-        if (locked && originalPkgs.has(pkg)) return next;
-        next.delete(pkg);
-        setExpandedPkg((ep) => (ep === pkg ? null : ep));
-      } else {
-        next.set(pkg, makeDefaultEntry(pkg));
-        setExpandedPkg(pkg);
+      next.delete(pkg);
+      return next;
+    });
+    setExpandedPkg((ep) => (ep === pkg ? null : ep));
+  }, []);
+
+  const doClearNonLocked = useCallback(() => {
+    setEntriesMap((prev) => {
+      const next = new Map(prev);
+      for (const pkg of Array.from(next.keys())) {
+        if (!isEntryLocked(pkg)) next.delete(pkg);
       }
       return next;
     });
-  }, [locked, originalPkgs]);
+    setExpandedPkg(null);
+  }, [isEntryLocked]);
+
+  /**
+   * Checks if defense PIN is needed before calling `action`.
+   * Runs action directly if: requireDefensePin is false, locked is true,
+   * or no defense hash is stored.
+   */
+  const withDefensePin = useCallback(
+    (pendingKey: string | 'clear', action: () => void) => {
+      if (!requireDefensePin || locked) {
+        action();
+        return;
+      }
+      SharedPrefsModule.getString('defense_pin_hash')
+        .then((hash) => {
+          if (!hash) {
+            action();
+          } else {
+            pendingRemovePkg.current = pendingKey;
+            setPinVerifyVisible(true);
+          }
+        })
+        .catch(() => action());
+    },
+    [requireDefensePin, locked],
+  );
+
+  const toggle = useCallback(
+    async (pkg: string) => {
+      const isRemoving = entriesMap.has(pkg);
+      if (isRemoving) {
+        if (locked && originalPkgs.has(pkg)) return;
+        withDefensePin(pkg, () => doRemovePkg(pkg));
+      } else {
+        setEntriesMap((prev) => {
+          const next = new Map(prev);
+          next.set(pkg, makeDefaultEntry(pkg));
+          return next;
+        });
+        setExpandedPkg(pkg);
+      }
+    },
+    [entriesMap, locked, originalPkgs, withDefensePin, doRemovePkg],
+  );
 
   const updateEntry = useCallback((pkg: string, patch: Partial<DailyAllowanceEntry>) => {
     setEntriesMap((prev) => {
@@ -124,12 +194,26 @@ export function DailyAllowanceModal({ visible, selectedEntries, locked = false, 
     }
   };
 
+  const handleClearNonLocked = () => {
+    withDefensePin('clear', doClearNonLocked);
+  };
+
+  const handlePinVerified = () => {
+    setPinVerifyVisible(false);
+    const pending = pendingRemovePkg.current;
+    pendingRemovePkg.current = null;
+    if (pending === 'clear') {
+      doClearNonLocked();
+    } else if (pending) {
+      doRemovePkg(pending);
+    }
+  };
+
   const renderModeConfig = (entry: DailyAllowanceEntry) => {
     const pkg = entry.packageName;
     const entryLocked = isEntryLocked(pkg);
     return (
-      <View style={[styles.configPanel, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
-        {/* Locked read-only notice — only shown for pre-existing entries */}
+      <View style={[styles.configPanel, { backgroundColor: theme.surface ?? theme.background, borderTopColor: theme.border }]}>
         {entryLocked && (
           <View style={styles.lockNotice}>
             <Ionicons name="lock-closed-outline" size={12} color={COLORS.orange} />
@@ -137,13 +221,17 @@ export function DailyAllowanceModal({ visible, selectedEntries, locked = false, 
           </View>
         )}
 
-        {/* Mode picker */}
         <Text style={[styles.configLabel, { color: theme.muted }]}>ALLOWANCE MODE</Text>
         <View style={styles.modeRow}>
           {ALL_MODES.map((m) => (
             <TouchableOpacity
               key={m}
-              style={[styles.modeBtn, { borderColor: theme.border }, entry.mode === m && styles.modeBtnActive, entryLocked && styles.modeBtnDisabled]}
+              style={[
+                styles.modeBtn,
+                { borderColor: theme.border },
+                entry.mode === m && styles.modeBtnActive,
+                entryLocked && styles.modeBtnDisabled,
+              ]}
               onPress={() => { if (!entryLocked) updateEntry(pkg, { mode: m }); }}
               activeOpacity={entryLocked ? 1 : 0.7}
             >
@@ -159,7 +247,6 @@ export function DailyAllowanceModal({ visible, selectedEntries, locked = false, 
           ))}
         </View>
 
-        {/* Mode-specific config */}
         {entry.mode === 'count' && (
           <View style={styles.configRow}>
             <Text style={[styles.configFieldLabel, { color: theme.textSecondary }]}>Opens per day</Text>
@@ -268,12 +355,12 @@ export function DailyAllowanceModal({ visible, selectedEntries, locked = false, 
           style={[styles.row, { backgroundColor: theme.card }, active && styles.rowActive]}
           onPress={() => {
             if (!active) {
-              toggle(item.packageName);
+              void toggle(item.packageName);
             } else {
               setExpandedPkg((ep) => ep === item.packageName ? null : item.packageName);
             }
           }}
-          onLongPress={() => toggle(item.packageName)}
+          onLongPress={() => void toggle(item.packageName)}
           activeOpacity={0.7}
         >
           {item.iconBase64 ? (
@@ -309,7 +396,7 @@ export function DailyAllowanceModal({ visible, selectedEntries, locked = false, 
             )}
             <TouchableOpacity
               style={[styles.toggleBox, active && styles.toggleBoxActive]}
-              onPress={() => toggle(item.packageName)}
+              onPress={() => void toggle(item.packageName)}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <Ionicons
@@ -324,6 +411,9 @@ export function DailyAllowanceModal({ visible, selectedEntries, locked = false, 
       </View>
     );
   };
+
+  const hasNonLockedEntries = entriesMap.size > 0 &&
+    Array.from(entriesMap.keys()).some((pkg) => !isEntryLocked(pkg));
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -349,6 +439,16 @@ export function DailyAllowanceModal({ visible, selectedEntries, locked = false, 
             <Ionicons name="lock-closed-outline" size={14} color={COLORS.orange} />
             <Text style={styles.infoText}>
               Block is active — existing allowances are locked. You can add new apps but cannot remove any until the block expires.
+            </Text>
+          </View>
+        )}
+
+        {/* Defense PIN notice */}
+        {requireDefensePin && !locked && (
+          <View style={[styles.infoBanner, { backgroundColor: COLORS.primary + '10', borderBottomColor: COLORS.primary + '28' }]}>
+            <Ionicons name="shield-half-outline" size={14} color={COLORS.primary} />
+            <Text style={[styles.infoText, { color: COLORS.primary }]}>
+              Removing apps from the allowance list requires your defense password.
             </Text>
           </View>
         )}
@@ -412,17 +512,8 @@ export function DailyAllowanceModal({ visible, selectedEntries, locked = false, 
             ) : null
           }
           ListFooterComponent={
-            entriesMap.size > 0 && Array.from(entriesMap.keys()).some((pkg) => !isEntryLocked(pkg)) ? (
-              <TouchableOpacity style={styles.clearBtn} onPress={() => {
-                setEntriesMap((prev) => {
-                  const next = new Map(prev);
-                  for (const pkg of Array.from(next.keys())) {
-                    if (!isEntryLocked(pkg)) next.delete(pkg);
-                  }
-                  return next;
-                });
-                setExpandedPkg(null);
-              }}>
+            hasNonLockedEntries ? (
+              <TouchableOpacity style={styles.clearBtn} onPress={handleClearNonLocked}>
                 <Ionicons name="close-circle-outline" size={16} color={COLORS.muted} />
                 <Text style={styles.clearText}>{locked ? 'Clear New Allowances' : 'Clear All Daily Allowances'}</Text>
               </TouchableOpacity>
@@ -430,6 +521,19 @@ export function DailyAllowanceModal({ visible, selectedEntries, locked = false, 
           }
         />
       </SafeAreaView>
+
+      {/* Defense PIN verify */}
+      <PinVerifyModal
+        visible={pinVerifyVisible}
+        pinType="defense"
+        title="Defense Password Required"
+        description="Enter your defense password to remove apps from the daily allowance list."
+        onVerified={handlePinVerified}
+        onCancel={() => {
+          setPinVerifyVisible(false);
+          pendingRemovePkg.current = null;
+        }}
+      />
     </Modal>
   );
 }
@@ -546,7 +650,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.orange + '20',
   },
 
-  // Config panel (expanded per-app settings)
   configPanel: {
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,

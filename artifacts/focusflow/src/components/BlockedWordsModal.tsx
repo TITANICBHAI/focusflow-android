@@ -15,11 +15,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { PinVerifyModal } from '@/components/PinVerifyModal';
+import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 
 interface Props {
   visible: boolean;
   words: string[];
   locked?: boolean;
+  /**
+   * When true and a defense PIN is set, any removal (individual or clear-all)
+   * requires the user to enter the defense password first.
+   * Has no effect when `locked` is true (existing block-active lock takes precedence).
+   */
+  requireDefensePin?: boolean;
   onSave: (words: string[]) => void | Promise<void>;
   onClose: () => void;
 }
@@ -31,12 +39,23 @@ interface Props {
  * Words typed here are checked against on-screen text during any active block;
  * if matched, the service redirects the user home.
  */
-export function BlockedWordsModal({ visible, words, locked = false, onSave, onClose }: Props) {
+export function BlockedWordsModal({
+  visible,
+  words,
+  locked = false,
+  requireDefensePin = false,
+  onSave,
+  onClose,
+}: Props) {
   const { theme } = useTheme();
   const [localWords, setLocalWords] = useState<string[]>([]);
   const [input, setInput] = useState('');
   const [saving, setSaving] = useState(false);
   const inputRef = useRef<TextInput>(null);
+
+  // Defense PIN verify state
+  const [pinVerifyVisible, setPinVerifyVisible] = useState(false);
+  const pendingRemoveWordRef = useRef<string | 'all' | null>(null);
 
   useEffect(() => {
     if (!visible) return;
@@ -56,19 +75,68 @@ export function BlockedWordsModal({ visible, words, locked = false, onSave, onCl
     inputRef.current?.focus();
   };
 
-  const handleRemove = (word: string) => {
+  /**
+   * Checks if defense PIN is needed before calling `action`.
+   * If requireDefensePin is false, or no hash is stored, runs action directly.
+   */
+  const withDefensePin = (pendingKey: string | 'all', action: () => void) => {
+    if (!requireDefensePin || locked) {
+      action();
+      return;
+    }
+    SharedPrefsModule.getString('defense_pin_hash')
+      .then((hash) => {
+        if (!hash) {
+          action();
+        } else {
+          pendingRemoveWordRef.current = pendingKey;
+          setPinVerifyVisible(true);
+        }
+      })
+      .catch(() => action());
+  };
+
+  const doRemoveWord = (word: string) => {
     setLocalWords((prev) => prev.filter((w) => w !== word));
   };
 
+  const doRemoveAll = () => {
+    setLocalWords([]);
+  };
+
+  const handleRemove = (word: string) => {
+    withDefensePin(word, () => doRemoveWord(word));
+  };
+
   const handleClearAll = () => {
-    Alert.alert(
-      'Clear All Keywords',
-      'Remove all blocked keywords?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Clear All', style: 'destructive', onPress: () => setLocalWords([]) },
-      ]
-    );
+    withDefensePin('all', () => {
+      Alert.alert(
+        'Clear All Keywords',
+        'Remove all blocked keywords?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Clear All', style: 'destructive', onPress: doRemoveAll },
+        ]
+      );
+    });
+  };
+
+  const handlePinVerified = () => {
+    setPinVerifyVisible(false);
+    const pending = pendingRemoveWordRef.current;
+    pendingRemoveWordRef.current = null;
+    if (pending === 'all') {
+      Alert.alert(
+        'Clear All Keywords',
+        'Remove all blocked keywords?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Clear All', style: 'destructive', onPress: doRemoveAll },
+        ]
+      );
+    } else if (pending) {
+      doRemoveWord(pending);
+    }
   };
 
   const handleSave = async () => {
@@ -130,6 +198,16 @@ export function BlockedWordsModal({ visible, words, locked = false, onSave, onCl
             </View>
           )}
 
+          {/* Defense PIN notice */}
+          {requireDefensePin && !locked && (
+            <View style={[styles.banner, { backgroundColor: COLORS.primary + '10', borderBottomColor: COLORS.primary + '28' }]}>
+              <Ionicons name="shield-half-outline" size={14} color={COLORS.primary} />
+              <Text style={[styles.bannerText, { color: COLORS.primary }]}>
+                Removing keywords requires your defense password.
+              </Text>
+            </View>
+          )}
+
           {/* Info banner */}
           <View style={[styles.banner, { backgroundColor: COLORS.red + '10', borderBottomColor: COLORS.red + '28' }]}>
             <Ionicons name="information-circle-outline" size={14} color={COLORS.red} />
@@ -142,7 +220,7 @@ export function BlockedWordsModal({ visible, words, locked = false, onSave, onCl
           <View style={[styles.inputRow, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
             <TextInput
               ref={inputRef}
-              style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface }]}
+              style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface ?? theme.background }]}
               placeholder="e.g. youtube, tiktok, shorts"
               placeholderTextColor={theme.muted}
               value={input}
@@ -195,6 +273,19 @@ export function BlockedWordsModal({ visible, words, locked = false, onSave, onCl
           />
         </KeyboardAvoidingView>
       </SafeAreaView>
+
+      {/* Defense PIN verify */}
+      <PinVerifyModal
+        visible={pinVerifyVisible}
+        pinType="defense"
+        title="Defense Password Required"
+        description="Enter your defense password to remove keywords from the block list."
+        onVerified={handlePinVerified}
+        onCancel={() => {
+          setPinVerifyVisible(false);
+          pendingRemoveWordRef.current = null;
+        }}
+      />
     </Modal>
   );
 }
