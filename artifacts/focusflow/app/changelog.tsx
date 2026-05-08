@@ -14,6 +14,26 @@ type Entry = {
 
 const CHANGELOG: Entry[] = [
   {
+    version: '1.0.2',
+    date: 'May 2026',
+    sections: [
+      {
+        heading: 'PIN Rotation System',
+        icon: 'key-outline',
+        items: [
+          'Every focus session start now offers a password-rotation prompt — choose to keep your existing password (up to 3 times per day), set a new custom one, or auto-generate a cryptographically random 16-character password',
+          'Always-On Enforcement toggle-off triggers the same rotation prompt — after pausing enforcement you are invited to set the password for next time, keeping the cycle fresh',
+          'Daily reuse counter: three dots in the prompt show exactly how many same-password reuses you have left today; once the limit is hit, a new or auto-generated password is required',
+          'Focus session reuse count and Always-On reuse count are tracked independently — using up your focus-session allowance does not affect your Always-On allowance and vice versa',
+          'Skip option always available — the PIN system is entirely opt-in; tapping "Skip — proceed without changing password" dismisses the prompt and continues the action immediately with no PIN change',
+          'Auto-generate path shows a non-copyable monospace password with a refresh button, a "write it down" warning, and an acknowledgement checkbox before saving',
+          'Turning off individual sub-systems (YouTube Shorts block, Instagram Reels block, System Guard) does NOT trigger the rotation — only the Always-On master toggle does',
+          'Raw passwords are never stored anywhere on the device — only SHA-256 hashes are persisted in SharedPreferences',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.0.1',
     date: 'May 2026',
     sections: [
