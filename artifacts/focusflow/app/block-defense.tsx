@@ -37,6 +37,7 @@ import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { GreyoutScheduleModal } from '@/components/GreyoutScheduleModal';
 import { PinVerifyModal } from '@/components/PinVerifyModal';
 import { PinSetupModal } from '@/components/PinSetupModal';
+import { PinRotationModal } from '@/components/PinRotationModal';
 import type { GreyoutWindow } from '@/data/types';
 
 type PinModalState =
@@ -61,6 +62,7 @@ export default function BlockDefenseScreen() {
   const [pinModal, setPinModal] = useState<PinModalState>({ type: 'none' });
   const [focusPinSet, setFocusPinSet] = useState(false);
   const [defensePinSet, setDefensePinSet] = useState(false);
+  const [alwaysOnPinRotationVisible, setAlwaysOnPinRotationVisible] = useState(false);
 
   const scrollRef = useRef<ScrollView>(null);
   const sectionRefs = {
@@ -224,7 +226,10 @@ export default function BlockDefenseScreen() {
       requireDefensePin(
         'Disable Always-On Enforcement',
         'Enter your defense password to pause the always-on block list.',
-        () => void update({ alwaysOnEnforcementEnabled: false }),
+        () => {
+          void update({ alwaysOnEnforcementEnabled: false });
+          setAlwaysOnPinRotationVisible(true);
+        },
       );
       return;
     }
@@ -654,6 +659,19 @@ export default function BlockDefenseScreen() {
         pinType={pinModal.type === 'setup' ? pinModal.pinType : 'focus'}
         onSaved={handlePinSaved}
         onCancel={() => setPinModal({ type: 'none' })}
+      />
+
+      <PinRotationModal
+        visible={alwaysOnPinRotationVisible}
+        pinType="defense"
+        reuseTrackerKey="alwayson"
+        actionLabel="Update Always-On Password"
+        actionDescription="Always-On Enforcement has been paused. Set the password that will be required next time you change this setting."
+        onComplete={() => {
+          setAlwaysOnPinRotationVisible(false);
+          void loadPinStatus();
+        }}
+        onCancel={() => setAlwaysOnPinRotationVisible(false)}
       />
     </SafeAreaView>
   );

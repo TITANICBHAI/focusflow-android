@@ -27,6 +27,8 @@ import { UsageStatsModule } from '@/native-modules/UsageStatsModule';
 import { StandaloneBlockModal } from '@/components/StandaloneBlockModal';
 import { DailyAllowanceModal } from '@/components/DailyAllowanceModal';
 import ExtendModal from '@/components/ExtendModal';
+import { PinRotationModal } from '@/components/PinRotationModal';
+import { SessionPinModule } from '@/native-modules/SessionPinModule';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
 
@@ -41,6 +43,18 @@ function FocusScreen() {
   const [blockModalVisible, setBlockModalVisible] = useState(false);
   const [dailyAllowanceModalVisible, setDailyAllowanceModalVisible] = useState(false);
   const [showExtendModal, setShowExtendModal] = useState(false);
+  const [pinRotationVisible, setPinRotationVisible] = useState(false);
+  const [pendingStartTaskId, setPendingStartTaskId] = useState<string | null>(null);
+
+  const handleActivateFocus = async (taskId: string) => {
+    const pinSet = await SessionPinModule.isPinSet().catch(() => false);
+    if (pinSet) {
+      setPendingStartTaskId(taskId);
+      setPinRotationVisible(true);
+    } else {
+      startFocusMode(taskId);
+    }
+  };
 
   const { settings } = state;
   const standaloneActive = (() => {
@@ -818,7 +832,7 @@ function FocusScreen() {
                   return;
                 }
               }
-              startFocusMode(task.id);
+              void handleActivateFocus(task.id);
             }}
           >
             <Ionicons name="shield-checkmark" size={20} color="#fff" />
@@ -944,6 +958,25 @@ function FocusScreen() {
           }}
         />
       )}
+
+      <PinRotationModal
+        visible={pinRotationVisible}
+        pinType="focus"
+        reuseTrackerKey="focus"
+        actionLabel="Start Focus Session"
+        actionDescription="Set the password required to end this focus session. You can keep your existing password or create a new one."
+        onComplete={() => {
+          setPinRotationVisible(false);
+          if (pendingStartTaskId) {
+            startFocusMode(pendingStartTaskId);
+            setPendingStartTaskId(null);
+          }
+        }}
+        onCancel={() => {
+          setPinRotationVisible(false);
+          setPendingStartTaskId(null);
+        }}
+      />
     </SafeAreaView>
   );
 }
