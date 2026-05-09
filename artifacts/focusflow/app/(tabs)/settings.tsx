@@ -698,6 +698,7 @@ function SettingsScreen() {
         visible={dailyModalVisible}
         selectedEntries={settings.dailyAllowanceEntries ?? []}
         locked={standaloneActive}
+        requireDefensePin={true}
         onSave={async (entries) => { await setDailyAllowanceEntries(entries); }}
         onClose={() => setDailyModalVisible(false)}
       />
@@ -706,7 +707,7 @@ function SettingsScreen() {
         visible={wordsModalVisible}
         words={settings.blockedWords ?? []}
         locked={standaloneActive}
-        requireDefensePin={!standaloneActive}
+        requireDefensePin={true}
         onSave={async (words) => { await setBlockedWords(words); }}
         onClose={() => setWordsModalVisible(false)}
       />

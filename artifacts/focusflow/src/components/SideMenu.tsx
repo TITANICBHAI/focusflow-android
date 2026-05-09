@@ -344,7 +344,7 @@ export function SideMenu({ visible, onOpen, onClose, tabBarHeight }: SideMenuPro
         visible={dailyModalVisible}
         selectedEntries={settings.dailyAllowanceEntries ?? []}
         locked={standaloneActive}
-        requireDefensePin={!standaloneActive}
+        requireDefensePin={true}
         onSave={async (entries) => { await setDailyAllowanceEntries(entries); }}
         onClose={() => setDailyModalVisible(false)}
       />

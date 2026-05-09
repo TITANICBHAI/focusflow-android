@@ -132,12 +132,13 @@ export function DailyAllowanceModal({
 
   /**
    * Checks if defense PIN is needed before calling `action`.
-   * Runs action directly if: requireDefensePin is false, locked is true,
-   * or no defense hash is stored.
+   * Runs action directly only if requireDefensePin is false or no hash is stored.
+   * The `locked` flag intentionally does NOT bypass the PIN — it only prevents
+   * removal of originally-locked entries (handled upstream in toggle()).
    */
   const withDefensePin = useCallback(
     (pendingKey: string | 'clear', action: () => void) => {
-      if (!requireDefensePin || locked) {
+      if (!requireDefensePin) {
         action();
         return;
       }
