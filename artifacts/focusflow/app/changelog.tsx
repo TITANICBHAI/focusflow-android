@@ -387,7 +387,7 @@ const CHANGELOG: Entry[] = [
           'Settings sub-pages blocked: accessibility, clear data, date/time, usage access, battery optimisation, developer options, reset',
           'BootReceiver — service restarts after reboot',
           'Device Admin prevents uninstallation during active blocks',
-          'FocusLauncherActivity for nuclear focus mode',
+          'FocusLauncherActivity for deep focus lockdown',
         ],
       },
       {

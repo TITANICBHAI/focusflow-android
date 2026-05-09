@@ -272,43 +272,94 @@ export default function ActiveScreen() {
         </SectionCard>
 
         {/* 3. Always-on enforcement ────────────────────────── */}
-        <SectionCard
-          icon="shield-checkmark-outline"
-          iconBg={alwaysOnActive ? COLORS.orange : theme.muted}
-          title="Always-on Enforcement"
-          theme={theme}
-        >
-          {alwaysOnActive ? (
-            <>
-              <Row
-                label="Enforced 24/7"
-                value={
-                  `${standalonePkgs.length} app${standalonePkgs.length !== 1 ? 's' : ''}` +
-                  (allowanceEntries.length > 0
-                    ? ` + ${allowanceEntries.length} daily-allowance rule${allowanceEntries.length !== 1 ? 's' : ''}`
-                    : '')
-                }
-                theme={theme}
-              />
-              <Text style={[styles.helperLine, { color: theme.muted }]}>
-                Apps in your standalone list (and allowance rules) stay enforced even when no timer is running.
-              </Text>
-              {standalonePkgs.length > 0 && (
-                <TouchableOpacity
-                  style={[styles.dangerBtn, { borderColor: COLORS.red + '55', backgroundColor: COLORS.red + '14' }]}
-                  onPress={handleClearAlwaysOn}
-                >
-                  <Ionicons name="trash-outline" size={16} color={COLORS.red} />
-                  <Text style={[styles.dangerBtnText, { color: COLORS.red }]}>Clear Block List</Text>
-                </TouchableOpacity>
+        {(() => {
+          const alwaysOnOverlayPkgs = settings.alwaysOnPackages ?? [];
+          const alwaysOnVpnPkgs = settings.alwaysOnVpnPackages ?? [];
+          const hasOverlay = alwaysOnOverlayPkgs.length > 0;
+          const hasVpn = alwaysOnVpnPkgs.length > 0;
+          const sectionActive = alwaysOnActive || hasOverlay || hasVpn;
+          return (
+            <SectionCard
+              icon="shield-checkmark-outline"
+              iconBg={sectionActive ? COLORS.orange : theme.muted}
+              title="Always-on Enforcement"
+              theme={theme}
+            >
+              {sectionActive ? (
+                <>
+                  <Row
+                    label="Overlay block (24/7)"
+                    value={
+                      hasOverlay
+                        ? `${alwaysOnOverlayPkgs.length} app${alwaysOnOverlayPkgs.length !== 1 ? 's' : ''} accessibility-blocked`
+                        : 'None'
+                    }
+                    theme={theme}
+                  />
+                  <Row
+                    label="VPN block (network)"
+                    value={
+                      hasVpn
+                        ? `${alwaysOnVpnPkgs.length} app${alwaysOnVpnPkgs.length !== 1 ? 's' : ''} internet-cut 24/7`
+                        : 'None'
+                    }
+                    theme={theme}
+                  />
+                  {allowanceEntries.length > 0 && (
+                    <Row
+                      label="Daily allowance rules"
+                      value={`${allowanceEntries.length} rule${allowanceEntries.length !== 1 ? 's' : ''}`}
+                      theme={theme}
+                    />
+                  )}
+                  <Text style={[styles.helperLine, { color: theme.muted }]}>
+                    These enforcement layers run 24/7 — no timer or session needed.
+                  </Text>
+                  <View style={styles.actionRow}>
+                    {hasOverlay && (
+                      <TouchableOpacity
+                        style={[styles.linkBtn, { borderColor: theme.border, flex: 1 }]}
+                        onPress={() => router.push('/always-on')}
+                      >
+                        <Ionicons name="infinite-outline" size={14} color={COLORS.orange} />
+                        <Text style={[styles.linkBtnText, { color: COLORS.orange }]}>Overlay List</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                      style={[styles.linkBtn, { borderColor: theme.border, flex: 1 }]}
+                      onPress={() => router.push('/vpn-block-list')}
+                    >
+                      <Ionicons name="shield-checkmark-outline" size={14} color={COLORS.primary} />
+                      <Text style={[styles.linkBtnText, { color: COLORS.primary }]}>VPN List</Text>
+                    </TouchableOpacity>
+                  </View>
+                  {standalonePkgs.length > 0 && (
+                    <TouchableOpacity
+                      style={[styles.dangerBtn, { borderColor: COLORS.red + '55', backgroundColor: COLORS.red + '14' }]}
+                      onPress={handleClearAlwaysOn}
+                    >
+                      <Ionicons name="trash-outline" size={16} color={COLORS.red} />
+                      <Text style={[styles.dangerBtnText, { color: COLORS.red }]}>Clear Standalone Block</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Text style={[styles.emptyRow, { color: theme.muted }]}>
+                    Empty block list — nothing enforced outside of timed sessions.
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.linkBtn, { borderColor: theme.border }]}
+                    onPress={() => router.push('/vpn-block-list')}
+                  >
+                    <Ionicons name="shield-checkmark-outline" size={14} color={COLORS.primary} />
+                    <Text style={[styles.linkBtnText, { color: COLORS.primary }]}>Set Up VPN Block List</Text>
+                  </TouchableOpacity>
+                </>
               )}
-            </>
-          ) : (
-            <Text style={[styles.emptyRow, { color: theme.muted }]}>
-              Empty block list — nothing enforced outside of timed sessions.
-            </Text>
-          )}
-        </SectionCard>
+            </SectionCard>
+          );
+        })()}
 
         {/* 4. Active Block Schedules ───────────────────────── */}
         <SectionCard
@@ -489,10 +540,7 @@ export default function ActiveScreen() {
         description="Enter your focus session password to end the session and stop all blocking."
         onVerified={() => {
           setFocusPinVisible(false);
-          Alert.alert('Stop focus session?', 'This ends app blocking for the current task.', [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Stop', style: 'destructive', onPress: () => { void stopFocusMode(); } },
-          ]);
+          void stopFocusMode();
         }}
         onCancel={() => setFocusPinVisible(false)}
       />
@@ -756,4 +804,9 @@ const styles = StyleSheet.create({
     marginTop: SPACING.sm,
   },
   linkBtnText: { fontSize: FONT.xs, fontWeight: '600' },
+  actionRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginTop: SPACING.xs,
+  },
 });
