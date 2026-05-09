@@ -136,19 +136,27 @@ export default function BlockDefenseScreen() {
    * Requires the defense PIN before running `action`.
    *
    * Behaviour matrix:
-   *   pinProtectionEnabled=false            → run action immediately
+   *   PIN hash stored                       → always show PinVerifyModal (regardless of pinProtectionEnabled toggle)
    *   pinProtectionEnabled=true, no PIN set → prompt to set a PIN first (or proceed anyway)
-   *   pinProtectionEnabled=true, PIN set    → show PinVerifyModal
+   *   pinProtectionEnabled=false, no PIN set → run action immediately
    */
   const requireDefensePin = useCallback(
     (title: string, description: string, action: () => void) => {
-      if (!(settings.pinProtectionEnabled ?? false)) {
-        action();
-        return;
-      }
       SharedPrefsModule.getString('defense_pin_hash')
         .then((hash) => {
-          if (!hash) {
+          if (hash) {
+            // A defense PIN is configured — always require it, regardless of
+            // whether the pinProtectionEnabled toggle is on. If you set a PIN
+            // it should always be enforced.
+            setPinModal({
+              type: 'verify',
+              pinType: 'defense',
+              title,
+              description,
+              onVerified: () => action(),
+            });
+          } else if (settings.pinProtectionEnabled ?? false) {
+            // PIN protection is on but no PIN has been set yet — offer to set one.
             Alert.alert(
               'No Defense Password set',
               'PIN protection is enabled but no Defense Password has been set yet. Set one now to protect this toggle, or proceed without a password.',
@@ -165,13 +173,8 @@ export default function BlockDefenseScreen() {
               ],
             );
           } else {
-            setPinModal({
-              type: 'verify',
-              pinType: 'defense',
-              title,
-              description,
-              onVerified: () => action(),
-            });
+            // No PIN set and protection toggle is off — run freely.
+            action();
           }
         })
         .catch(() => action());

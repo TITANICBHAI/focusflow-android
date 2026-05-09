@@ -618,7 +618,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       void logger.warn('AppContext', `vpn block enabled sync failed: ${String(e)}`);
     }
     try {
-      await SharedPrefsModule.setVpnSelectedPackages(settings.standaloneVpnPackages ?? []);
+      // Merge always-on VPN packages with standalone session VPN packages so the
+      // native layer has the full set of packages to route through the tunnel.
+      const alwaysOnVpnPkgs = settings.alwaysOnVpnPackages ?? [];
+      const sessionVpnPkgs  = settings.standaloneVpnPackages ?? [];
+      const mergedVpnPkgs   = Array.from(new Set([...alwaysOnVpnPkgs, ...sessionVpnPkgs]));
+      await SharedPrefsModule.setVpnSelectedPackages(mergedVpnPkgs);
     } catch (e) {
       void logger.warn('AppContext', `vpn selected packages sync failed: ${String(e)}`);
     }
@@ -626,6 +631,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await NetworkBlockModule.setVpnSelfHealEnabled(settings.vpnSelfHealEnabled ?? false);
     } catch (e) {
       void logger.warn('AppContext', `vpn self-heal sync failed: ${String(e)}`);
+    }
+    // Always-on VPN: start the VPN service now if any always-on packages are
+    // configured and VPN blocking is enabled. The native startNetworkBlock call
+    // is a no-op when the VPN is already running (guarded inside the service),
+    // so it is safe to call on every settings save and app launch.
+    try {
+      const alwaysOnVpnPkgs = settings.alwaysOnVpnPackages ?? [];
+      if ((settings.vpnBlockEnabled ?? false) && alwaysOnVpnPkgs.length > 0) {
+        void NetworkBlockModule.startNetworkBlock(JSON.stringify(alwaysOnVpnPkgs)).catch((e) =>
+          void logger.warn('AppContext', `always-on VPN start failed: ${String(e)}`),
+        );
+      }
+    } catch (e) {
+      void logger.warn('AppContext', `always-on VPN start failed: ${String(e)}`);
     }
     try {
       await SharedPrefsModule.setLauncherHiddenPackages(settings.launcherHiddenPackages ?? []);
