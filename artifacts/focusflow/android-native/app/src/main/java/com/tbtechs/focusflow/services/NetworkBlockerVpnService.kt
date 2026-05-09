@@ -9,6 +9,8 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.net.VpnService
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.ParcelFileDescriptor
 import androidx.core.app.NotificationCompat
 import com.tbtechs.focusflow.MainActivity
@@ -136,8 +138,45 @@ class NetworkBlockerVpnService : VpnService() {
         return START_STICKY
     }
 
+    /**
+     * Called by Android when our VPN is revoked — either by the user tapping the
+     * quick-settings tile, or because another VPN app started and kicked us out.
+     *
+     * If "net_block_self_heal" is enabled AND a blocking session is still active,
+     * a single restart attempt is scheduled 3 seconds later. The delay lets the
+     * OS finish tearing down the existing tunnel before we try to re-establish it.
+     *
+     * If the user deliberately switched to a different VPN, FocusFlow's restart
+     * intent will fail silently because VpnService.prepare() will return a non-null
+     * Intent (the other app's VPN is now the active one). This is safe — we do not
+     * fight another VPN; we just try once and give up gracefully.
+     */
     override fun onRevoke() {
-        stopVpn()
+        val prefs     = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val selfHeal  = prefs.getBoolean("net_block_self_heal", false)
+        val focusOn   = prefs.getBoolean("focus_active",            false)
+        val saOn      = prefs.getBoolean("standalone_block_active", false)
+
+        stopVpn()   // close the TUN fd first
+
+        if (selfHeal && (focusOn || saOn)) {
+            val ctx  = applicationContext
+            val pkgs = prefs.getString("net_block_packages", "[]") ?: "[]"
+            val mode = prefs.getString("net_block_mode", MODE_PER_APP) ?: MODE_PER_APP
+            Handler(Looper.getMainLooper()).postDelayed({
+                try {
+                    val restartIntent = Intent(ctx, NetworkBlockerVpnService::class.java).apply {
+                        action = ACTION_START
+                        putExtra(EXTRA_PACKAGES, pkgs)
+                        putExtra(EXTRA_MODE,     mode)
+                    }
+                    ctx.startService(restartIntent)
+                } catch (_: Exception) {
+                    // Session ended or another VPN took over — give up gracefully
+                }
+            }, 3_000L)
+        }
+
         super.onRevoke()
     }
 

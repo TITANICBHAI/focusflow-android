@@ -212,6 +212,14 @@ export interface AppSettings {
   blockInstagramReelsEnabled: boolean;   // Intercept the Instagram Reels player / clips viewer (Instagram itself stays usable)
   vpnBlockEnabled: boolean;             // Tunnel blocked apps through VPN to cut their network access (requires VPN permission)
   standaloneVpnPackages: string[];      // Per-app VPN: packages selected to receive network blocking in addition to accessibility blocking
+  /**
+   * When true, the VPN block automatically restarts itself if it gets disconnected
+   * mid-session (e.g. user pulls down quick-settings tile and taps disconnect).
+   * Implemented by two complementary native mechanisms:
+   *   1. NetworkBlockerVpnService.onRevoke() schedules a restart after 3 s.
+   *   2. AppBlockerAccessibilityService checks VPN health every 10 s.
+   */
+  vpnSelfHealEnabled?: boolean;
 
   // ── Home Launcher ──────────────────────────────────────────────────────────
   // FocusFlow can act as the device's home screen. When set as default launcher,

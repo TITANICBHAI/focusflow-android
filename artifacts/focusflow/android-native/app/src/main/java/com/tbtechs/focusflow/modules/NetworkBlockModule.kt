@@ -3,6 +3,8 @@ package com.tbtechs.focusflow.modules
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.VpnService
 import android.net.wifi.WifiManager
 import android.os.Build
@@ -271,6 +273,65 @@ class NetworkBlockModule(private val reactContext: ReactApplicationContext) :
     @ReactMethod
     fun isNetworkBlockActive(promise: Promise) {
         promise.resolve(NetworkBlockerVpnService.isRunning)
+    }
+
+    // ─── VPN conflict detection ───────────────────────────────────────────────
+
+    /**
+     * Returns true if a VPN from another app is currently active on the device.
+     * FocusFlow's own VPN is excluded — if [NetworkBlockerVpnService.isRunning]
+     * is true the conflict check is skipped (we ARE the active VPN).
+     *
+     * Iterates ConnectivityManager.allNetworks() and checks each network's
+     * capabilities for TRANSPORT_VPN. Requires no additional permissions.
+     * Falls back to false on any error so it never blocks enabling VPN.
+     */
+    @ReactMethod
+    fun isAnotherVpnActive(promise: Promise) {
+        try {
+            if (NetworkBlockerVpnService.isRunning) {
+                // Our own VPN is running — not a conflict
+                promise.resolve(false)
+                return
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val cm = reactContext.getSystemService(Context.CONNECTIVITY_SERVICE)
+                    as? ConnectivityManager
+                if (cm != null) {
+                    for (network in cm.allNetworks) {
+                        val caps = cm.getNetworkCapabilities(network) ?: continue
+                        if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) {
+                            promise.resolve(true)
+                            return
+                        }
+                    }
+                }
+            }
+            promise.resolve(false)
+        } catch (e: Exception) {
+            promise.resolve(false)
+        }
+    }
+
+    // ─── VPN self-heal ────────────────────────────────────────────────────────
+
+    /**
+     * Persists the "net_block_self_heal" flag to SharedPrefs (key: net_block_self_heal).
+     *
+     * When [enabled] is true, two complementary native mechanisms keep the VPN alive:
+     *   1. [NetworkBlockerVpnService.onRevoke] — schedules a single restart 3 s after
+     *      the tunnel is revoked, if a blocking session is still active.
+     *   2. [AppBlockerAccessibilityService] — runs a 10-second health-check loop and
+     *      re-fires the VPN start intent whenever the tunnel is found to be down.
+     */
+    @ReactMethod
+    fun setVpnSelfHealEnabled(enabled: Boolean, promise: Promise) {
+        try {
+            prefs.edit().putBoolean("net_block_self_heal", enabled).apply()
+            promise.resolve(null)
+        } catch (e: Exception) {
+            promise.reject("SELF_HEAL_ERROR", e.message, e)
+        }
     }
 
     // ─── Direct WiFi control (JS-callable, for manual use in settings UI) ─────

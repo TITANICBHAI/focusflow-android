@@ -38,6 +38,7 @@ import { GreyoutScheduleModal } from '@/components/GreyoutScheduleModal';
 import { PinVerifyModal } from '@/components/PinVerifyModal';
 import { PinSetupModal } from '@/components/PinSetupModal';
 import { PinRotationModal } from '@/components/PinRotationModal';
+import { VpnConsentModal } from '@/components/VpnConsentModal';
 import type { GreyoutWindow } from '@/data/types';
 
 type PinModalState =
@@ -63,6 +64,9 @@ export default function BlockDefenseScreen() {
   const [focusPinSet, setFocusPinSet] = useState(false);
   const [defensePinSet, setDefensePinSet] = useState(false);
   const [alwaysOnPinRotationVisible, setAlwaysOnPinRotationVisible] = useState(false);
+  const [vpnConsentVisible, setVpnConsentVisible] = useState(false);
+  // Holds the resolve callback for the VPN consent modal promise
+  const vpnConsentResolveRef = React.useRef<((confirmed: boolean) => void) | null>(null);
 
   const scrollRef = useRef<ScrollView>(null);
   const sectionRefs = {
@@ -199,6 +203,13 @@ export default function BlockDefenseScreen() {
     void update({ blockInstagramReelsEnabled: true });
   };
 
+  /** Returns a Promise that resolves true/false from the VPN consent modal. */
+  const showVpnConsent = (): Promise<boolean> =>
+    new Promise((resolve) => {
+      vpnConsentResolveRef.current = resolve;
+      setVpnConsentVisible(true);
+    });
+
   const handleVpnToggle = async (enabled: boolean) => {
     if (!enabled && blockProtectionActive) {
       Alert.alert('Protection is active', 'Cannot disable while a block is active.');
@@ -212,12 +223,42 @@ export default function BlockDefenseScreen() {
       );
       return;
     }
+
+    // ── Step 1: plain-language pre-prompt ────────────────────────────────────
+    // Show our friendly explanation BEFORE Android's scary "monitor all traffic" dialog.
+    const consented = await showVpnConsent();
+    if (!consented) return;
+
     if (Platform.OS === 'android') {
+      // ── Step 2: conflict detection ──────────────────────────────────────────
+      // Android only allows one active VPN. Warn the user if another VPN is
+      // already running so the handover is intentional rather than silent.
+      try {
+        const conflicting = await NetworkBlockModule.isAnotherVpnActive();
+        if (conflicting) {
+          const takeOver = await new Promise<boolean>((resolve) => {
+            Alert.alert(
+              'Another VPN is active',
+              'Android only allows one VPN at a time. FocusFlow will temporarily take over ' +
+                'while your session runs. You will need to reconnect your other VPN afterwards.',
+              [
+                { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                { text: 'Take over', onPress: () => resolve(true) },
+              ],
+            );
+          });
+          if (!takeOver) return;
+        }
+      } catch { /* safe default — proceed */ }
+
+      // ── Step 3: VPN permission ──────────────────────────────────────────────
+      // Now launch the system dialog — the user is already informed about what it means.
       try {
         const granted = await NetworkBlockModule.isVpnPermissionGranted();
         if (!granted) await NetworkBlockModule.requestVpnPermission();
       } catch {}
     }
+
     void update({ vpnBlockEnabled: true });
   };
 
@@ -455,11 +496,26 @@ export default function BlockDefenseScreen() {
               description={
                 blockProtectionActive && (settings.vpnBlockEnabled ?? false)
                   ? 'Locked on — active block in progress'
-                  : 'Tunnels blocked apps through VPN to cut their internet access — requires VPN permission (one-time prompt)'
+                  : 'Tunnels blocked apps through a local VPN to cut their internet access — nothing leaves your device'
               }
               value={settings.vpnBlockEnabled ?? false}
               onValueChange={(v) => void handleVpnToggle(v)}
               disabled={blockProtectionActive && (settings.vpnBlockEnabled ?? false)}
+              theme={theme}
+            />
+            <SwitchRow
+              label="VPN self-healing"
+              description={
+                blockProtectionActive && (settings.vpnSelfHealEnabled ?? false)
+                  ? 'Locked on — active block in progress'
+                  : 'Automatically restarts the VPN if you disconnect it from quick settings mid-session'
+              }
+              value={settings.vpnSelfHealEnabled ?? false}
+              onValueChange={(v) => void update({ vpnSelfHealEnabled: v })}
+              disabled={
+                !(settings.vpnBlockEnabled ?? false) ||
+                (blockProtectionActive && (settings.vpnSelfHealEnabled ?? false))
+              }
               theme={theme}
               isLast
             />
@@ -672,6 +728,19 @@ export default function BlockDefenseScreen() {
           void loadPinStatus();
         }}
         onCancel={() => setAlwaysOnPinRotationVisible(false)}
+      />
+      <VpnConsentModal
+        visible={vpnConsentVisible}
+        onConfirm={() => {
+          setVpnConsentVisible(false);
+          vpnConsentResolveRef.current?.(true);
+          vpnConsentResolveRef.current = null;
+        }}
+        onCancel={() => {
+          setVpnConsentVisible(false);
+          vpnConsentResolveRef.current?.(false);
+          vpnConsentResolveRef.current = null;
+        }}
       />
     </SafeAreaView>
   );

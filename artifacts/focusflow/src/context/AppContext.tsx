@@ -623,6 +623,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       void logger.warn('AppContext', `vpn selected packages sync failed: ${String(e)}`);
     }
     try {
+      await NetworkBlockModule.setVpnSelfHealEnabled(settings.vpnSelfHealEnabled ?? false);
+    } catch (e) {
+      void logger.warn('AppContext', `vpn self-heal sync failed: ${String(e)}`);
+    }
+    try {
       await SharedPrefsModule.setLauncherHiddenPackages(settings.launcherHiddenPackages ?? []);
     } catch (e) {
       void logger.warn('AppContext', `launcher hidden packages sync failed: ${String(e)}`);

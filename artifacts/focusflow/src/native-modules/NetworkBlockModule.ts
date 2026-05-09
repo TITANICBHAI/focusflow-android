@@ -64,4 +64,31 @@ export const NetworkBlockModule = {
     if (!has('requestVpnPermission')) return;
     return NetworkBlock.requestVpnPermission();
   },
+
+  /**
+   * Returns true if a VPN from a different app is currently active on the device.
+   * FocusFlow's own VPN tunnel is excluded — if our service is the active VPN
+   * this returns false (no conflict).
+   *
+   * Use this before enabling VPN blocking to detect a work/privacy VPN that
+   * would be replaced and warn the user before Android silently kicks it out.
+   */
+  async isAnotherVpnActive(): Promise<boolean> {
+    if (!has('isAnotherVpnActive')) return false;
+    return NetworkBlock.isAnotherVpnActive();
+  },
+
+  /**
+   * Persists the VPN self-heal preference to SharedPrefs.
+   *
+   * When enabled, two complementary mechanisms keep the VPN alive mid-session:
+   *   1. NetworkBlockerVpnService.onRevoke() schedules a restart (3 s delay).
+   *   2. AppBlockerAccessibilityService runs a 10-second health-check loop.
+   *
+   * Both read the "net_block_self_heal" SharedPrefs key set by this call.
+   */
+  async setVpnSelfHealEnabled(enabled: boolean): Promise<void> {
+    if (!has('setVpnSelfHealEnabled')) return;
+    return NetworkBlock.setVpnSelfHealEnabled(enabled);
+  },
 };

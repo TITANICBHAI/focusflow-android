@@ -443,6 +443,19 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     // Handler for retry re-checks AND timed-allowance expiry — runs on main thread
     private val handler = Handler(Looper.getMainLooper())
 
+    // ── VPN self-heal health check ────────────────────────────────────────────
+    // Runs every 10 seconds while the service is connected. If VPN blocking is
+    // enabled, self-heal is on, and the tunnel is down during an active session,
+    // it re-fires the VPN start intent so the user cannot simply pull the quick-
+    // settings tile and leave the session unprotected.
+    private val vpnHealthHandler = Handler(Looper.getMainLooper())
+    private val vpnHealthRunnable: Runnable = object : Runnable {
+        override fun run() {
+            checkAndHealVpn()
+            vpnHealthHandler.postDelayed(this, 10_000L)
+        }
+    }
+
     // ── Keyword blocker: debounce + throttle state ────────────────────────────
     // Text-changed events fire on every keystroke — we debounce the keyword check
     // so it only runs 400 ms after the user stops typing.
@@ -460,6 +473,9 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+        // Start the VPN self-heal health check loop. The first check fires after
+        // 10 s so we don't run anything during the cold-start window.
+        vpnHealthHandler.postDelayed(vpnHealthRunnable, 10_000L)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -1076,6 +1092,50 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     override fun onInterrupt() {
         lastBlockedPkg = null
         dismissWindowOverlay()
+        vpnHealthHandler.removeCallbacks(vpnHealthRunnable)
+    }
+
+    // ─── VPN self-heal ────────────────────────────────────────────────────────
+
+    /**
+     * Checks whether the VPN tunnel should be running and restarts it if not.
+     *
+     * Conditions that must ALL be true before a restart is attempted:
+     *   • "net_block_self_heal" pref is true  (user opted in)
+     *   • "net_block_vpn" pref is true        (VPN mechanism is selected)
+     *   • NetworkBlockerVpnService is not already running
+     *   • A blocking session (focus or standalone) is currently active
+     *   • VPN permission is still held (VpnService.prepare() == null)
+     *
+     * Called by [vpnHealthRunnable] every 10 s while the service is connected.
+     * Also called indirectly via [NetworkBlockerVpnService.onRevoke] which
+     * schedules its own 3-second restart before this loop fires.
+     */
+    private fun checkAndHealVpn() {
+        if (!::prefs.isInitialized) return
+        if (!prefs.getBoolean("net_block_self_heal", false)) return
+        if (!prefs.getBoolean("net_block_vpn", true)) return
+        if (NetworkBlockerVpnService.isRunning) return
+
+        val focusActive = prefs.getBoolean(PREF_FOCUS_ON, false)
+        val saActive    = prefs.getBoolean(PREF_SA_ACTIVE, false)
+        if (!focusActive && !saActive) return
+
+        // Bail out if VPN permission was revoked — cannot restart silently
+        if (VpnService.prepare(this) != null) return
+
+        val pkgs   = prefs.getString("net_block_packages", "[]") ?: "[]"
+        val global = prefs.getBoolean("net_block_global", false)
+        val mode   = if (global) NetworkBlockerVpnService.MODE_GLOBAL
+                     else        NetworkBlockerVpnService.MODE_PER_APP
+        try {
+            val intent = Intent(this, NetworkBlockerVpnService::class.java).apply {
+                action = NetworkBlockerVpnService.ACTION_START
+                putExtra(NetworkBlockerVpnService.EXTRA_PACKAGES, pkgs)
+                putExtra(NetworkBlockerVpnService.EXTRA_MODE,     mode)
+            }
+            startService(intent)
+        } catch (_: Exception) { /* best-effort — do not crash the service */ }
     }
 
     // ─── Retry mechanism ──────────────────────────────────────────────────────
