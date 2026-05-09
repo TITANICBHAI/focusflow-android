@@ -1337,10 +1337,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'SET_FOCUS_SESSION', payload: session });
 
         // Start VPN network blocking if the toggle is on.
+        // Merge session packages with always-on packages so both sets are blocked.
         // Best-effort — a failure here does not abort focus mode.
         if (state.settings.vpnBlockEnabled) {
-          const vpnPkgs = state.settings.standaloneVpnPackages ?? [];
-          void NetworkBlockModule.startNetworkBlock(JSON.stringify(vpnPkgs)).catch((e) =>
+          const sessionVpnPkgs   = state.settings.standaloneVpnPackages ?? [];
+          const alwaysOnVpnPkgs  = state.settings.alwaysOnVpnPackages ?? [];
+          const mergedVpnPkgs    = Array.from(new Set([...alwaysOnVpnPkgs, ...sessionVpnPkgs]));
+          void NetworkBlockModule.startNetworkBlock(JSON.stringify(mergedVpnPkgs)).catch((e) =>
             void logger.warn('AppContext', `network block start failed: ${String(e)}`),
           );
         }
@@ -1372,6 +1375,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       await NetworkBlockModule.stopNetworkBlock(null);
     } catch { /* best-effort — VPN may already be stopped */ }
+    // After stopping the session VPN, restart it with always-on packages so
+    // 24/7 VPN blocking continues working even when no focus session is active.
+    try {
+      const settings = stateRef.current.settings;
+      const alwaysOnVpnPkgs = settings.alwaysOnVpnPackages ?? [];
+      if ((settings.vpnBlockEnabled ?? false) && alwaysOnVpnPkgs.length > 0) {
+        void NetworkBlockModule.startNetworkBlock(JSON.stringify(alwaysOnVpnPkgs)).catch((e) =>
+          void logger.warn('AppContext', `always-on VPN restart after focus failed: ${String(e)}`),
+        );
+      }
+    } catch { /* best-effort */ }
     dispatch({ type: 'SET_FOCUS_SESSION', payload: null });
   }, []);
 

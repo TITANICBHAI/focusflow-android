@@ -124,17 +124,15 @@ export default function ActiveScreen() {
 
   // ── Pin helpers ───────────────────────────────────────────────────────────
   const withDefensePin = (action: () => void) => {
-    if (!(settings.pinProtectionEnabled ?? false)) {
-      action();
-      return;
-    }
     SharedPrefsModule.getString('defense_pin_hash')
       .then((hash) => {
-        if (!hash) {
-          action();
-        } else {
+        if (hash) {
+          // A defense PIN is configured — always require it, regardless of
+          // whether the pinProtectionEnabled toggle is on.
           pendingDefAction.current = action;
           setDefPinVisible(true);
+        } else {
+          action();
         }
       })
       .catch(() => action());
