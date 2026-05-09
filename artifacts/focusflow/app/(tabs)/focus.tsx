@@ -633,6 +633,7 @@ function FocusScreen() {
           visible={dailyAllowanceModalVisible}
           selectedEntries={settings.dailyAllowanceEntries ?? []}
           locked={false}
+          requireDefensePin={true}
           onSave={async (entries) => {
             await setStandaloneBlockAndAllowance(
               settings.standaloneBlockPackages ?? [],

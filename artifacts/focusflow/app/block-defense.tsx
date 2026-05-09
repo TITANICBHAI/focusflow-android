@@ -302,6 +302,32 @@ export default function BlockDefenseScreen() {
       return;
     }
     void update({ alwaysOnEnforcementEnabled: true });
+
+    // After enabling, offer to set a Defense Password if none is set yet.
+    // Respects a "Don't ask again" preference stored in SharedPrefs.
+    void Promise.all([
+      SharedPrefsModule.getString('defense_pin_hash'),
+      SharedPrefsModule.getString('always_on_pin_prompt_dismissed'),
+    ]).then(([hash, dismissed]) => {
+      if (hash || dismissed) return; // already set or user opted out
+      Alert.alert(
+        'Add a Defense Password?',
+        'A Defense Password stops you from disabling protections on impulse. You can set one now or add it anytime in the PIN Protection section below.',
+        [
+          {
+            text: 'Set Password Now',
+            onPress: () => setPinModal({ type: 'setup', pinType: 'defense' }),
+          },
+          { text: 'Not now', style: 'cancel' },
+          {
+            text: "Don't ask again",
+            onPress: () => {
+              void SharedPrefsModule.putString('always_on_pin_prompt_dismissed', '1').catch(() => {});
+            },
+          },
+        ],
+      );
+    }).catch(() => {});
   };
 
   const handlePinSaved = () => {

@@ -11,6 +11,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { PinSetupModal } from '@/components/PinSetupModal';
 import {
   View,
   Text,
@@ -29,6 +30,7 @@ import { router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { NativeImagePickerModule } from '@/native-modules/NativeImagePickerModule';
 import { NetworkBlockModule } from '@/native-modules/NetworkBlockModule';
+import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 import { Alert } from 'react-native';
 import { useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/useTheme';
@@ -224,7 +226,16 @@ export default function OnboardingScreen() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [pinProtectionChoice, setPinProtectionChoice] = useState(false);
+  const [defensePinSet, setDefensePinSet] = useState(false);
+  const [pinSetupVisible, setPinSetupVisible] = useState(false);
   const appStateRef = useRef(AppState.currentState);
+
+  // Check whether a defense PIN is already stored (e.g. user came back to onboarding)
+  useEffect(() => {
+    SharedPrefsModule.getString('defense_pin_hash')
+      .then((hash) => setDefensePinSet(!!hash))
+      .catch(() => {});
+  }, []);
 
   const checkAll = useCallback(async () => {
     const result: Record<string, PermStatus> = {};
@@ -575,12 +586,32 @@ export default function OnboardingScreen() {
               thumbColor={pinProtectionChoice ? COLORS.primary : COLORS.muted}
             />
           </View>
-          {pinProtectionChoice && (
-            <View style={[styles.pinCardHint, { backgroundColor: COLORS.primary + '0D', borderTopColor: theme.border }]}>
-              <Ionicons name="information-circle-outline" size={14} color={COLORS.primary} />
-              <Text style={[styles.pinCardHintText, { color: theme.muted }]}>
-                You'll set your Defense Password in Block Enforcement after getting started. Until then, toggling off a protection will prompt you to set one.
+          {pinProtectionChoice && defensePinSet && (
+            <View style={[styles.pinCardHint, { backgroundColor: COLORS.green + '12', borderTopColor: theme.border }]}>
+              <Ionicons name="checkmark-circle-outline" size={14} color={COLORS.green} />
+              <Text style={[styles.pinCardHintText, { color: COLORS.green }]}>
+                Defense Password set — your protections are locked.
               </Text>
+            </View>
+          )}
+          {pinProtectionChoice && !defensePinSet && (
+            <View style={[styles.pinCardHint, { backgroundColor: COLORS.primary + '0D', borderTopColor: theme.border }]}>
+              <View style={{ flex: 1, gap: SPACING.xs }}>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.xs }}>
+                  <Ionicons name="information-circle-outline" size={14} color={COLORS.primary} style={{ marginTop: 1 }} />
+                  <Text style={[styles.pinCardHintText, { color: theme.muted, flex: 1 }]}>
+                    Set your Defense Password now — or add it later in Block Enforcement.
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.setPinBtn}
+                  onPress={() => setPinSetupVisible(true)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="key-outline" size={14} color="#fff" />
+                  <Text style={styles.setPinBtnText}>Set Password Now</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
           {!pinProtectionChoice && (
@@ -607,6 +638,15 @@ export default function OnboardingScreen() {
         </Text>
       </ScrollView>
 
+      <PinSetupModal
+        visible={pinSetupVisible}
+        pinType="defense"
+        onSaved={() => {
+          setPinSetupVisible(false);
+          setDefensePinSet(true);
+        }}
+        onCancel={() => setPinSetupVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -871,6 +911,19 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   pinCardHintText: { flex: 1, fontSize: FONT.xs, lineHeight: 16 },
+  setPinBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.xs,
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.md,
+    paddingVertical: SPACING.xs,
+    paddingHorizontal: SPACING.sm,
+    alignSelf: 'flex-start',
+    marginTop: 2,
+  },
+  setPinBtnText: { fontSize: FONT.xs, fontWeight: '700', color: '#fff' },
 
   // Enter button
   enterBtn: {
