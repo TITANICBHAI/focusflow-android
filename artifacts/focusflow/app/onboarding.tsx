@@ -17,6 +17,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  Switch,
   ActivityIndicator,
   AppState,
   Linking,
@@ -222,6 +223,7 @@ export default function OnboardingScreen() {
   const [statuses, setStatuses] = useState<Record<string, PermStatus>>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [pinProtectionChoice, setPinProtectionChoice] = useState(false);
   const appStateRef = useRef(AppState.currentState);
 
   const checkAll = useCallback(async () => {
@@ -302,6 +304,9 @@ export default function OnboardingScreen() {
   const handleFinish = async () => {
     // Don't mark onboardingComplete here — user-profile.tsx does that
     // so we know the user has seen (or skipped) the profile setup step.
+    try {
+      await updateSettings({ ...state.settings, pinProtectionEnabled: pinProtectionChoice });
+    } catch { /* non-blocking — preference is saved on best-effort */ }
     router.replace('/user-profile');
   };
 
@@ -545,6 +550,48 @@ export default function OnboardingScreen() {
             </Text>
           </View>
         )}
+
+        {/* ── PIN Protection preference ─────────────────────────────────── */}
+        <Text style={[styles.sectionLabel, { color: theme.muted, marginTop: SPACING.sm }]}>
+          SECURITY PREFERENCE
+        </Text>
+        <View style={[styles.pinCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <View style={styles.pinCardMain}>
+            <View style={[styles.pinCardIcon, { backgroundColor: COLORS.primary + '1A' }]}>
+              <Ionicons name="lock-closed-outline" size={22} color={COLORS.primary} />
+            </View>
+            <View style={styles.pinCardBody}>
+              <Text style={[styles.pinCardTitle, { color: theme.text }]}>
+                PIN Protection
+              </Text>
+              <Text style={[styles.pinCardDesc, { color: theme.muted }]}>
+                Require a password to disable block enforcement toggles. Prevents impulsive self-sabotage mid-session.
+              </Text>
+            </View>
+            <Switch
+              value={pinProtectionChoice}
+              onValueChange={setPinProtectionChoice}
+              trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
+              thumbColor={pinProtectionChoice ? COLORS.primary : COLORS.muted}
+            />
+          </View>
+          {pinProtectionChoice && (
+            <View style={[styles.pinCardHint, { backgroundColor: COLORS.primary + '0D', borderTopColor: theme.border }]}>
+              <Ionicons name="information-circle-outline" size={14} color={COLORS.primary} />
+              <Text style={[styles.pinCardHintText, { color: theme.muted }]}>
+                You'll set your Defense Password in Block Enforcement after getting started. Until then, toggling off a protection will prompt you to set one.
+              </Text>
+            </View>
+          )}
+          {!pinProtectionChoice && (
+            <View style={[styles.pinCardHint, { backgroundColor: theme.border + '33', borderTopColor: theme.border }]}>
+              <Ionicons name="information-circle-outline" size={14} color={theme.muted} />
+              <Text style={[styles.pinCardHintText, { color: theme.muted }]}>
+                You can enable this anytime in Settings → PIN Protection or Block Enforcement.
+              </Text>
+            </View>
+          )}
+        </View>
 
         {/* Enter button — always enabled */}
         <TouchableOpacity
@@ -792,6 +839,38 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontWeight: '700',
   },
+
+  // PIN Protection card
+  pinCard: {
+    borderRadius: RADIUS.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+  },
+  pinCardMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: SPACING.md,
+    gap: SPACING.md,
+  },
+  pinCardIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  pinCardBody: { flex: 1, gap: 3 },
+  pinCardTitle: { fontSize: FONT.md, fontWeight: '700' },
+  pinCardDesc: { fontSize: FONT.xs, lineHeight: 17 },
+  pinCardHint: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.xs,
+    padding: SPACING.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  pinCardHintText: { flex: 1, fontSize: FONT.xs, lineHeight: 16 },
 
   // Enter button
   enterBtn: {

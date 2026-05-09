@@ -220,6 +220,14 @@ export interface AppSettings {
    *   2. AppBlockerAccessibilityService checks VPN health every 10 s.
    */
   vpnSelfHealEnabled?: boolean;
+  /**
+   * When true, disabling any block-enforcement toggle (always-on, system guard,
+   * VPN block, etc.) requires the Defense Password — if one is set.
+   * When false, toggles work freely with no password gate.
+   * User chooses this during onboarding; can also be changed in Settings.
+   * Defaults to false so first-time users aren't immediately blocked.
+   */
+  pinProtectionEnabled?: boolean;
 
   // ── Home Launcher ──────────────────────────────────────────────────────────
   // FocusFlow can act as the device's home screen. When set as default launcher,

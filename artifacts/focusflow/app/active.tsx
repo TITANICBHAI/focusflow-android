@@ -124,6 +124,10 @@ export default function ActiveScreen() {
 
   // ── Pin helpers ───────────────────────────────────────────────────────────
   const withDefensePin = (action: () => void) => {
+    if (!(settings.pinProtectionEnabled ?? false)) {
+      action();
+      return;
+    }
     SharedPrefsModule.getString('defense_pin_hash')
       .then((hash) => {
         if (!hash) {

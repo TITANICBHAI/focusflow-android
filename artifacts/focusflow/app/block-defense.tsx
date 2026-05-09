@@ -130,16 +130,40 @@ export default function BlockDefenseScreen() {
     await updateSettings({ ...settings, ...partial });
   };
 
+  const pendingActionAfterDefenseSetup = useRef<(() => void) | null>(null);
+
   /**
    * Requires the defense PIN before running `action`.
-   * If no defense PIN is set, runs action immediately.
+   *
+   * Behaviour matrix:
+   *   pinProtectionEnabled=false            → run action immediately
+   *   pinProtectionEnabled=true, no PIN set → prompt to set a PIN first (or proceed anyway)
+   *   pinProtectionEnabled=true, PIN set    → show PinVerifyModal
    */
   const requireDefensePin = useCallback(
     (title: string, description: string, action: () => void) => {
+      if (!(settings.pinProtectionEnabled ?? false)) {
+        action();
+        return;
+      }
       SharedPrefsModule.getString('defense_pin_hash')
         .then((hash) => {
           if (!hash) {
-            action();
+            Alert.alert(
+              'No Defense Password set',
+              'PIN protection is enabled but no Defense Password has been set yet. Set one now to protect this toggle, or proceed without a password.',
+              [
+                {
+                  text: 'Set Password',
+                  onPress: () => {
+                    pendingActionAfterDefenseSetup.current = action;
+                    setPinModal({ type: 'setup', pinType: 'defense' });
+                  },
+                },
+                { text: 'Proceed anyway', onPress: () => action() },
+                { text: 'Cancel', style: 'cancel' },
+              ],
+            );
           } else {
             setPinModal({
               type: 'verify',
@@ -152,7 +176,7 @@ export default function BlockDefenseScreen() {
         })
         .catch(() => action());
     },
-    [],
+    [settings.pinProtectionEnabled],
   );
 
   const handleSystemGuardToggle = (enabled: boolean) => {
@@ -280,6 +304,11 @@ export default function BlockDefenseScreen() {
   const handlePinSaved = () => {
     setPinModal({ type: 'none' });
     void loadPinStatus();
+    const pending = pendingActionAfterDefenseSetup.current;
+    if (pending) {
+      pendingActionAfterDefenseSetup.current = null;
+      pending();
+    }
   };
 
   return (

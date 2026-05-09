@@ -224,6 +224,10 @@ function SettingsScreen() {
   };
 
   const withDefensePin = (action: () => void) => {
+    if (!(settings.pinProtectionEnabled ?? false)) {
+      action();
+      return;
+    }
     SharedPrefsModule.getString('defense_pin_hash')
       .then((hash) => {
         if (!hash) {
@@ -410,6 +414,38 @@ function SettingsScreen() {
                 : `${(settings.blockedWords ?? []).length} keyword${(settings.blockedWords ?? []).length !== 1 ? 's' : ''} — blocked in URLs, searches & on-screen text`
             }
             onPress={() => setWordsModalVisible(true)}
+          />
+        </Section>
+
+        <Section title="PIN Protection">
+          <SettingRow
+            label="Require password to disable protections"
+            description={
+              (settings.pinProtectionEnabled ?? false)
+                ? 'On — turning off any protection toggle requires your Defense Password'
+                : 'Off — protection toggles can be changed freely without a password'
+            }
+          >
+            <Switch
+              value={settings.pinProtectionEnabled ?? false}
+              onValueChange={(v) => {
+                void update({ pinProtectionEnabled: v });
+                if (v && !settings.pinProtectionEnabled) {
+                  Alert.alert(
+                    'PIN Protection enabled',
+                    "Go to Block Enforcement → PIN Protection to set your Defense Password. Until you do, toggles will still ask if you'd like to set one before proceeding.",
+                  );
+                }
+              }}
+              trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
+              thumbColor={(settings.pinProtectionEnabled ?? false) ? COLORS.primary : COLORS.muted}
+            />
+          </SettingRow>
+          <SettingButton
+            icon="shield-half-outline"
+            label="Manage PIN Passwords"
+            description="Set or change your focus session and defense passwords"
+            onPress={() => router.push('/block-defense')}
           />
         </Section>
 
