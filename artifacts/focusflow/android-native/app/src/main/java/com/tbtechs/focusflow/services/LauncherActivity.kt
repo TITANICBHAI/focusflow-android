@@ -8,11 +8,11 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.Typeface
-import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
-import android.graphics.drawable.LayerDrawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -78,12 +78,14 @@ class LauncherActivity : Activity() {
         private const val PREF_ALWAYS_BLOCK_PKGS = AppBlockerAccessibilityService.PREF_ALWAYS_BLOCK_PKGS
         private const val OWN_PACKAGE           = "com.tbtechs.focusflow"
 
-        private val ACCENT      = Color.parseColor("#6366f1")
-        private val SCRIM_COLOR = Color.parseColor("#99000000")
-        private val DRAWER_BG   = Color.parseColor("#F2111827")
-        private val TEXT_DIM    = Color.parseColor("#AAAACC")
-        private val TEXT_MUTED  = Color.parseColor("#667799")
-        private val DOCK_DIVIDER = Color.parseColor("#33FFFFFF")
+        private val ACCENT       = Color.parseColor("#6366f1")
+        // Scrim: 20% black — wallpaper shows through naturally.
+        // The dock area gets its own darker gradient so icons stay readable.
+        private val SCRIM_COLOR  = Color.parseColor("#33000000")
+        private val DRAWER_BG    = Color.parseColor("#F0111827")
+        private val TEXT_DIM     = Color.parseColor("#EEF0FF")
+        private val TEXT_MUTED   = Color.parseColor("#99AABB")
+        private val DOCK_SURFACE = Color.parseColor("#28FFFFFF")  // frosted glass tint
     }
 
     private data class AllowanceCardData(
@@ -150,8 +152,8 @@ class LauncherActivity : Activity() {
     // ── Home layout ───────────────────────────────────────────────────────────
 
     private fun buildHomeLayout() {
-        // Wallpaper scrim — dark translucent overlay so text is always readable
-        // The actual wallpaper is shown by FLAG_SHOW_WALLPAPER above.
+        // Wallpaper scrim — light translucent overlay (20% black) so the user's
+        // wallpaper stays visible. FLAG_SHOW_WALLPAPER composites it behind the window.
         val scrim = View(this).apply {
             setBackgroundColor(SCRIM_COLOR)
             layoutParams = FrameLayout.LayoutParams(
@@ -160,6 +162,19 @@ class LauncherActivity : Activity() {
             )
         }
         rootFrame.addView(scrim)
+
+        // Bottom gradient — transparent → 60% black over the bottom 280dp.
+        // This makes the dock and clock text readable without killing the wallpaper.
+        val bottomGrad = View(this).apply {
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(Color.TRANSPARENT, Color.parseColor("#CC000000"))
+            )
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, dp(280)
+            ).also { it.gravity = Gravity.BOTTOM }
+        }
+        rootFrame.addView(bottomGrad)
 
         // Root column
         val column = LinearLayout(this).apply {
@@ -208,7 +223,7 @@ class LauncherActivity : Activity() {
 
         rootFrame.addView(column)
 
-        // ── Swipe-up gesture to open drawer ───────────────────────────────────
+        // ── Gestures: swipe-up → drawer, swipe-down → notifications ──────────
         rootFrame.setOnTouchListener { _, ev ->
             when (ev.action) {
                 MotionEvent.ACTION_DOWN -> {
@@ -217,10 +232,11 @@ class LauncherActivity : Activity() {
                 }
                 MotionEvent.ACTION_UP -> {
                     val dy = swipeTouchStartY - ev.rawY
-                    if (dy > dp(60) && !isDrawerOpen) {
-                        openDrawer()
-                        true
-                    } else false
+                    when {
+                        dy > dp(60) && !isDrawerOpen -> { openDrawer(); true }
+                        dy < -dp(80) -> { expandNotificationsPanel(); true }
+                        else -> false
+                    }
                 }
                 else -> false
             }
@@ -312,46 +328,84 @@ class LauncherActivity : Activity() {
             )
         }
 
-        // Divider line above dock
-        val divider = View(this).apply {
-            setBackgroundColor(DOCK_DIVIDER)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(1)
-            ).also { it.setMargins(dp(24), 0, dp(24), 0) }
-        }
-        dockWrapper.addView(divider)
-
-        // Swipe-up hint row
-        val hintRow = LinearLayout(this).apply {
+        // ── All Apps pill button — tappable, also activates on swipe-up ────────
+        // Gives users the familiar "drawer icon" affordance they expect from stock launchers.
+        val allAppsBtn = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.topMargin = dp(6) }
-        }
-        val hint = TextView(this).apply {
-            text = "⌃  All Apps"
-            textSize = 11f
-            setTextColor(TEXT_MUTED)
-            gravity = Gravity.CENTER
-        }
-        hintRow.addView(hint)
-        dockWrapper.addView(hintRow)
-
-        // Dock icon row
-        dockRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also {
-                it.topMargin = dp(8)
-                it.bottomMargin = dp(20)
+            gravity = Gravity.CENTER_VERTICAL or Gravity.CENTER_HORIZONTAL
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(22).toFloat()
+                setColor(DOCK_SURFACE)
+                setStroke(dp(1), Color.parseColor("#25FFFFFF"))
             }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, dp(40)
+            ).also {
+                it.gravity = Gravity.CENTER_HORIZONTAL
+                it.topMargin = dp(12)
+                it.bottomMargin = dp(8)
+            }
+            setPadding(dp(18), 0, dp(20), 0)
         }
-        dockWrapper.addView(dockRow)
+
+        // 3×3 dot grid drawn on a small canvas — the universal "apps" icon
+        val dotsView = object : View(this) {
+            private val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.WHITE
+                style = Paint.Style.FILL
+            }
+            override fun onDraw(canvas: Canvas) {
+                val dotR  = dp(2).toFloat()
+                val gap   = dp(6).toFloat()
+                val cx    = width  / 2f
+                val cy    = height / 2f
+                val start = -gap
+                for (row in 0..2) for (col in 0..2) {
+                    canvas.drawCircle(cx + start + col * gap, cy + start + row * gap, dotR, dotPaint)
+                }
+            }
+        }.apply {
+            layoutParams = LinearLayout.LayoutParams(dp(26), dp(26))
+        }
+
+        val allAppsLabel = TextView(this).apply {
+            text = "All Apps"
+            textSize = 13f
+            setTextColor(Color.WHITE)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).also { it.leftMargin = dp(8) }
+        }
+
+        allAppsBtn.addView(dotsView)
+        allAppsBtn.addView(allAppsLabel)
+        allAppsBtn.setOnClickListener { openDrawer() }
+        dockWrapper.addView(allAppsBtn)
+
+        // ── Dock icon row ──────────────────────────────────────────────────────
+        // Frosted glass pill that holds the user's pinned dock apps.
+        val dockCard = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(28).toFloat()
+                setColor(DOCK_SURFACE)
+                setStroke(dp(1), Color.parseColor("#20FFFFFF"))
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(90)
+            ).also {
+                it.setMargins(dp(16), dp(4), dp(16), dp(24))
+            }
+            setPadding(dp(4), 0, dp(4), 0)
+        }
+
+        dockRow = dockCard
+        dockWrapper.addView(dockCard)
 
         return dockWrapper
     }
@@ -384,39 +438,38 @@ class LauncherActivity : Activity() {
             val lp = GridLayout.LayoutParams(colSpec, colSpec)
             lp.width = 0
             lp.height = GridLayout.LayoutParams.WRAP_CONTENT
-            lp.setMargins(dp(6), dp(10), dp(6), dp(10))
+            lp.setMargins(dp(4), dp(10), dp(4), dp(10))
             layoutParams = lp
         }
 
-        val iconBg = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
-            setColor(Color.parseColor(if (isBlocked) "#33FFFFFF" else "#22FFFFFF"))
-        }
-
+        // Native adaptive icon — no extra circle background so it looks just
+        // like the user's real home screen. Blocked apps get a dim + red dot.
         val iconFrame = FrameLayout(this).apply {
-            background = iconBg
-            layoutParams = LinearLayout.LayoutParams(dp(56), dp(56))
+            layoutParams = LinearLayout.LayoutParams(dp(56), dp(56)).also {
+                it.gravity = Gravity.CENTER_HORIZONTAL
+            }
         }
 
         val iconView = ImageView(this).apply {
             setImageDrawable(icon)
-            alpha = if (isBlocked) 0.32f else 1f
-            layoutParams = FrameLayout.LayoutParams(dp(44), dp(44)).also {
+            alpha = if (isBlocked) 0.35f else 1f
+            layoutParams = FrameLayout.LayoutParams(dp(52), dp(52)).also {
                 it.gravity = Gravity.CENTER
             }
         }
         iconFrame.addView(iconView)
 
-        // Blocked badge dot
+        // Blocked badge dot in the top-right corner
         if (isBlocked) {
             val dot = View(this).apply {
                 background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
                     setColor(Color.parseColor("#EF4444"))
+                    setStroke(dp(1), Color.parseColor("#CC000000"))
                 }
-                layoutParams = FrameLayout.LayoutParams(dp(8), dp(8)).also {
+                layoutParams = FrameLayout.LayoutParams(dp(10), dp(10)).also {
                     it.gravity = Gravity.TOP or Gravity.END
-                    it.topMargin = dp(2); it.rightMargin = dp(2)
+                    it.topMargin = dp(1); it.rightMargin = dp(1)
                 }
             }
             iconFrame.addView(dot)
@@ -425,15 +478,15 @@ class LauncherActivity : Activity() {
         val labelView = TextView(this).apply {
             text = label
             textSize = 11f
-            setTextColor(if (isBlocked) TEXT_MUTED else Color.WHITE)
+            setTextColor(if (isBlocked) Color.parseColor("#88FFFFFF") else Color.WHITE)
             gravity = Gravity.CENTER
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
-            setShadowLayer(2f, 0f, 1f, Color.parseColor("#88000000"))
+            setShadowLayer(3f, 0f, 1f, Color.parseColor("#CC000000"))
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.topMargin = dp(4) }
+            ).also { it.topMargin = dp(5) }
         }
 
         item.addView(iconFrame)
@@ -476,37 +529,49 @@ class LauncherActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            setPadding(dp(4), dp(10), dp(4), dp(8))
         }
 
-        val bgDrawable = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
-            setColor(Color.parseColor(if (isBlocked) "#22FFFFFF" else "#33FFFFFF"))
-        }
-
+        // Native icon — no extra oval container so the icon looks just like
+        // a stock launcher's dock. Blocked apps dim and get a red corner dot.
         val iconFrame = FrameLayout(this).apply {
-            background = bgDrawable
-            layoutParams = LinearLayout.LayoutParams(dp(58), dp(58)).also {
+            layoutParams = LinearLayout.LayoutParams(dp(54), dp(54)).also {
                 it.gravity = Gravity.CENTER_HORIZONTAL
             }
         }
 
         val iconView = ImageView(this).apply {
             setImageDrawable(icon)
-            alpha = if (isBlocked) 0.32f else 1f
-            layoutParams = FrameLayout.LayoutParams(dp(44), dp(44)).also {
+            alpha = if (isBlocked) 0.35f else 1f
+            layoutParams = FrameLayout.LayoutParams(dp(50), dp(50)).also {
                 it.gravity = Gravity.CENTER
             }
         }
         iconFrame.addView(iconView)
 
+        if (isBlocked) {
+            val dot = View(this).apply {
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(Color.parseColor("#EF4444"))
+                    setStroke(dp(1), Color.parseColor("#CC000000"))
+                }
+                layoutParams = FrameLayout.LayoutParams(dp(10), dp(10)).also {
+                    it.gravity = Gravity.TOP or Gravity.END
+                    it.topMargin = dp(1); it.rightMargin = dp(1)
+                }
+            }
+            iconFrame.addView(dot)
+        }
+
         val labelView = TextView(this).apply {
             text = label
             textSize = 10f
-            setTextColor(if (isBlocked) TEXT_MUTED else TEXT_DIM)
+            setTextColor(if (isBlocked) Color.parseColor("#88FFFFFF") else TEXT_DIM)
             gravity = Gravity.CENTER
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
-            setShadowLayer(2f, 0f, 1f, Color.parseColor("#88000000"))
+            setShadowLayer(3f, 0f, 1f, Color.parseColor("#CC000000"))
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -547,8 +612,8 @@ class LauncherActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(Color.parseColor("#EE111827"), Color.parseColor("#FF0A0E1A"))
-            ).also { it.cornerRadii = floatArrayOf(dp(24).toFloat(), dp(24).toFloat(), 0f, 0f, 0f, 0f, dp(24).toFloat(), dp(24).toFloat()) }
+                intArrayOf(Color.parseColor("#F01A1F2E"), Color.parseColor("#FF0D1117"))
+            ).also { it.cornerRadii = floatArrayOf(dp(28).toFloat(), dp(28).toFloat(), 0f, 0f, 0f, 0f, dp(28).toFloat(), dp(28).toFloat()) }
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 (resources.displayMetrics.heightPixels * 0.92).toInt()
@@ -756,7 +821,7 @@ class LauncherActivity : Activity() {
         val iconView = ImageView(this).apply {
             setImageDrawable(icon)
             alpha = if (isBlocked) 0.28f else 1f
-            layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).also {
+            layoutParams = LinearLayout.LayoutParams(dp(48), dp(48)).also {
                 it.gravity = Gravity.CENTER_HORIZONTAL
             }
         }
@@ -768,6 +833,7 @@ class LauncherActivity : Activity() {
             gravity = Gravity.CENTER
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
+            setShadowLayer(2f, 0f, 1f, Color.parseColor("#CC000000"))
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -1008,6 +1074,21 @@ class LauncherActivity : Activity() {
             allowanceTickCount = 0
             refreshAllowanceStrip()
         }
+    }
+
+    // ── Notification shade ────────────────────────────────────────────────────
+
+    /**
+     * Expands the notification shade panel on swipe-down.
+     * Requires android.permission.EXPAND_STATUS_BAR in the manifest.
+     */
+    @Suppress("UNCHECKED_CAST")
+    private fun expandNotificationsPanel() {
+        try {
+            val sbService = getSystemService("statusbar")
+            val sbClass   = Class.forName("android.app.StatusBarManager")
+            sbClass.getMethod("expandNotificationsPanel").invoke(sbService)
+        } catch (_: Exception) {}
     }
 
     // ── Utilities ─────────────────────────────────────────────────────────────

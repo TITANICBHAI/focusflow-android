@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -24,6 +24,7 @@ import { AllowedAppsModal } from '@/components/AllowedAppsModal';
 import { StandaloneBlockModal } from '@/components/StandaloneBlockModal';
 import { DailyAllowanceModal } from '@/components/DailyAllowanceModal';
 import { BlockedWordsModal } from '@/components/BlockedWordsModal';
+import { PinVerifyModal } from '@/components/PinVerifyModal';
 import { GreyoutScheduleModal } from '@/components/GreyoutScheduleModal';
 import { OverlayAppearanceModal } from '@/components/OverlayAppearanceModal';
 import DiagnosticsModal from '@/components/DiagnosticsModal';
@@ -46,6 +47,8 @@ function SettingsScreen() {
   const [overlayAppearanceVisible, setOverlayAppearanceVisible] = useState(false);
   const [diagnosticsVisible, setDiagnosticsVisible] = useState(false);
   const [importOtherAppVisible, setImportOtherAppVisible] = useState(false);
+  const [defPinVisible, setDefPinVisible] = useState(false);
+  const pendingDefAction = useRef<(() => void) | null>(null);
   // Diagnostics is gated on the native debuggable flag (not __DEV__) so that
   // debug-built APKs running prebundled JS still expose the section. We
   // optimistically default to __DEV__ so Metro builds show it on first paint,
@@ -220,37 +223,53 @@ function SettingsScreen() {
     );
   };
 
-  const handleSystemGuardToggle = async (enabled: boolean) => {
-    if (!enabled && blockProtectionActive) {
-      Alert.alert(
-        'Protection is active',
-        'System controls protection cannot be turned off while Focus Mode or an app block is active.',
-      );
-      return;
-    }
-    await update({ systemGuardEnabled: enabled });
+  const withDefensePin = (action: () => void) => {
+    SharedPrefsModule.getString('defense_pin_hash')
+      .then((hash) => {
+        if (!hash) {
+          action();
+        } else {
+          pendingDefAction.current = action;
+          setDefPinVisible(true);
+        }
+      })
+      .catch(() => action());
   };
 
-  const handleBlockYoutubeShortsToggle = async (enabled: boolean) => {
+  const handleSystemGuardToggle = (enabled: boolean) => {
     if (!enabled && blockProtectionActive) {
-      Alert.alert(
-        'Protection is active',
-        'YouTube Shorts protection cannot be turned off while Focus Mode or an app block is active.',
-      );
+      Alert.alert('Protection is active', 'System controls protection cannot be turned off while Focus Mode or an app block is active.');
       return;
     }
-    await update({ blockYoutubeShortsEnabled: enabled });
+    if (!enabled) {
+      withDefensePin(() => void update({ systemGuardEnabled: false }));
+      return;
+    }
+    void update({ systemGuardEnabled: true });
   };
 
-  const handleBlockInstagramReelsToggle = async (enabled: boolean) => {
+  const handleBlockYoutubeShortsToggle = (enabled: boolean) => {
     if (!enabled && blockProtectionActive) {
-      Alert.alert(
-        'Protection is active',
-        'Instagram Reels protection cannot be turned off while Focus Mode or an app block is active.',
-      );
+      Alert.alert('Protection is active', 'YouTube Shorts protection cannot be turned off while Focus Mode or an app block is active.');
       return;
     }
-    await update({ blockInstagramReelsEnabled: enabled });
+    if (!enabled) {
+      withDefensePin(() => void update({ blockYoutubeShortsEnabled: false }));
+      return;
+    }
+    void update({ blockYoutubeShortsEnabled: true });
+  };
+
+  const handleBlockInstagramReelsToggle = (enabled: boolean) => {
+    if (!enabled && blockProtectionActive) {
+      Alert.alert('Protection is active', 'Instagram Reels protection cannot be turned off while Focus Mode or an app block is active.');
+      return;
+    }
+    if (!enabled) {
+      withDefensePin(() => void update({ blockInstagramReelsEnabled: false }));
+      return;
+    }
+    void update({ blockInstagramReelsEnabled: true });
   };
 
   return (
@@ -652,8 +671,25 @@ function SettingsScreen() {
         visible={wordsModalVisible}
         words={settings.blockedWords ?? []}
         locked={standaloneActive}
+        requireDefensePin={!standaloneActive}
         onSave={async (words) => { await setBlockedWords(words); }}
         onClose={() => setWordsModalVisible(false)}
+      />
+
+      <PinVerifyModal
+        visible={defPinVisible}
+        pinType="defense"
+        title="Defense Password Required"
+        description="Enter your defense password to make this change."
+        onVerified={() => {
+          setDefPinVisible(false);
+          pendingDefAction.current?.();
+          pendingDefAction.current = null;
+        }}
+        onCancel={() => {
+          setDefPinVisible(false);
+          pendingDefAction.current = null;
+        }}
       />
 
       <GreyoutScheduleModal

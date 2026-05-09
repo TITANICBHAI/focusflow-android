@@ -8,6 +8,9 @@
  * PIN gating:
  *   - Adding apps → no password required
  *   - Removing apps (save with fewer apps than original) → defense password required
+ *
+ * Each selected (blocked) app also shows a per-app VPN toggle so you can
+ * cut network access independently of the overlay block.
  */
 
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
@@ -18,7 +21,7 @@ import {
   TouchableOpacity,
   TextInput,
   StyleSheet,
-  Switch,
+  Image,
   Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -49,6 +52,9 @@ export default function AlwaysOnScreen() {
   const [selected, setSelected] = useState<Set<string>>(
     new Set(settings.alwaysOnPackages ?? [])
   );
+  const [vpnSelected, setVpnSelected] = useState<Set<string>>(
+    new Set(settings.alwaysOnVpnPackages ?? [])
+  );
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -77,6 +83,24 @@ export default function AlwaysOnScreen() {
   const toggle = useCallback((pkg: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
+      if (next.has(pkg)) {
+        next.delete(pkg);
+        // Also remove VPN if block is removed
+        setVpnSelected((v) => {
+          const vn = new Set(v);
+          vn.delete(pkg);
+          return vn;
+        });
+      } else {
+        next.add(pkg);
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleVpn = useCallback((pkg: string) => {
+    setVpnSelected((prev) => {
+      const next = new Set(prev);
       if (next.has(pkg)) next.delete(pkg);
       else next.add(pkg);
       return next;
@@ -87,14 +111,19 @@ export default function AlwaysOnScreen() {
     setSaving(true);
     try {
       const pkgs = Array.from(selected);
-      await updateSettings({ ...settings, alwaysOnPackages: pkgs });
+      const vpnPkgs = Array.from(vpnSelected);
+      await updateSettings({
+        ...settings,
+        alwaysOnPackages: pkgs,
+        alwaysOnVpnPackages: vpnPkgs,
+      });
       router.back();
     } catch {
       Alert.alert('Save failed', 'Could not save the always-on list. Please try again.');
     } finally {
       setSaving(false);
     }
-  }, [selected, settings, updateSettings]);
+  }, [selected, vpnSelected, settings, updateSettings]);
 
   const handleSave = async () => {
     // Detect if any originally-present packages are being removed
@@ -121,41 +150,92 @@ export default function AlwaysOnScreen() {
       'This removes all apps from the always-on enforcement list. They will no longer be blocked.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Clear all', style: 'destructive', onPress: () => setSelected(new Set()) },
+        {
+          text: 'Clear all',
+          style: 'destructive',
+          onPress: () => {
+            setSelected(new Set());
+            setVpnSelected(new Set());
+          },
+        },
       ]
     );
   };
 
   const renderItem = ({ item }: { item: InstalledApp }) => {
     const checked = selected.has(item.packageName);
+    const vpnOn = vpnSelected.has(item.packageName);
+
     return (
-      <TouchableOpacity
-        style={[
-          styles.appRow,
-          { borderBottomColor: theme.border },
-          checked && { backgroundColor: COLORS.primary + '0D' },
-        ]}
-        onPress={() => toggle(item.packageName)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.appInfo}>
-          <Text style={[styles.appName, { color: theme.text }]} numberOfLines={1}>
-            {item.appName}
-          </Text>
-          <Text style={[styles.appPkg, { color: theme.muted }]} numberOfLines={1}>
-            {item.packageName}
-          </Text>
-        </View>
-        <View
+      <View>
+        <TouchableOpacity
           style={[
-            styles.checkbox,
-            { borderColor: checked ? COLORS.primary : theme.border },
-            checked && { backgroundColor: COLORS.primary },
+            styles.appRow,
+            { borderBottomColor: theme.border },
+            checked && { backgroundColor: COLORS.primary + '0D' },
           ]}
+          onPress={() => toggle(item.packageName)}
+          activeOpacity={0.7}
         >
-          {checked && <Ionicons name="checkmark" size={14} color="#fff" />}
-        </View>
-      </TouchableOpacity>
+          {/* App icon */}
+          {item.iconBase64 ? (
+            <Image
+              source={{ uri: `data:image/png;base64,${item.iconBase64}` }}
+              style={styles.appIcon}
+            />
+          ) : (
+            <View style={[styles.appIconPlaceholder, { backgroundColor: theme.surface }]}>
+              <Ionicons name="apps-outline" size={20} color={COLORS.muted} />
+            </View>
+          )}
+
+          <View style={styles.appInfo}>
+            <Text style={[styles.appName, { color: theme.text }]} numberOfLines={1}>
+              {item.appName}
+            </Text>
+            <Text style={[styles.appPkg, { color: theme.muted }]} numberOfLines={1}>
+              {item.packageName}
+            </Text>
+          </View>
+
+          <View
+            style={[
+              styles.checkbox,
+              { borderColor: checked ? COLORS.primary : theme.border },
+              checked && { backgroundColor: COLORS.primary },
+            ]}
+          >
+            {checked && <Ionicons name="checkmark" size={14} color="#fff" />}
+          </View>
+        </TouchableOpacity>
+
+        {/* VPN toggle — shown for selected apps */}
+        {checked && (
+          <TouchableOpacity
+            style={[
+              styles.vpnRow,
+              { backgroundColor: theme.surface, borderBottomColor: theme.border },
+              vpnOn && styles.vpnRowActive,
+            ]}
+            onPress={() => toggleVpn(item.packageName)}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={vpnOn ? 'shield-checkmark-outline' : 'shield-outline'}
+              size={13}
+              color={vpnOn ? COLORS.primary : COLORS.muted}
+            />
+            <Text style={[styles.vpnText, vpnOn && styles.vpnTextActive]}>
+              {vpnOn ? 'Network block (VPN): on' : 'Add network block (VPN)'}
+            </Text>
+            {vpnOn && (
+              <View style={styles.vpnBadge}>
+                <Text style={styles.vpnBadgeText}>ON</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        )}
+      </View>
     );
   };
 
@@ -188,7 +268,7 @@ export default function AlwaysOnScreen() {
           These apps are blocked continuously — no session or timer needed. They stay blocked until you untick them here.
           {'\n'}
           <Text style={{ color: theme.muted }}>
-            Removing apps requires your defense password (if set).
+            Removing apps requires your defense password (if set). Tap a blocked app to also enable network blocking (VPN).
           </Text>
         </Text>
       </View>
@@ -301,8 +381,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.sm + 2,
+    paddingVertical: SPACING.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: SPACING.sm,
+  },
+  appIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: RADIUS.sm,
+  },
+  appIconPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: RADIUS.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   appInfo: { flex: 1, gap: 2 },
   appName: { fontSize: FONT.sm, fontWeight: '600' },
@@ -314,6 +407,38 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  vpnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.xs + 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  vpnRowActive: {
+    backgroundColor: COLORS.primary + '12',
+  },
+  vpnText: {
+    flex: 1,
+    fontSize: FONT.xs,
+    color: COLORS.muted,
+  },
+  vpnTextActive: {
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
+  vpnBadge: {
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.full,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  vpnBadgeText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
   emptyText: { fontSize: FONT.sm, textAlign: 'center' },

@@ -17,7 +17,7 @@
  *   8. Quick actions                — start standalone, edit schedules, etc.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -35,12 +35,18 @@ import { useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/useTheme';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { dbGetRecentDayCompletions, dbGetTodayFocusMinutes, dbGetTodayOverrideCount } from '@/data/database';
+import { PinVerifyModal } from '@/components/PinVerifyModal';
+import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
+import { SessionPinModule } from '@/native-modules/SessionPinModule';
 
 export default function ActiveScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const { state, stopFocusMode, setStandaloneBlockAndAllowance } = useApp();
   const { settings } = state;
+  const [defPinVisible, setDefPinVisible] = useState(false);
+  const [focusPinVisible, setFocusPinVisible] = useState(false);
+  const pendingDefAction = useRef<(() => void) | null>(null);
 
   // ── Derived live state ────────────────────────────────────────────────────
   const focusActive = state.focusSession?.isActive === true;
@@ -116,6 +122,20 @@ export default function ActiveScreen() {
     return () => { mounted = false; };
   }, [state.tasks]);
 
+  // ── Pin helpers ───────────────────────────────────────────────────────────
+  const withDefensePin = (action: () => void) => {
+    SharedPrefsModule.getString('defense_pin_hash')
+      .then((hash) => {
+        if (!hash) {
+          action();
+        } else {
+          pendingDefAction.current = action;
+          setDefPinVisible(true);
+        }
+      })
+      .catch(() => action());
+  };
+
   // ── Actions ───────────────────────────────────────────────────────────────
   const handleClearAlwaysOn = () => {
     if (standaloneTimerActive) {
@@ -125,27 +145,37 @@ export default function ActiveScreen() {
       );
       return;
     }
-    Alert.alert(
-      'Clear standalone block list?',
-      `This removes ${standalonePkgs.length} app${standalonePkgs.length !== 1 ? 's' : ''} from the always-on block list. Daily allowance rules are not affected.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear',
-          style: 'destructive',
-          onPress: () => {
-            void setStandaloneBlockAndAllowance([], null, allowanceEntries);
+    withDefensePin(() => {
+      Alert.alert(
+        'Clear standalone block list?',
+        `This removes ${standalonePkgs.length} app${standalonePkgs.length !== 1 ? 's' : ''} from the always-on block list. Daily allowance rules are not affected.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Clear',
+            style: 'destructive',
+            onPress: () => {
+              void setStandaloneBlockAndAllowance([], null, allowanceEntries);
+            },
           },
-        },
-      ],
-    );
+        ],
+      );
+    });
   };
 
   const handleStopFocus = () => {
-    Alert.alert('Stop focus session?', 'This ends app blocking for the current task.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Stop', style: 'destructive', onPress: () => { void stopFocusMode(); } },
-    ]);
+    SessionPinModule.isPinSet()
+      .catch(() => false)
+      .then((pinSet) => {
+        if (pinSet) {
+          setFocusPinVisible(true);
+        } else {
+          Alert.alert('Stop focus session?', 'This ends app blocking for the current task.', [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Stop', style: 'destructive', onPress: () => { void stopFocusMode(); } },
+          ]);
+        }
+      });
   };
 
   const standaloneEndsLabel = standaloneUntil
@@ -435,6 +465,37 @@ export default function ActiveScreen() {
           />
         </SectionCard>
       </ScrollView>
+
+      <PinVerifyModal
+        visible={defPinVisible}
+        pinType="defense"
+        title="Defense Password Required"
+        description="Enter your defense password to make this change."
+        onVerified={() => {
+          setDefPinVisible(false);
+          pendingDefAction.current?.();
+          pendingDefAction.current = null;
+        }}
+        onCancel={() => {
+          setDefPinVisible(false);
+          pendingDefAction.current = null;
+        }}
+      />
+
+      <PinVerifyModal
+        visible={focusPinVisible}
+        pinType="focus"
+        title="Stop Focus Session"
+        description="Enter your focus session password to end the session and stop all blocking."
+        onVerified={() => {
+          setFocusPinVisible(false);
+          Alert.alert('Stop focus session?', 'This ends app blocking for the current task.', [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Stop', style: 'destructive', onPress: () => { void stopFocusMode(); } },
+          ]);
+        }}
+        onCancel={() => setFocusPinVisible(false)}
+      />
     </SafeAreaView>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { withScreenErrorBoundary } from '@/components/withScreenErrorBoundary';
 import {
   View,
@@ -28,7 +28,9 @@ import { StandaloneBlockModal } from '@/components/StandaloneBlockModal';
 import { DailyAllowanceModal } from '@/components/DailyAllowanceModal';
 import ExtendModal from '@/components/ExtendModal';
 import { PinRotationModal } from '@/components/PinRotationModal';
+import { PinVerifyModal } from '@/components/PinVerifyModal';
 import { SessionPinModule } from '@/native-modules/SessionPinModule';
+import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
 
@@ -45,6 +47,9 @@ function FocusScreen() {
   const [showExtendModal, setShowExtendModal] = useState(false);
   const [pinRotationVisible, setPinRotationVisible] = useState(false);
   const [pendingStartTaskId, setPendingStartTaskId] = useState<string | null>(null);
+  const [defPinVisible, setDefPinVisible] = useState(false);
+  const pendingDefAction = useRef<(() => void) | null>(null);
+  const [focusStopPinVisible, setFocusStopPinVisible] = useState(false);
 
   const handleActivateFocus = async (taskId: string) => {
     const pinSet = await SessionPinModule.isPinSet().catch(() => false);
@@ -332,8 +337,24 @@ function FocusScreen() {
     // "Active" = list has packages AND enforcement is on (drives icon colour).
     const alwaysOnActive = alwaysOnHasList && enforcementOn;
     const autoCopyOn = settings.autoCopyToAlwaysOn ?? false;
+    const withDefensePin = (action: () => void) => {
+      SharedPrefsModule.getString('defense_pin_hash')
+        .then((hash) => {
+          if (!hash) {
+            action();
+          } else {
+            pendingDefAction.current = action;
+            setDefPinVisible(true);
+          }
+        })
+        .catch(() => action());
+    };
     const handleToggleEnforcement = (next: boolean) => {
-      void updateSettings({ ...settings, alwaysOnEnforcementEnabled: next });
+      if (!next) {
+        withDefensePin(() => void updateSettings({ ...settings, alwaysOnEnforcementEnabled: false }));
+        return;
+      }
+      void updateSettings({ ...settings, alwaysOnEnforcementEnabled: true });
     };
     // Slim hint counts shown below the card — quick at-a-glance status.
     const allowanceCount = (settings.dailyAllowanceEntries ?? []).length;
@@ -341,20 +362,22 @@ function FocusScreen() {
     const blockedWords   = settings.blockedWords ?? [];
     const keywordCount   = blockedWords.length;
     const handleClearAlwaysOn = () => {
-      Alert.alert(
-        'Clear always-on block list?',
-        `This removes ${alwaysOnPkgs.length} app${alwaysOnPkgs.length !== 1 ? 's' : ''} from the permanent block list. They will no longer be blocked 24/7.`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Clear',
-            style: 'destructive',
-            onPress: () => {
-              void updateSettings({ ...settings, alwaysOnPackages: [] });
+      withDefensePin(() => {
+        Alert.alert(
+          'Clear always-on block list?',
+          `This removes ${alwaysOnPkgs.length} app${alwaysOnPkgs.length !== 1 ? 's' : ''} from the permanent block list. They will no longer be blocked 24/7.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Clear',
+              style: 'destructive',
+              onPress: () => {
+                void updateSettings({ ...settings, alwaysOnPackages: [] });
+              },
             },
-          },
-        ],
-      );
+          ],
+        );
+      });
     };
     return (
       <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]}>
@@ -588,6 +611,22 @@ function FocusScreen() {
             );
           }}
           onClose={() => setDailyAllowanceModalVisible(false)}
+        />
+
+        <PinVerifyModal
+          visible={defPinVisible}
+          pinType="defense"
+          title="Defense Password Required"
+          description="Enter your defense password to make this change."
+          onVerified={() => {
+            setDefPinVisible(false);
+            pendingDefAction.current?.();
+            pendingDefAction.current = null;
+          }}
+          onCancel={() => {
+            setDefPinVisible(false);
+            pendingDefAction.current = null;
+          }}
         />
       </SafeAreaView>
     );
@@ -841,11 +880,16 @@ function FocusScreen() {
         ) : (
           <TouchableOpacity
             style={[styles.primaryBtn, { backgroundColor: COLORS.muted }]}
-            onPress={() => {
-              Alert.alert('Stop Focus', 'End focus mode for this task?', [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Stop', style: 'destructive', onPress: () => stopFocusMode() },
-              ]);
+            onPress={async () => {
+              const pinSet = await SessionPinModule.isPinSet().catch(() => false);
+              if (pinSet) {
+                setFocusStopPinVisible(true);
+              } else {
+                Alert.alert('Stop Focus', 'End focus mode for this task?', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Stop', style: 'destructive', onPress: () => stopFocusMode() },
+                ]);
+              }
             }}
           >
             <Ionicons name="stop-circle-outline" size={20} color="#fff" />
@@ -976,6 +1020,37 @@ function FocusScreen() {
           setPinRotationVisible(false);
           setPendingStartTaskId(null);
         }}
+      />
+
+      <PinVerifyModal
+        visible={defPinVisible}
+        pinType="defense"
+        title="Defense Password Required"
+        description="Enter your defense password to make this change."
+        onVerified={() => {
+          setDefPinVisible(false);
+          pendingDefAction.current?.();
+          pendingDefAction.current = null;
+        }}
+        onCancel={() => {
+          setDefPinVisible(false);
+          pendingDefAction.current = null;
+        }}
+      />
+
+      <PinVerifyModal
+        visible={focusStopPinVisible}
+        pinType="focus"
+        title="Stop Focus Session"
+        description="Enter your focus session password to end the session and stop all blocking."
+        onVerified={() => {
+          setFocusStopPinVisible(false);
+          Alert.alert('Stop Focus', 'End focus mode for this task?', [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Stop', style: 'destructive', onPress: () => stopFocusMode() },
+          ]);
+        }}
+        onCancel={() => setFocusStopPinVisible(false)}
       />
     </SafeAreaView>
   );

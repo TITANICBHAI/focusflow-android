@@ -572,9 +572,14 @@ export function StandaloneBlockModal({
   };
 
   const renderVpnControl = (packageName: string) => {
-    const isBlocked = selected.has(packageName);
-    if (!isBlocked) return null;
     const isVpn = vpnPkgsSet.has(packageName);
+    // Show VPN toggle for any app — network blocking is independent of overlay blocking.
+    // An app can be VPN-blocked without being in the block overlay list.
+    if (!isVpn && !selected.has(packageName)) {
+      // For unblocked apps, only show the VPN row if VPN is already enabled
+      // (so unselected apps don't clutter with an extra row by default).
+      return null;
+    }
     return (
       <View style={[styles.vpnRow, { backgroundColor: theme.surface, borderTopColor: theme.border }, isVpn && styles.vpnRowActive]}>
         <TouchableOpacity

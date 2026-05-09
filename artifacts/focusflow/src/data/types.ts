@@ -85,6 +85,17 @@ export interface RecurringBlockSchedule {
   endHour: number;
   endMin: number;
   enabled: boolean;
+  /**
+   * When true, network blocking (VPN) is also applied to all packages in
+   * this schedule during its time window, independently of the overlay block.
+   * An app can have VPN blocking enabled here without being in the block list.
+   */
+  vpnEnabled?: boolean;
+  /**
+   * Packages to network-block (VPN) during this schedule's window.
+   * If empty and vpnEnabled is true, falls back to blocking all `packages`.
+   */
+  vpnPackages?: string[];
 }
 
 export interface UserProfile {
@@ -150,6 +161,12 @@ export interface AppSettings {
    * automatically; user manages this list via the Always-On screen.
    */
   alwaysOnPackages?: string[];
+  /**
+   * Packages that should have network blocking (VPN) applied continuously,
+   * matching the always-on block enforcement. Can overlap with or differ from
+   * alwaysOnPackages — VPN can be enabled without an overlay block.
+   */
+  alwaysOnVpnPackages?: string[];
   /**
    * When true, any packages added via standalone block are automatically
    * mirrored into `alwaysOnPackages` so they stay blocked after the timed

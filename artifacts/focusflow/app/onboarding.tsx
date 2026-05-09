@@ -156,6 +156,21 @@ const PERMISSIONS: PermItem[] = [
     grantAction: 'auto',
     optional: true,
   },
+  {
+    id: 'device_admin',
+    icon: 'shield-outline',
+    title: 'Device Admin',
+    description: 'Prevents Samsung, Xiaomi, and other OEM phones from force-stopping FocusFlow via the recent-apps menu.',
+    whyNeeded:
+      'Some OEM ROMs let users swipe away or force-stop apps from the recents screen — activating Device Admin blocks that action so your focus sessions cannot be killed.',
+    brokenWithout: [
+      'On Samsung One UI, MIUI, and ColorOS you can swipe FocusFlow away to instantly stop all blocking',
+      'Advanced users can bypass any focus session by force-stopping the app',
+    ],
+    deepLinkLabel: 'Activate Device Admin',
+    grantAction: 'manual',
+    optional: true,
+  },
 ];
 
 async function checkStatus(id: string): Promise<PermStatus> {
@@ -187,6 +202,10 @@ async function checkStatus(id: string): Promise<PermStatus> {
       }
       case 'vpn': {
         const ok = await NetworkBlockModule.isVpnPermissionGranted();
+        return ok ? 'granted' : 'denied';
+      }
+      case 'device_admin': {
+        const ok = await UsageStatsModule.isDeviceAdminActive();
         return ok ? 'granted' : 'denied';
       }
       default:
@@ -258,6 +277,12 @@ export default function OnboardingScreen() {
         setTimeout(async () => {
           const s = await checkStatus('vpn');
           setStatuses((prev) => ({ ...prev, vpn: s }));
+        }, 800);
+      } else if (perm.id === 'device_admin') {
+        await UsageStatsModule.openDeviceAdminSettings();
+        setTimeout(async () => {
+          const s = await checkStatus('device_admin');
+          setStatuses((prev) => ({ ...prev, device_admin: s }));
         }, 800);
       }
     } catch {
