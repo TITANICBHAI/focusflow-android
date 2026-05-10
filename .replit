@@ -2,7 +2,9 @@ modules = ["nodejs-20", "web", "bash"]
 
 [deployment]
 router = "application"
-deploymentTarget = "autoscale"
+deploymentTarget = "static"
+build = ["pnpm", "--filter", "@workspace/mockup-sandbox", "run", "build"]
+publicDir = "artifacts/mockup-sandbox/dist"
 
 [deployment.postBuild]
 args = ["pnpm", "store", "prune"]
