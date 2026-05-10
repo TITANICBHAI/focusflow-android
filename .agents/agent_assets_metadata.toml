@@ -275,3 +275,9 @@ id = "iGCH82-DKkXWh7-QzHV0I"
 uri = "file://focusflow-vs-appblock-negatives.pdf"
 type = "pdf"
 title = "FocusFlow vs AppBlock — Comprehensive Negatives Report (v2)"
+
+[[outputs]]
+id = "X2_ZMBZj5S-aHsXz6lNi9"
+uri = "file://CLOUDFLARE_DEPLOY.md"
+type = "text"
+title = "Cloudflare Pages Deployment Guide"
