@@ -91,7 +91,7 @@ export async function startFocusMode(
   appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
 }
 
-export async function stopFocusMode(): Promise<void> {
+export async function stopFocusMode(pinHash: string | null = null): Promise<void> {
   if (!focusActive || !currentTask) return;
 
   focusActive = false;
@@ -102,8 +102,8 @@ export async function stopFocusMode(): Promise<void> {
   await dbEndFocusSession(task.id);
   await dismissPersistentNotification();
 
-  await ForegroundServiceModule.stopService();
-  await SharedPrefsModule.setFocusActive(false);
+  await ForegroundServiceModule.stopService(pinHash);
+  await SharedPrefsModule.setFocusActive(false, pinHash);
   await SharedPrefsModule.setAllowedPackages([]);
   // Clear the widget's active-task snapshot. The AppContext tick will re-populate
   // it on the next pass if there's still a time-active task running.

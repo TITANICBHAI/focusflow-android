@@ -76,6 +76,9 @@ class ForegroundTaskService : Service() {
         /** Cooldown: don't re-block the same package within this window (ms). */
         private const val FALLBACK_COOLDOWN_MS = 2_000L
 
+        /** How often the in-process VPN health check runs (ms). */
+        private const val VPN_HEALTH_CHECK_MS = 60_000L
+
         /** Notification channel for full-screen block-overlay intent. */
         private const val BLOCK_ALERT_CHANNEL  = "focusday_block_alert"
         private const val BLOCK_ALERT_NOTIF_ID = 9001
@@ -199,6 +202,26 @@ class ForegroundTaskService : Service() {
     private var fallbackLastBlockedAtMs: Long   = 0L
 
     private val handler = Handler(Looper.getMainLooper())
+
+    /**
+     * Secondary in-process VPN health check — runs every [VPN_HEALTH_CHECK_MS].
+     *
+     * The AccessibilityService runs the same check every 10 s, but
+     * ForegroundTaskService is typically hardier (it holds a foreground notification
+     * Android is reluctant to kill). Having a second, independent watcher here
+     * means the VPN is restarted quickly even on devices where the accessibility
+     * service is sluggish to recover.
+     *
+     * The AlarmManager-based [VpnWatchdogReceiver] is the ultimate fallback for
+     * full process-death scenarios; this runnable handles in-process silent kills.
+     */
+    private val vpnHealthRunnable = object : Runnable {
+        override fun run() {
+            checkAndHealVpn()
+            handler.postDelayed(this, VPN_HEALTH_CHECK_MS)
+        }
+    }
+
     private val tickRunnable = object : Runnable {
         override fun run() {
             val remaining = endTimeMs - System.currentTimeMillis()
@@ -324,6 +347,9 @@ class ForegroundTaskService : Service() {
         // Start the fallback blocker poll — it self-disables instantly when
         // accessibility is active, so there is zero overhead in the normal path.
         handler.postDelayed(fallbackPollRunnable, FALLBACK_POLL_MS)
+        // Start the in-process VPN health check. First tick is staggered by
+        // half the interval so it doesn't race the AccessibilityService check.
+        handler.postDelayed(vpnHealthRunnable, VPN_HEALTH_CHECK_MS / 2)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -435,6 +461,7 @@ class ForegroundTaskService : Service() {
     override fun onDestroy() {
         handler.removeCallbacks(tickRunnable)
         handler.removeCallbacks(fallbackPollRunnable)
+        handler.removeCallbacks(vpnHealthRunnable)
         WakeLockManager.release()
         super.onDestroy()
     }
@@ -477,6 +504,62 @@ class ForegroundTaskService : Service() {
             }
             startService(intent)
         } catch (_: Exception) { /* service not running — nothing to stop */ }
+    }
+
+    // ─── VPN health check ──────────────────────────────────────────────────────
+
+    /**
+     * Checks whether the VPN tunnel should be running and restarts it if not.
+     * Mirrors the same logic in AppBlockerAccessibilityService but runs inside
+     * ForegroundTaskService, which is typically more resilient to OEM killers.
+     *
+     * Guards:
+     *   • net_block_self_heal must be true  (user opted in)
+     *   • net_block_vpn must be true        (VPN mechanism selected)
+     *   • VPN is not already running
+     *   • A blocking session is currently active
+     *   • VPN permission is still held
+     */
+    private fun checkAndHealVpn() {
+        val prefs = blockPrefs
+        if (!prefs.getBoolean("net_block_self_heal", false)) return
+        if (!prefs.getBoolean("net_block_vpn", true)) return
+        if (NetworkBlockerVpnService.isRunning) return
+
+        val now = System.currentTimeMillis()
+        val focusActive = prefs.getBoolean("focus_active", false).let { on ->
+            if (!on) false
+            else {
+                val endMs = prefs.getLong("task_end_ms", 0L)
+                endMs <= 0L || now < endMs
+            }
+        }
+        val saActive = prefs.getBoolean("standalone_block_active", false).let { on ->
+            if (!on) false
+            else {
+                val untilMs = prefs.getLong("standalone_block_until_ms", 0L)
+                untilMs <= 0L || now < untilMs
+            }
+        }
+        if (!focusActive && !saActive) return
+
+        // Cannot restart without VPN permission
+        try {
+            if (android.net.VpnService.prepare(this) != null) return
+        } catch (_: Exception) { return }
+
+        val pkgs   = prefs.getString("net_block_packages", "[]") ?: "[]"
+        val global = prefs.getBoolean("net_block_global", false)
+        val mode   = if (global) NetworkBlockerVpnService.MODE_GLOBAL
+                     else        NetworkBlockerVpnService.MODE_PER_APP
+        try {
+            val intent = Intent(this, NetworkBlockerVpnService::class.java).apply {
+                action = NetworkBlockerVpnService.ACTION_START
+                putExtra(NetworkBlockerVpnService.EXTRA_PACKAGES, pkgs)
+                putExtra(NetworkBlockerVpnService.EXTRA_MODE, mode)
+            }
+            startService(intent)
+        } catch (_: Exception) { /* best-effort */ }
     }
 
     // ─── Notification builders ─────────────────────────────────────────────────

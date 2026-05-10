@@ -205,12 +205,35 @@ class SharedPrefsModule(private val reactContext: ReactApplicationContext) :
      *
      * Collision with task-based blocking: union (both block lists are enforced).
      *
+     * PIN gate: when active = false AND the stored `standalone_block_until_ms` is in
+     * the future (i.e. the user is cancelling an ongoing session early), [pinHash]
+     * must be the correct SHA-256 hex digest of the session PIN — otherwise the call
+     * is rejected with PIN_REQUIRED.  Natural expiry (timer already past) and starting
+     * a new block (active = true) never require a PIN.
+     *
      * @param active    Whether standalone blocking is currently enabled
      * @param packages  ReadableArray of package names to block
      * @param untilMs   Epoch milliseconds when standalone blocking expires (0 = no expiry)
+     * @param pinHash   SHA-256 hex of the session PIN, or null/empty if no PIN is set
      */
     @ReactMethod
-    fun setStandaloneBlock(active: Boolean, packages: ReadableArray, untilMs: Double, promise: Promise) {
+    fun setStandaloneBlock(active: Boolean, packages: ReadableArray, untilMs: Double, pinHash: String?, promise: Promise) {
+        if (!active) {
+            val currentUntil = prefs().getLong("standalone_block_until_ms", 0L)
+            if (currentUntil > System.currentTimeMillis()) {
+                // User is cancelling an active (not-yet-expired) standalone session — require PIN.
+                val storedHash = prefs().getString(
+                    com.tbtechs.focusflow.modules.SessionPinModule.PREF_PIN_HASH, null
+                )
+                if (!storedHash.isNullOrBlank()) {
+                    if (pinHash.isNullOrBlank() ||
+                        !storedHash.equals(pinHash.lowercase(), ignoreCase = true)) {
+                        promise.reject("PIN_REQUIRED", "A session PIN is set — supply the correct PIN hash to end the standalone block early")
+                        return
+                    }
+                }
+            }
+        }
         val list = (0 until packages.size()).map { "\"${packages.getString(it)}\"" }
         val json = "[${list.joinToString(",")}]"
         prefs().edit()

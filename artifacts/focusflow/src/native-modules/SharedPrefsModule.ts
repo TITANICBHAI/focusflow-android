@@ -86,9 +86,17 @@ export const SharedPrefsModule = {
     return SharedPrefs.pushWidgetUpdate();
   },
 
-  async setStandaloneBlock(active: boolean, packages: string[], untilMs: number): Promise<void> {
+  /**
+   * Controls standalone app blocking.
+   *
+   * When cancelling an active (not-yet-expired) session (active=false while the
+   * stored until timestamp is still in the future), [pinHash] must be the
+   * SHA-256 hex of the session PIN — otherwise the native call is rejected.
+   * Natural expiry and starting a new block never require a PIN.
+   */
+  async setStandaloneBlock(active: boolean, packages: string[], untilMs: number, pinHash: string | null = null): Promise<void> {
     if (!hasSharedPrefsMethod('setStandaloneBlock')) return;
-    return SharedPrefs.setStandaloneBlock(active, packages, untilMs);
+    return SharedPrefs.setStandaloneBlock(active, packages, untilMs, pinHash);
   },
 
   /**

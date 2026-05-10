@@ -19,8 +19,10 @@ import { Ionicons } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import { InstalledAppsModule, InstalledApp } from '@/native-modules/InstalledAppsModule';
 import { UsageStatsModule } from '@/native-modules/UsageStatsModule';
+import { SessionPinModule } from '@/native-modules/SessionPinModule';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { PinVerifyModal } from '@/components/PinVerifyModal';
 import type { DailyAllowanceEntry, AllowanceMode, BlockPreset, RecurringBlockSchedule } from '@/data/types';
 
 // ─── App Categories ───────────────────────────────────────────────────────────
@@ -179,7 +181,7 @@ interface Props {
   vpnPackages?: string[];
   blockPresets?: BlockPreset[];
   recurringBlockSchedules?: RecurringBlockSchedule[];
-  onSave: (packages: string[], untilMs: number | null, allowanceEntries: DailyAllowanceEntry[], vpnPackages?: string[]) => void | Promise<void>;
+  onSave: (packages: string[], untilMs: number | null, allowanceEntries: DailyAllowanceEntry[], vpnPackages?: string[], pinHash?: string | null) => void | Promise<void>;
   onSavePreset?: (preset: BlockPreset) => void | Promise<void>;
   onDeletePreset?: (id: string) => void | Promise<void>;
   onSaveRecurringSchedules?: (schedules: RecurringBlockSchedule[]) => void | Promise<void>;
@@ -256,6 +258,7 @@ export function StandaloneBlockModal({
   const [showSavePreset, setShowSavePreset] = useState(false);
   const [presetNameInput, setPresetNameInput] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [pinVerifyVisible, setPinVerifyVisible] = useState(false);
 
   const defaultUntil = blockUntil ? new Date(blockUntil) : dayjs().add(1, 'day').toDate();
   const [untilDate, setUntilDate] = useState<Date>(defaultUntil);
@@ -519,8 +522,15 @@ export function StandaloneBlockModal({
           text: 'Clear',
           style: 'destructive',
           onPress: async () => {
+            if (locked) {
+              const pinIsSet = await SessionPinModule.isPinSet().catch(() => false);
+              if (pinIsSet) {
+                setPinVerifyVisible(true);
+                return;
+              }
+            }
             try {
-              await onSave([], null, Array.from(dailyEntriesMap.values()), []);
+              await onSave([], null, Array.from(dailyEntriesMap.values()), [], null);
               onClose();
             } catch (e) {
               console.error('[StandaloneBlockModal] Failed to clear', e);
@@ -529,6 +539,16 @@ export function StandaloneBlockModal({
         },
       ]
     );
+  };
+
+  const handlePinVerified = async (pinHash: string) => {
+    setPinVerifyVisible(false);
+    try {
+      await onSave([], null, Array.from(dailyEntriesMap.values()), [], pinHash);
+      onClose();
+    } catch (e) {
+      console.error('[StandaloneBlockModal] Failed to clear after PIN verify', e);
+    }
   };
 
   const onDateChange = (_: DateTimePickerEvent, date?: Date) => {
@@ -1015,6 +1035,14 @@ export function StandaloneBlockModal({
           }
         />
       </SafeAreaView>
+      <PinVerifyModal
+        visible={pinVerifyVisible}
+        pinType="focus"
+        title="Session Password Required"
+        description="Enter your session password to end the standalone block early."
+        onVerified={handlePinVerified}
+        onCancel={() => setPinVerifyVisible(false)}
+      />
     </Modal>
   );
 }

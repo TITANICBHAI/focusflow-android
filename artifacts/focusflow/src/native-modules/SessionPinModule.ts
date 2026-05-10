@@ -8,6 +8,7 @@
  *   - SharedPrefsModule.setFocusActive(false, pinHash)
  *   - ForegroundServiceModule.stopService(pinHash)
  *   - NetworkBlockModule.stopNetworkBlock(pinHash)
+ *   - SharedPrefsModule.setStandaloneBlock(false, ..., pinHash) — only when cancelling an active (not-yet-expired) session early
  *
  * Usage pattern (JS layer):
  *   import { sha256 } from 'your-crypto-lib';

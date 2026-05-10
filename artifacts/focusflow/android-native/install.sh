@@ -167,6 +167,17 @@ else
   echo "   ✓ FocusDayDeviceAdminReceiver already registered"
 fi
 
+# ── VpnWatchdogReceiver ───────────────────────────────────────────────────────
+# AlarmManager-based watchdog that survives process death and restarts the VPN
+# tunnel if Android's battery optimiser killed it during an active session.
+
+if ! grep -q "VpnWatchdogReceiver" "$MANIFEST"; then
+  sed -i 's|</application>|        <receiver\n            android:name="com.tbtechs.focusflow.services.VpnWatchdogReceiver"\n            android:exported="false" />\n    </application>|' "$MANIFEST"
+  echo "   ✓ VpnWatchdogReceiver registered"
+else
+  echo "   ✓ VpnWatchdogReceiver already registered"
+fi
+
 # ── NotificationActionReceiver ────────────────────────────────────────────────
 # Handles taps on ✓ Done / +15m / +30m / Skip action buttons in the foreground
 # notification. All PendingIntents are package-restricted (setPackage = ours),

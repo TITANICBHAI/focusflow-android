@@ -80,6 +80,15 @@ class BootReceiver : BroadcastReceiver() {
                 nextName?.let { putExtra(ForegroundTaskService.EXTRA_NEXT_NAME, it) }
             }
             startService(context, serviceIntent)
+
+            // Rearm the VPN watchdog alarm — it was cancelled when the process
+            // was killed. If network blocking was active it will restart the VPN
+            // within one watchdog interval without the user noticing.
+            val netBlockEnabled = prefs.getBoolean("net_block_enabled", false)
+            val selfHeal        = prefs.getBoolean("net_block_self_heal", false)
+            if (netBlockEnabled && selfHeal) {
+                VpnWatchdogReceiver.schedule(context)
+            }
         } else {
             // ── Clear any stale focus flag, then start IDLE to keep process alive ──
             if (focusActive) {

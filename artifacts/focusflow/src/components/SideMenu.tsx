@@ -121,8 +121,8 @@ export function SideMenu({ visible, onOpen, onClose, tabBarHeight }: SideMenuPro
     return new Date(settings.standaloneBlockUntil).getTime() > Date.now();
   })();
 
-  const handleSaveStandaloneBlock = async (packages: string[], untilMs: number | null, allowanceEntries: DailyAllowanceEntry[]) => {
-    await setStandaloneBlockAndAllowance(packages, untilMs, allowanceEntries);
+  const handleSaveStandaloneBlock = async (packages: string[], untilMs: number | null, allowanceEntries: DailyAllowanceEntry[], vpnPackages?: string[], pinHash?: string | null) => {
+    await setStandaloneBlockAndAllowance(packages, untilMs, allowanceEntries, vpnPackages, pinHash ?? null);
   };
 
   const navigate = useCallback((path: string) => {

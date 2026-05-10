@@ -249,6 +249,12 @@ class NetworkBlockerVpnService : VpnService() {
                 .putString("net_block_mode",     mode)
                 .apply()
 
+            // Schedule the AlarmManager watchdog so the VPN is restarted even if
+            // Android kills the entire process (battery optimisers, memory pressure).
+            if (isRunning) {
+                VpnWatchdogReceiver.schedule(applicationContext)
+            }
+
             // Do NOT start a read loop on the TUN fd — packets that enter the tunnel
             // are never forwarded, so the OS considers them lost. This is the intended
             // behaviour: all routed traffic is silently dropped.
@@ -263,6 +269,8 @@ class NetworkBlockerVpnService : VpnService() {
         isRunning = false
         try { vpnInterface?.close() } catch (_: Exception) {}
         vpnInterface = null
+        // Cancel the AlarmManager watchdog — session is intentionally ending
+        VpnWatchdogReceiver.cancel(applicationContext)
     }
 
     // ─── Notification ─────────────────────────────────────────────────────────

@@ -195,11 +195,23 @@ interface AppContextValue {
   extendTaskTime: (taskId: string, extraMinutes: number) => Promise<void>;
 
   startFocusMode: (taskId: string) => Promise<void>;
-  stopFocusMode: () => Promise<void>;
+  /**
+   * Stops focus mode. When a session PIN is configured, [pinHash] must be the
+   * SHA-256 hex of that PIN — otherwise the native teardown calls are rejected.
+   */
+  stopFocusMode: (pinHash?: string | null) => Promise<void>;
 
   updateSettings: (settings: AppSettings) => Promise<void>;
-  setStandaloneBlock: (packages: string[], untilMs: number | null) => Promise<void>;
-  setStandaloneBlockAndAllowance: (packages: string[], untilMs: number | null, allowanceEntries: DailyAllowanceEntry[], vpnPackages?: string[]) => Promise<void>;
+  /**
+   * Starts or stops standalone app blocking. When stopping an active (not-yet-expired)
+   * session and a session PIN is configured, [pinHash] must be the SHA-256 hex of the PIN.
+   */
+  setStandaloneBlock: (packages: string[], untilMs: number | null, pinHash?: string | null) => Promise<void>;
+  /**
+   * Atomically sets standalone block + daily allowance. When stopping an active session
+   * and a session PIN is configured, [pinHash] must be the SHA-256 hex of the PIN.
+   */
+  setStandaloneBlockAndAllowance: (packages: string[], untilMs: number | null, allowanceEntries: DailyAllowanceEntry[], vpnPackages?: string[], pinHash?: string | null) => Promise<void>;
   setDailyAllowanceEntries: (entries: DailyAllowanceEntry[]) => Promise<void>;
   setBlockedWords: (words: string[]) => Promise<void>;
   setRecurringBlockSchedules: (schedules: RecurringBlockSchedule[]) => Promise<void>;
@@ -1355,25 +1367,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [state.tasks, state.settings.allowedInFocus],
   );
 
-  const stopFocusMode = useCallback(async () => {
+  const stopFocusMode = useCallback(async (pinHash: string | null = null) => {
     // Always attempt native teardown directly — _stopFocusMode() short-circuits
     // when focusActive is false (e.g. after a cold app restart), so we call
     // the native layer unconditionally here to guarantee the foreground service
     // and SharedPrefs are cleared regardless of JS module state.
     try {
-      await _stopFocusMode();
+      await _stopFocusMode(pinHash);
     } catch (e) {
       void logger.warn('AppContext', `stopFocusMode JS-layer failed: ${String(e)}`);
     }
     try {
-      await ForegroundServiceModule.stopService();
+      await ForegroundServiceModule.stopService(pinHash);
     } catch { /* already stopped */ }
     try {
-      await SharedPrefsModule.setFocusActive(false);
+      await SharedPrefsModule.setFocusActive(false, pinHash);
       await SharedPrefsModule.setAllowedPackages([]);
     } catch { /* best-effort */ }
     try {
-      await NetworkBlockModule.stopNetworkBlock(null);
+      await NetworkBlockModule.stopNetworkBlock(pinHash);
     } catch { /* best-effort — VPN may already be stopped */ }
     // After stopping the session VPN, restart it with always-on packages so
     // 24/7 VPN blocking continues working even when no focus session is active.
@@ -1466,7 +1478,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.settings]);
 
-  const setStandaloneBlock = useCallback(async (packages: string[], untilMs: number | null) => {
+  const setStandaloneBlock = useCallback(async (packages: string[], untilMs: number | null, pinHash: string | null = null) => {
     const untilIso = untilMs ? new Date(untilMs).toISOString() : null;
     // Auto-copy to always-on list if the toggle is on and packages are being added
     let alwaysOnPackages = state.settings.alwaysOnPackages ?? [];
@@ -1483,7 +1495,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await dbSaveSettings(newSettings);
     dispatch({ type: 'SET_SETTINGS', payload: newSettings });
     const active = packages.length > 0 && untilMs !== null && untilMs > Date.now();
-    await SharedPrefsModule.setStandaloneBlock(active, packages, untilMs ?? 0);
+    await SharedPrefsModule.setStandaloneBlock(active, packages, untilMs ?? 0, pinHash);
     // Sync always-on enforcement using the dedicated alwaysOnPackages list
     const allowanceEntries = newSettings.dailyAllowanceEntries ?? [];
     const alwaysOnActive = (newSettings.alwaysOnEnforcementEnabled !== false) &&
@@ -1511,6 +1523,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     untilMs: number | null,
     allowanceEntries: DailyAllowanceEntry[],
     vpnPackages?: string[],
+    pinHash: string | null = null,
   ) => {
     const untilIso = untilMs ? new Date(untilMs).toISOString() : null;
     // Auto-copy to always-on list if the toggle is on and packages are being added
@@ -1532,7 +1545,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await dbSaveSettings(newSettings);
     dispatch({ type: 'SET_SETTINGS', payload: newSettings });
     const active = packages.length > 0 && untilMs !== null && untilMs > Date.now();
-    await SharedPrefsModule.setStandaloneBlock(active, packages, untilMs ?? 0);
+    await SharedPrefsModule.setStandaloneBlock(active, packages, untilMs ?? 0, pinHash);
     await SharedPrefsModule.setDailyAllowanceConfig(allowanceEntries);
     await SharedPrefsModule.setVpnSelectedPackages(resolvedVpnPackages).catch(() => {});
     // Sync always-on enforcement using the dedicated alwaysOnPackages list
