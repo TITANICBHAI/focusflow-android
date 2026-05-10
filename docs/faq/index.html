@@ -4,13 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FocusFlow FAQ — Every Question Answered | TBTechs</title>
-  <meta name="description" content="FocusFlow frequently asked questions: Does it require root? How does Nuclear Mode work? Can it block YouTube Shorts? Does it collect data? All answered here." />
+  <meta name="description" content="FocusFlow frequently asked questions: Does it require root? How does the Temptation Log work? Can it block YouTube Shorts? Does it collect data? All answered here." />
   <meta name="robots" content="index, follow" />
   <link rel="canonical" href="https://focusflow-tbtechs.replit.app/faq/" />
   <meta name="google-site-verification" content="sou-98cZYPWFJmbwxJgJptO-ZaIPNJqz2ven_iS4NjI" />
   <meta name="msvalidate.01" content="FC2887EF2F94BFFE090CAB25A456AE86" />
   <meta property="og:title" content="FocusFlow FAQ — Every Question Answered" />
-  <meta property="og:description" content="Answers to every common question about FocusFlow: root requirement, Nuclear Mode, data privacy, OEM support, YouTube Shorts blocking, and more." />
+  <meta property="og:description" content="Answers to every common question about FocusFlow: root requirement, Temptation Log, data privacy, OEM support, YouTube Shorts blocking, and more." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://focusflow-tbtechs.replit.app/faq/" />
   <meta property="og:site_name" content="FocusFlow by TBTechs" />
@@ -18,7 +18,7 @@
   <meta property="og:image" content="https://focusflow-tbtechs.replit.app/og-image.jpg" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="FocusFlow FAQ — Every Question Answered" />
-  <meta name="twitter:description" content="FocusFlow: does it need root? How does Nuclear Mode work? Can it block Shorts/Reels? Full FAQ." />
+  <meta name="twitter:description" content="FocusFlow: does it need root? How does the Temptation Log work? Can it block Shorts/Reels? Full FAQ." />
   <meta name="twitter:image" content="https://focusflow-tbtechs.replit.app/og-image.jpg" />
 
   <script type="application/ld+json">
@@ -27,7 +27,6 @@
     "@type": "FAQPage",
     "mainEntity": [
       { "@type": "Question", "name": "Does FocusFlow require root?", "acceptedAnswer": { "@type": "Answer", "text": "No. FocusFlow works entirely within the standard Android permission system — Accessibility Service, VPN, and Device Administrator. No rooting or system modification is required. It runs on stock Android 8.0+ on 30+ OEM brands without root access." } },
-      { "@type": "Question", "name": "What is Nuclear Mode in FocusFlow?", "acceptedAnswer": { "@type": "Answer", "text": "Nuclear Mode lets you permanently uninstall your most addictive apps — Instagram, TikTok, Twitter, YouTube — directly from inside FocusFlow. Each uninstall triggers the standard Android system confirmation dialog. You can batch-uninstall multiple apps at once. No other screen time app offers this feature." } },
       { "@type": "Question", "name": "What is the Temptation Log?", "acceptedAnswer": { "@type": "Answer", "text": "The Temptation Log is a native record of every blocked-app attempt — the app name, package name, and timestamp — stored via TemptationLogManager in Android SharedPreferences, capped at 500 entries. Every Sunday at 08:00, FocusFlow delivers a Weekly Temptation Report push notification showing your 7-day blocked-attempt totals by app." } },
       { "@type": "Question", "name": "Can FocusFlow block YouTube Shorts without blocking all of YouTube?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. The YouTube Shorts Blocker closes the Shorts player within YouTube while leaving the main feed, search, subscriptions, and video playback fully accessible. Instagram Reels blocking works the same way — Reels feed is blocked, the rest of Instagram remains accessible." } },
       { "@type": "Question", "name": "How does FocusFlow prevent you from uninstalling it?", "acceptedAnswer": { "@type": "Answer", "text": "Three layers: (1) Android Device Administrator mode blocks the normal Settings uninstall path; (2) System Guard intercepts navigation to Accessibility Settings, Clear Data, and Uninstall screens during active sessions; (3) A SHA-256 hashed session PIN stored natively means even a compromised JavaScript layer cannot end a session without the correct PIN." } },
@@ -35,7 +34,7 @@
       { "@type": "Question", "name": "What Android versions and devices does FocusFlow support?", "acceptedAnswer": { "@type": "Answer", "text": "FocusFlow supports Android 8.0 and above on 30+ OEM brands including Samsung (OneUI), Xiaomi (MIUI/HyperOS), Oppo (ColorOS), Realme, Vivo, OnePlus (OxygenOS), Huawei (EMUI/HarmonyOS), Honor, Motorola, Asus, Nothing OS, Nokia/HMD, Sony Xperia, and many more." } },
       { "@type": "Question", "name": "Does FocusFlow work after a phone reboot?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. BootReceiver automatically restarts the Accessibility Service and VPN after any device reboot during an active session. Clock tamper detection also validates session timestamps at boot — the 'change the system clock to expire the timer' bypass does not work." } },
       { "@type": "Question", "name": "What blocking modes does FocusFlow have?", "acceptedAnswer": { "@type": "Answer", "text": "FocusFlow has four blocking modes: (1) Task-Based — blocks apps not on a per-task whitelist; (2) Standalone — timed blacklist blocking without a task; (3) Always-On — permanent blacklist always active; (4) Scheduled Greyout — calendar-based blocking without any session, per app per day of week. It also has a Daily Allowance Engine with count, time-budget, and interval sub-modes." } },
-      { "@type": "Question", "name": "Is FocusFlow free?", "acceptedAnswer": { "@type": "Answer", "text": "Yes, completely free. No subscription, no in-app purchase, no premium tier. Every feature — Accessibility Service enforcement, VPN blocking, Device Admin, Nuclear Mode, Temptation Log, Weekly Report, Scheduled Greyout Windows — is available at no cost." } },
+      { "@type": "Question", "name": "Is FocusFlow free?", "acceptedAnswer": { "@type": "Answer", "text": "Yes, completely free. No subscription, no in-app purchase, no premium tier. Every feature — Accessibility Service enforcement, VPN blocking, Device Admin, Temptation Log, Weekly Report, Scheduled Greyout Windows — is available at no cost." } },
       { "@type": "Question", "name": "Can FocusFlow block a specific website or keyword in a browser?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. FocusFlow's browser keyword and URL blocker works across Chrome, Firefox, Samsung Internet, and other major Android browsers. It intercepts window-title and URL-bar content via the Accessibility Service." } },
       { "@type": "Question", "name": "What happens if I install a new app during a FocusFlow session?", "acceptedAnswer": { "@type": "Answer", "text": "FocusFlow's PackageInstallReceiver monitors for ACTION_PACKAGE_ADDED broadcasts. Any newly installed app is immediately added to the block list and triggers aversive vibration feedback. The common 'install a competing browser mid-session' loophole is closed." } },
       { "@type": "Question", "name": "Can I import my block list from AppBlock, StayFree, or Digital Wellbeing?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. FocusFlow auto-detects TXT (one package name per line), CSV, and JSON block list exports from AppBlock, StayFree, ActionDash, and Digital Wellbeing Takeout. For apps without export (Stay Focused, Lock Me Out free tier), the name-based import lets you type app display names and FocusFlow fuzzy-matches them against installed apps." } },
@@ -164,7 +163,7 @@
         </details>
         <details>
           <summary>Is FocusFlow free?</summary>
-          <div class="faq-body">Yes, completely free. No subscription, no in-app purchase, no premium tier. Every feature — Accessibility Service enforcement, VPN blocking, Device Admin, Nuclear Mode, Temptation Log, Weekly Report, Scheduled Greyout Windows, scheduling engine — is available at no cost.</div>
+          <div class="faq-body">Yes, completely free. No subscription, no in-app purchase, no premium tier. Every feature — Accessibility Service enforcement, VPN blocking, Device Admin, Temptation Log, Weekly Report, Scheduled Greyout Windows, scheduling engine — is available at no cost.</div>
         </details>
         <details>
           <summary>What two permissions does FocusFlow need?</summary>
@@ -176,10 +175,6 @@
     <div class="faq-cat">
       <div class="faq-cat-title">Unique features</div>
       <div class="faq-list">
-        <details>
-          <summary>What is Nuclear Mode?</summary>
-          <div class="faq-body">Nuclear Mode lets you permanently uninstall your most addictive apps — Instagram, TikTok, Twitter, YouTube — directly from inside FocusFlow. Each uninstall triggers the standard Android system confirmation dialog. You can batch-uninstall multiple apps at once. <strong>No other screen time app</strong> — Freedom, Opal, AppBlock, Digital Wellbeing, Cold Turkey — provides this feature. Nuclear Mode is for users who have decided that blocking alone is insufficient and want a permanent commitment device.</div>
-        </details>
         <details>
           <summary>What is the Temptation Log?</summary>
           <div class="faq-body">The Temptation Log is a native record of every blocked-app attempt — app name, package name, and timestamp — stored via TemptationLogManager in Android SharedPreferences, capped at 500 entries. Every Sunday at 08:00, FocusFlow delivers a <strong>Weekly Temptation Report</strong> push notification showing your 7-day blocked-attempt totals by app (e.g. "Instagram: 18 attempts, TikTok: 14 attempts this week"). No other screen time app offers a temptation log or weekly behavioral report.</div>
