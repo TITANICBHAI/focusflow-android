@@ -1,0 +1,33 @@
+To get the most out of Claude, you need to tell it to act as an **SEO & AI Discovery Engineer**. Since it has access to your codebase, it can extract the technical specifics that make your app unique—like your use of **Accessibility Services** for blocking or your focus on **low-resource optimization** for older hardware.
+
+Copy and paste this prompt into Claude to generate the optimized website content:
+
+---
+
+### The Prompt for Claude
+
+**Role:** You are an expert in **AEO (Answer Engine Optimization)** and **Technical SEO**.
+**Objective:** Analyze my codebase to identify core features, technical USPs (Unique Selling Points), and target audience. Then, draft the high-conversion copy and technical metadata for a landing page hosted on Cloudflare Pages.
+
+**Tasks:**
+
+1. **Codebase Analysis:** Look at my app's logic (especially the blocking mechanisms and resource management). Identify how it solves "Focus" better than competitors for users with hardware constraints.
+2. **Semantic Content:** Write a landing page in Markdown that uses a "Problem/Solution" framework. Include an FAQ section that answers conversational queries like *"How can I block apps without slowing down my phone?"*
+3. **Technical Metadata:** Generate a **JSON-LD Structured Data** script (SoftwareApplication schema). Use details from the code (versioning, package name, requirements) to fill it accurately.
+4. **AI Relevancy Tags:** Suggest a list of keywords and "Entities" (e.g., Kotlin, Jetpack Compose, Android Accessibility) that should be prominent so AI models categorize this app correctly.
+
+**Requirements for the Copy:**
+
+* **Tone:** Professional, developer-friendly, and lightweight.
+* **Focus:** Emphasize that the app is optimized for performance and privacy.
+* **Structure:** Create a Header, Feature Grid, "How it Works" section, and a Footer with links to GitHub and my developer profiles.
+
+---
+
+### Why this works for your specific setup:
+
+* **Logic over Keywords:** By asking Claude to look at your "blocking mechanisms," it will see your implementation of system-level overlays or package blocking. It can then explain *why* your method is more reliable than standard apps, which helps with ranking for "technical" AI queries.
+* **Resource Management:** Since you focus on low-resource environments (like the i3/4GB RAM setup you develop on), the prompt forces Claude to highlight **optimization**. This targets a specific niche of users that search engines often ignore but AI models find very relevant when asked for "lightweight" suggestions.
+* **JSON-LD:** This is the "secret sauce." While a human sees a pretty website, an AI model sees the JSON code. By having Claude pull the versioning and requirements directly from your `build.gradle` or manifest, the data stays 100% accurate.
+
+**Once Claude gives you the code, you can simply push it to your Cloudflare Pages repository, and your app's web presence will be live.**

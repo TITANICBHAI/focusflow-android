@@ -365,6 +365,11 @@ export default function FocusFlowLanding() {
       </section>
 
       <footer style={{ marginTop: 48, paddingTop: 24, borderTop: "1px solid #e2e8f0", fontSize: 13, color: "#94a3b8", textAlign: "center" }}>
+        <div style={{ marginBottom: 10 }}>
+          <a href="/privacy" style={{ color: "#64748b", textDecoration: "none", margin: "0 12px" }}>Privacy Policy</a>
+          <span style={{ color: "#cbd5e1" }}>|</span>
+          <a href="/terms" style={{ color: "#64748b", textDecoration: "none", margin: "0 12px" }}>Terms of Service</a>
+        </div>
         FocusFlow by TBTechs · Android + Windows + macOS · Last updated May 2025
       </footer>
     </div>
