@@ -85,5 +85,4 @@ FocusFlow is completely free. No subscription, no in-app purchase, no premium ti
 
 ## Source code
 
-https://github.com/TITANICBHAI/FocusFlow-Android
-License: MIT
+https://github.com/TITANICBHAI/FocusFlow
