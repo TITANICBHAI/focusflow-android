@@ -160,7 +160,7 @@ export function DailyAllowanceModal({
     async (pkg: string) => {
       const isRemoving = entriesMap.has(pkg);
       if (isRemoving) {
-        if (locked && originalPkgs.has(pkg)) return;
+        if (locked) return;
         withDefensePin(pkg, () => doRemovePkg(pkg));
       } else {
         setEntriesMap((prev) => {
@@ -196,6 +196,7 @@ export function DailyAllowanceModal({
   };
 
   const handleClearNonLocked = () => {
+    if (locked) return;
     withDefensePin('clear', doClearNonLocked);
   };
 

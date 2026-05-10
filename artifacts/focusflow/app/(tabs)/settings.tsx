@@ -25,6 +25,7 @@ import { StandaloneBlockModal } from '@/components/StandaloneBlockModal';
 import { DailyAllowanceModal } from '@/components/DailyAllowanceModal';
 import { BlockedWordsModal } from '@/components/BlockedWordsModal';
 import { PinVerifyModal } from '@/components/PinVerifyModal';
+import { PinSetupModal } from '@/components/PinSetupModal';
 import { GreyoutScheduleModal } from '@/components/GreyoutScheduleModal';
 import { OverlayAppearanceModal } from '@/components/OverlayAppearanceModal';
 import DiagnosticsModal from '@/components/DiagnosticsModal';
@@ -48,6 +49,7 @@ function SettingsScreen() {
   const [diagnosticsVisible, setDiagnosticsVisible] = useState(false);
   const [importOtherAppVisible, setImportOtherAppVisible] = useState(false);
   const [defPinVisible, setDefPinVisible] = useState(false);
+  const [pinSetupVisible, setPinSetupVisible] = useState(false);
   const pendingDefAction = useRef<(() => void) | null>(null);
   // Diagnostics is gated on the native debuggable flag (not __DEV__) so that
   // debug-built APKs running prebundled JS still expose the section. We
@@ -227,12 +229,48 @@ function SettingsScreen() {
     SharedPrefsModule.getString('defense_pin_hash')
       .then((hash) => {
         if (hash) {
-          // A defense PIN is configured — always require it, regardless of
-          // whether the pinProtectionEnabled toggle is on.
+          // PIN is set — always require it regardless of the toggle state.
           pendingDefAction.current = action;
           setDefPinVisible(true);
+        } else if (settings.pinProtectionEnabled) {
+          // Toggle is ON but no PIN is set yet — check if user said "don't ask again".
+          SharedPrefsModule.getString('pin_setup_prompt_dismissed')
+            .then((dismissed) => {
+              if (dismissed === 'true') {
+                // User dismissed the prompt — proceed freely until toggle is cycled.
+                action();
+              } else {
+                Alert.alert(
+                  'No Defense Password Set',
+                  "PIN Protection is on but you haven't set a defense password yet. Set one now so your changes are protected.",
+                  [
+                    {
+                      text: 'Set Password Now',
+                      onPress: () => {
+                        pendingDefAction.current = action;
+                        setPinSetupVisible(true);
+                      },
+                    },
+                    {
+                      text: 'Not Now',
+                      style: 'cancel',
+                      onPress: () => action(),
+                    },
+                    {
+                      text: "Don't Ask Again",
+                      style: 'destructive',
+                      onPress: () => {
+                        void SharedPrefsModule.putString('pin_setup_prompt_dismissed', 'true');
+                        action();
+                      },
+                    },
+                  ],
+                );
+              }
+            })
+            .catch(() => action());
         } else {
-          // No PIN stored — only enforce if the toggle is on (will prompt to set one elsewhere)
+          // No PIN and toggle is OFF — proceed freely.
           action();
         }
       })
@@ -429,11 +467,9 @@ function SettingsScreen() {
               value={settings.pinProtectionEnabled ?? false}
               onValueChange={(v) => {
                 void update({ pinProtectionEnabled: v });
-                if (v && !settings.pinProtectionEnabled) {
-                  Alert.alert(
-                    'PIN Protection enabled',
-                    "Go to Block Enforcement → PIN Protection to set your Defense Password. Until you do, toggles will still ask if you'd like to set one before proceeding.",
-                  );
+                if (!v) {
+                  // Reset "don't ask again" so the prompt shows fresh next time the toggle is enabled.
+                  void SharedPrefsModule.putString('pin_setup_prompt_dismissed', '');
                 }
               }}
               trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
@@ -749,6 +785,20 @@ function SettingsScreen() {
         visible={importOtherAppVisible}
         onClose={() => setImportOtherAppVisible(false)}
         onImport={handleImportFromOtherApp}
+      />
+
+      <PinSetupModal
+        visible={pinSetupVisible}
+        pinType="defense"
+        onSaved={() => {
+          setPinSetupVisible(false);
+          pendingDefAction.current?.();
+          pendingDefAction.current = null;
+        }}
+        onCancel={() => {
+          setPinSetupVisible(false);
+          pendingDefAction.current = null;
+        }}
       />
     </SafeAreaView>
   );
