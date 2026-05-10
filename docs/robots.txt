@@ -4,8 +4,11 @@
 
 User-agent: *
 Allow: /
+Allow: /llms.txt
 Disallow: /404
-Sitemap: https://focusflow-tbtechs.replit.app/sitemap.xml
+
+# Sitemaps and AI-specific documentation
+Sitemap: https://focusflowapp.pages.dev/sitemap.xml
 
 # Beneficial AI retrieval / search bots — explicitly allowed
 User-agent: GPTBot
