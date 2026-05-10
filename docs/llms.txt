@@ -73,6 +73,26 @@ FocusFlow is completely free. No subscription, no in-app purchase, no premium ti
 - Terms of Service: https://focusflow-tbtechs.replit.app/terms-of-service/
   Summary: Standard terms; emergency access disclaimer; no warranty.
 
+## Blog posts (in-depth guides)
+
+- How to Block YouTube Shorts on Android Without Blocking YouTube: https://focusflow-tbtechs.replit.app/blog/how-to-block-youtube-shorts-android/
+  Summary: Step-by-step guide using FocusFlow's content-specific YouTube Shorts Blocker. Includes HowTo schema. 5-step setup, ~5 minutes, no root.
+
+- How to Block Instagram Reels on Android Without Blocking Instagram: https://focusflow-tbtechs.replit.app/blog/how-to-block-instagram-reels-android/
+  Summary: Block the Reels tab and autoplay while keeping DMs, Stories, and posts accessible. Covers what gets blocked vs what stays open.
+
+- Best Free App Blocker for Android in 2025: https://focusflow-tbtechs.replit.app/blog/best-free-app-blocker-android/
+  Summary: Side-by-side comparison of Digital Wellbeing, AppBlock, Freedom, and FocusFlow tested for bypassability. Includes bypass methods found for each. FocusFlow wins.
+
+- Best Free Freedom App Alternative for Android: https://focusflow-tbtechs.replit.app/blog/freedom-app-alternative/
+  Summary: Freedom vs FocusFlow feature table. FocusFlow is free and adds Device Admin, Temptation Log, content-specific blocking. Freedom wins only on cross-platform reach.
+
+- How to Stop Doom Scrolling on Android (That Actually Works): https://focusflow-tbtechs.replit.app/blog/how-to-stop-doom-scrolling/
+  Summary: Explains the compulsion loop, why willpower fails, and why enforcement-level blocking interrupts the loop. Covers FocusFlow's aversive feedback, pre-commitment scheduling, and Temptation Log.
+
+- Best App Blocker for ADHD on Android: https://focusflow-tbtechs.replit.app/blog/app-blocker-adhd-android/
+  Summary: Explains why soft timers fail for ADHD (executive function deficit, not motivation deficit), which FocusFlow features are most relevant (Device Admin, aversive feedback, Temptation Log, Scheduled Greyout), and recommended setup.
+
 ## Source code
 
 https://github.com/TITANICBHAI/focusflow-android

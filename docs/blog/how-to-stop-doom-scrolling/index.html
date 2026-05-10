@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>How to Stop Doom Scrolling on Android (That Actually Works) | FocusFlow</title>
+  <meta name="description" content="Willpower alone won't stop doom scrolling. Here's what the research says about the compulsion loop, and what app-level enforcement can actually do about it on Android." />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://focusflow-tbtechs.replit.app/blog/how-to-stop-doom-scrolling/" />
+  <meta name="google-site-verification" content="sou-98cZYPWFJmbwxJgJptO-ZaIPNJqz2ven_iS4NjI" />
+  <meta name="msvalidate.01" content="FC2887EF2F94BFFE090CAB25A456AE86" />
+  <meta property="og:title" content="How to Stop Doom Scrolling on Android (That Actually Works)" />
+  <meta property="og:description" content="Willpower won't stop doom scrolling. Here's what the research says and what app enforcement can actually do about it." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://focusflow-tbtechs.replit.app/blog/how-to-stop-doom-scrolling/" />
+  <meta property="og:site_name" content="FocusFlow by TBTechs" />
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:image" content="https://focusflow-tbtechs.replit.app/og-image.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="How to Stop Doom Scrolling on Android (That Actually Works)" />
+  <meta name="twitter:description" content="Willpower won't stop doom scrolling. Here's what enforcement-level blocking does differently." />
+  <meta name="twitter:image" content="https://focusflow-tbtechs.replit.app/og-image.jpg" />
+  <link rel="icon" href="../../logo-transparent.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" /></noscript>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://focusflow-tbtechs.replit.app/" },
+      { "@type": "ListItem", "position": 2, "name": "Blog", "item": "https://focusflow-tbtechs.replit.app/blog/" },
+      { "@type": "ListItem", "position": 3, "name": "How to Stop Doom Scrolling on Android", "item": "https://focusflow-tbtechs.replit.app/blog/how-to-stop-doom-scrolling/" }
+    ]
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "How to Stop Doom Scrolling on Android (That Actually Works)",
+    "description": "Why willpower alone won't stop doom scrolling, what the research says about the compulsion loop, and how app-level enforcement on Android actually helps.",
+    "url": "https://focusflow-tbtechs.replit.app/blog/how-to-stop-doom-scrolling/",
+    "datePublished": "2025-05-10",
+    "dateModified": "2025-05-10",
+    "author": { "@type": "Organization", "name": "TBTechs", "url": "https://focusflow-tbtechs.replit.app/" },
+    "publisher": { "@type": "Organization", "name": "TBTechs", "url": "https://focusflow-tbtechs.replit.app/" },
+    "inLanguage": "en-US",
+    "image": "https://focusflow-tbtechs.replit.app/og-image.jpg"
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --bg: #0D0D14; --surface: #13131F; --border: rgba(255,255,255,0.07); --accent: #6C63FF; --text: #F0F0F8; --muted: #9090B0; --green: #34D399; }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; line-height: 1.75; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    nav { position: sticky; top: 0; display: flex; align-items: center; justify-content: space-between; padding: 1rem 2rem; border-bottom: 1px solid var(--border); background: rgba(13,13,20,0.92); backdrop-filter: blur(14px); z-index: 100; }
+    .brand { display: flex; align-items: center; gap: 0.5rem; font-weight: 800; font-size: 1.05rem; color: var(--text); }
+    .brand img { width: 28px; height: 28px; border-radius: 7px; }
+    .nav-links { display: flex; gap: 1.4rem; align-items: center; }
+    .nav-links a { color: var(--muted); font-size: 0.88rem; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta { background: var(--accent); color: #fff !important; padding: 0.45rem 1rem; border-radius: 8px; font-weight: 600; font-size: 0.82rem !important; }
+    .breadcrumb { padding: 1rem 2rem; font-size: 0.8rem; color: var(--muted); }
+    .breadcrumb a { color: var(--accent); }
+    .breadcrumb span { margin: 0 0.4rem; }
+    article { max-width: 740px; margin: 0 auto; padding: 2.5rem 2rem 6rem; }
+    .post-tag { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
+    h1 { font-size: clamp(1.7rem, 4vw, 2.3rem); font-weight: 800; letter-spacing: -0.03em; line-height: 1.2; margin: 0.75rem 0 1rem; }
+    .post-meta { font-size: 0.8rem; color: var(--muted); margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+    h2 { font-size: 1.3rem; font-weight: 700; margin: 2.5rem 0 0.75rem; }
+    h3 { font-size: 1.05rem; font-weight: 600; margin: 1.5rem 0 0.5rem; }
+    p { margin-bottom: 1.1rem; color: #D0D0E8; }
+    ul, ol { margin: 0.5rem 0 1.25rem 1.5rem; color: #D0D0E8; }
+    li { margin-bottom: 0.5rem; }
+    .bluf { background: linear-gradient(135deg, rgba(108,99,255,0.12), rgba(108,99,255,0.04)); border: 1px solid rgba(108,99,255,0.3); border-radius: 12px; padding: 1.25rem 1.5rem; margin-bottom: 2rem; }
+    .bluf strong { color: var(--accent); }
+    .insight-box { background: var(--surface); border-left: 3px solid var(--accent); border-radius: 0 10px 10px 0; padding: 1rem 1.25rem; margin: 1.5rem 0; font-size: 0.92rem; color: #D0D0E8; }
+    .method-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 0.75rem 0; }
+    .method-card h3 { margin: 0 0 0.4rem; font-size: 0.95rem; }
+    .method-card p { margin: 0; font-size: 0.88rem; }
+    .verdict { background: rgba(52,211,153,0.08); border: 1px solid rgba(52,211,153,0.2); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 2rem 0; }
+    .verdict strong { color: var(--green); }
+    .cta-box { background: linear-gradient(135deg, rgba(108,99,255,0.18), rgba(108,99,255,0.06)); border: 1px solid rgba(108,99,255,0.35); border-radius: 16px; padding: 2rem; text-align: center; margin-top: 3rem; }
+    .cta-box h2 { font-size: 1.4rem; margin: 0 0 0.5rem; }
+    .cta-box p { font-size: 0.92rem; margin-bottom: 1.25rem; }
+    .btn { display: inline-block; background: var(--accent); color: #fff; padding: 0.75rem 1.75rem; border-radius: 10px; font-weight: 700; font-size: 0.9rem; }
+    .btn:hover { background: #7a72ff; text-decoration: none; }
+    .internal-links { margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border); }
+    .internal-links h2 { font-size: 1rem; margin-bottom: 0.75rem; color: var(--muted); font-weight: 600; }
+    .internal-links ul { list-style: none; margin: 0; padding: 0; }
+    .internal-links li { margin-bottom: 0.4rem; }
+    footer { border-top: 1px solid var(--border); padding: 2rem; text-align: center; color: var(--muted); font-size: 0.8rem; }
+    footer a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <nav>
+    <a class="brand" href="../../">
+      <img src="../../logo-transparent.png" alt="FocusFlow" />
+      FocusFlow
+    </a>
+    <div class="nav-links">
+      <a href="../../features/">Features</a>
+      <a href="../../compare/">Compare</a>
+      <a href="../../how-it-works/">How it works</a>
+      <a href="../../faq/">FAQ</a>
+      <a href="../../blog/">Blog</a>
+      <a class="nav-cta" href="https://github.com/TITANICBHAI/focusflow-android/releases">Download APK</a>
+    </div>
+  </nav>
+
+  <div class="breadcrumb">
+    <a href="../../">Home</a><span>›</span><a href="../../blog/">Blog</a><span>›</span> How to Stop Doom Scrolling
+  </div>
+
+  <article>
+    <p class="post-tag">Deep Dive</p>
+    <h1>How to Stop Doom Scrolling on Android (That Actually Works)</h1>
+    <p class="post-meta">By TBTechs · May 2025 · 9 min read</p>
+
+    <div class="bluf">
+      <strong>Bottom line:</strong> Doom scrolling is a compulsion loop, not a habit. It bypasses your prefrontal cortex — which is why intention-based solutions (reminders, screen time nudges, app timers) consistently fail. Enforcement-level blocking that makes it physically impossible to continue is the only intervention that reliably interrupts the loop.
+    </div>
+
+    <h2>What Is Doom Scrolling, Actually?</h2>
+    <p>Doom scrolling is the compulsive consumption of a continuous, algorithmically curated content feed — usually news, social media, or short-form video — despite feeling worse while doing it. The term became common during COVID-19 but the mechanism predates smartphones.</p>
+    <p>It's distinct from regular browsing because the content is:</p>
+    <ul>
+      <li><strong>Infinite</strong> — there is no natural stopping point</li>
+      <li><strong>Unpredictable</strong> — content varies in reward value, creating a variable reward schedule (the same mechanism as slot machines)</li>
+      <li><strong>Emotionally activating</strong> — negative content generates stronger engagement signals, so algorithms surface more of it</li>
+    </ul>
+
+    <h2>Why Willpower Fails Against Doom Scrolling</h2>
+    <p>The prefrontal cortex handles rational decision-making and impulse control. The limbic system handles immediate emotional responses. During doom scrolling, the limbic system is engaged and the prefrontal cortex is suppressed — this is the same state as many addictive behaviors.</p>
+
+    <div class="insight-box">
+      The intent to stop scrolling ("I'll just check one more thing") is processed in the same brain region that's currently overwhelmed. You're asking a fatigued system to override itself. This is why most people who want to stop can't — not from lack of motivation but from a neurological disadvantage in that moment.
+    </div>
+
+    <p>This is also why solutions that rely on your in-the-moment decision-making fail:</p>
+    <ul>
+      <li>"Take a break" notifications — you dismiss them without thinking</li>
+      <li>Daily screen time limits — you tap "Ignore for today" automatically</li>
+      <li>App timers — a one-tap override puts you right back in the feed</li>
+      <li>Grayscale mode — your brain adapts to it within days</li>
+    </ul>
+
+    <h2>What Actually Interrupts the Doom Scroll Loop</h2>
+
+    <h3>1. Friction That Survives Impulsive Override Attempts</h3>
+    <p>The key word is "survives." A soft blocker that shows a dialog you can dismiss in one tap does not create meaningful friction. Effective friction requires multiple deliberate steps — steps that take enough time to re-engage the prefrontal cortex before the impulsive action is complete.</p>
+
+    <div class="method-card">
+      <h3>What works: Aversive physical feedback</h3>
+      <p>FocusFlow combines three aversive signals the moment a blocked app is detected: screen dims to 2% brightness, a full-screen overlay with an explicit "Blocked" message, and a vibration pulse. The combination is jarring enough to break the scroll state — the physiological equivalent of a cold splash of water.</p>
+    </div>
+
+    <div class="method-card">
+      <h3>What works: Making re-entry genuinely hard</h3>
+      <p>A session PIN that is hashed with SHA-256 means you cannot tap your way back in. You'd need to recall a PIN you set when calm — a step that involves deliberate executive function. Combined with Device Admin (prevents uninstalling the blocker), there's no short path back to the feed.</p>
+    </div>
+
+    <h3>2. Pre-commitment Devices</h3>
+    <p>The most effective interventions against compulsive behavior are set up when you're calm and rational, and enforced automatically when you're not. Scheduled Greyout in FocusFlow is exactly this: you define blocking windows in advance (for example, 22:00–07:00 for doom scrolling that disrupts sleep), and the enforcement happens without requiring any willpower in the moment.</p>
+
+    <h3>3. Behavioral Data to Build Self-Awareness</h3>
+    <p>FocusFlow's Temptation Log records every blocked-app attempt with a timestamp. Reviewing this data — especially the Weekly Temptation Report delivered every Sunday — creates a feedback loop that many users find more motivating than any intrinsic willpower: seeing "you tried to open Instagram 47 times last Wednesday between 10pm and midnight" is a concrete data point that makes the pattern visible.</p>
+
+    <h2>The Nuclear Option for Extreme Cases</h2>
+    <p>For users whose doom scrolling is centered on one or two apps that provide no genuine value — Instagram, TikTok, Twitter — FocusFlow's Nuclear Mode allows you to permanently uninstall those apps from inside the FocusFlow interface. You cannot reinstall them during an active session. This is an extreme measure and should be considered only if lower-friction approaches haven't worked.</p>
+
+    <h2>A Realistic Setup for Stopping Doom Scrolling</h2>
+    <ol>
+      <li>Install FocusFlow and complete the 5-minute setup (see <a href="../../how-it-works/">How It Works</a>)</li>
+      <li>Add your main doom scroll sources to the block list: Instagram, TikTok, Twitter, YouTube Shorts, Reddit</li>
+      <li>Set a Scheduled Greyout for your highest-risk times (typically late evening: 21:00–07:00)</li>
+      <li>Enable the Weekly Temptation Report to arrive every Sunday morning at 08:00</li>
+      <li>Review your Temptation Log after one week to see exactly when and how often you attempted to bypass the block</li>
+    </ol>
+
+    <div class="verdict">
+      <strong>Result:</strong> The first week is uncomfortable — you'll attempt to bypass the block multiple times. After two to three weeks, the logged data shows a consistent downward trend in bypass attempts. The compulsion loop weakens when it reliably fails to produce the reward.
+    </div>
+
+    <div class="cta-box">
+      <h2>Stop Doom Scrolling — Free</h2>
+      <p>FocusFlow's hard-enforcement blocking and Temptation Log are free. No subscription required.</p>
+      <a class="btn" href="https://github.com/TITANICBHAI/focusflow-android/releases">Download FocusFlow APK →</a>
+    </div>
+
+    <div class="internal-links">
+      <h2>Related guides</h2>
+      <ul>
+        <li><a href="../how-to-block-youtube-shorts-android/">How to block YouTube Shorts without blocking YouTube</a></li>
+        <li><a href="../how-to-block-instagram-reels-android/">How to block Instagram Reels without blocking Instagram</a></li>
+        <li><a href="../app-blocker-adhd-android/">Best app blocker for ADHD on Android</a></li>
+        <li><a href="../../features/">All FocusFlow features — Temptation Log, Nuclear Mode, Weekly Report</a></li>
+      </ul>
+    </div>
+  </article>
+
+  <footer>
+    <p>© 2025 TBTechs · <a href="../../privacy-policy/">Privacy</a> · <a href="../../terms-of-service/">Terms</a> · <a href="https://github.com/TITANICBHAI/focusflow-android">GitHub</a></p>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FocusFlow Blog — Android Focus & App Blocking Guides | TBTechs</title>
+  <meta name="description" content="Practical guides on blocking distracting apps, stopping doom scrolling, comparing app blockers, and taking control of your Android screen time. By TBTechs." />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://focusflow-tbtechs.replit.app/blog/" />
+  <meta name="google-site-verification" content="sou-98cZYPWFJmbwxJgJptO-ZaIPNJqz2ven_iS4NjI" />
+  <meta name="msvalidate.01" content="FC2887EF2F94BFFE090CAB25A456AE86" />
+  <meta property="og:title" content="FocusFlow Blog — Android Focus & App Blocking Guides" />
+  <meta property="og:description" content="Practical guides on blocking distracting apps, stopping doom scrolling, and taking back your Android screen time. Free app blocker by TBTechs." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://focusflow-tbtechs.replit.app/blog/" />
+  <meta property="og:site_name" content="FocusFlow by TBTechs" />
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:image" content="https://focusflow-tbtechs.replit.app/og-image.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="FocusFlow Blog — Android Focus & App Blocking Guides" />
+  <meta name="twitter:description" content="Practical guides on blocking distracting apps and stopping doom scrolling on Android." />
+  <meta name="twitter:image" content="https://focusflow-tbtechs.replit.app/og-image.jpg" />
+  <link rel="icon" href="../logo-transparent.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" /></noscript>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://focusflow-tbtechs.replit.app/" },
+      { "@type": "ListItem", "position": 2, "name": "Blog", "item": "https://focusflow-tbtechs.replit.app/blog/" }
+    ]
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    "name": "FocusFlow Blog",
+    "description": "Guides on Android app blocking, screen time management, and digital focus.",
+    "url": "https://focusflow-tbtechs.replit.app/blog/",
+    "itemListElement": [
+      { "@type": "ListItem", "position": 1, "url": "https://focusflow-tbtechs.replit.app/blog/how-to-block-youtube-shorts-android/", "name": "How to Block YouTube Shorts on Android (Without Blocking YouTube)" },
+      { "@type": "ListItem", "position": 2, "url": "https://focusflow-tbtechs.replit.app/blog/how-to-block-instagram-reels-android/", "name": "How to Block Instagram Reels on Android (Without Blocking Instagram)" },
+      { "@type": "ListItem", "position": 3, "url": "https://focusflow-tbtechs.replit.app/blog/best-free-app-blocker-android/", "name": "Best Free App Blocker for Android in 2025" },
+      { "@type": "ListItem", "position": 4, "url": "https://focusflow-tbtechs.replit.app/blog/freedom-app-alternative/", "name": "Best Free Freedom App Alternative for Android" },
+      { "@type": "ListItem", "position": 5, "url": "https://focusflow-tbtechs.replit.app/blog/how-to-stop-doom-scrolling/", "name": "How to Stop Doom Scrolling on Android" },
+      { "@type": "ListItem", "position": 6, "url": "https://focusflow-tbtechs.replit.app/blog/app-blocker-adhd-android/", "name": "Best App Blocker for ADHD on Android" }
+    ]
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0D0D14; --surface: #13131F; --border: rgba(255,255,255,0.07);
+      --accent: #6C63FF; --text: #F0F0F8; --muted: #9090B0;
+    }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; line-height: 1.7; }
+    a { color: inherit; text-decoration: none; }
+    nav {
+      position: sticky; top: 0; display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 2rem; border-bottom: 1px solid var(--border);
+      background: rgba(13,13,20,0.92); backdrop-filter: blur(14px); z-index: 100;
+    }
+    .brand { display: flex; align-items: center; gap: 0.5rem; font-weight: 800; font-size: 1.05rem; }
+    .brand img { width: 28px; height: 28px; border-radius: 7px; }
+    .nav-links { display: flex; gap: 1.4rem; align-items: center; }
+    .nav-links a { color: var(--muted); font-size: 0.88rem; transition: color 0.2s; }
+    .nav-links a:hover, .nav-links a.active { color: var(--text); }
+    .nav-cta { background: var(--accent); color: #fff !important; padding: 0.45rem 1rem; border-radius: 8px; font-weight: 600; font-size: 0.82rem !important; }
+    .nav-cta:hover { background: #7a72ff !important; }
+    .breadcrumb { padding: 1rem 2rem; font-size: 0.8rem; color: var(--muted); }
+    .breadcrumb a { color: var(--accent); }
+    .breadcrumb span { margin: 0 0.4rem; }
+    main { max-width: 1100px; margin: 0 auto; padding: 3rem 2rem 6rem; }
+    .page-header { text-align: center; margin-bottom: 3.5rem; }
+    .eyebrow { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin-bottom: 0.75rem; }
+    h1 { font-size: clamp(2rem, 5vw, 2.8rem); font-weight: 800; letter-spacing: -0.03em; line-height: 1.2; margin-bottom: 1rem; }
+    .lead { color: var(--muted); font-size: 1.05rem; max-width: 560px; margin: 0 auto; }
+    .blog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; }
+    .card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+      padding: 1.75rem; display: flex; flex-direction: column; gap: 0.75rem;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .card-tag { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
+    .card h2 { font-size: 1.1rem; font-weight: 700; line-height: 1.35; }
+    .card p { font-size: 0.88rem; color: var(--muted); flex: 1; }
+    .card-meta { font-size: 0.75rem; color: var(--muted); }
+    .read-more { margin-top: 0.5rem; font-size: 0.85rem; font-weight: 600; color: var(--accent); display: inline-flex; align-items: center; gap: 0.3rem; }
+    footer { border-top: 1px solid var(--border); padding: 2rem; text-align: center; color: var(--muted); font-size: 0.8rem; }
+    footer a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <nav>
+    <a class="brand" href="../">
+      <img src="../logo-transparent.png" alt="FocusFlow" />
+      FocusFlow
+    </a>
+    <div class="nav-links">
+      <a href="../features/">Features</a>
+      <a href="../compare/">Compare</a>
+      <a href="../how-it-works/">How it works</a>
+      <a href="../faq/">FAQ</a>
+      <a href="../blog/" class="active">Blog</a>
+      <a class="nav-cta" href="https://github.com/TITANICBHAI/focusflow-android/releases">Download APK</a>
+    </div>
+  </nav>
+
+  <div class="breadcrumb">
+    <a href="../">Home</a><span>›</span> Blog
+  </div>
+
+  <main>
+    <header class="page-header">
+      <p class="eyebrow">FocusFlow Blog</p>
+      <h1>Guides to Reclaiming Your Focus on Android</h1>
+      <p class="lead">Practical, no-fluff guides on blocking distractions, stopping doom scrolling, and understanding your options.</p>
+    </header>
+
+    <div class="blog-grid">
+
+      <a class="card" href="how-to-block-youtube-shorts-android/">
+        <span class="card-tag">How-To</span>
+        <h2>How to Block YouTube Shorts on Android Without Blocking YouTube</h2>
+        <p>A step-by-step guide to blocking the Shorts feed while keeping full access to YouTube videos, channels, and playlists.</p>
+        <span class="card-meta">May 2025 · 6 min read</span>
+        <span class="read-more">Read guide →</span>
+      </a>
+
+      <a class="card" href="how-to-block-instagram-reels-android/">
+        <span class="card-tag">How-To</span>
+        <h2>How to Block Instagram Reels on Android Without Blocking Instagram</h2>
+        <p>Block the Reels tab and auto-play videos without losing access to DMs, Stories, or your feed. Here's exactly how.</p>
+        <span class="card-meta">May 2025 · 6 min read</span>
+        <span class="read-more">Read guide →</span>
+      </a>
+
+      <a class="card" href="best-free-app-blocker-android/">
+        <span class="card-tag">Review</span>
+        <h2>Best Free App Blocker for Android in 2025</h2>
+        <p>We tested Digital Wellbeing, AppBlock, Freedom, and FocusFlow. Here's which one actually stops you from getting back in.</p>
+        <span class="card-meta">May 2025 · 8 min read</span>
+        <span class="read-more">Read guide →</span>
+      </a>
+
+      <a class="card" href="freedom-app-alternative/">
+        <span class="card-tag">Comparison</span>
+        <h2>Best Free Freedom App Alternative for Android</h2>
+        <p>Freedom costs $6.99/month. These free Android alternatives block just as hard — one of them does it harder.</p>
+        <span class="card-meta">May 2025 · 7 min read</span>
+        <span class="read-more">Read guide →</span>
+      </a>
+
+      <a class="card" href="how-to-stop-doom-scrolling/">
+        <span class="card-tag">Deep Dive</span>
+        <h2>How to Stop Doom Scrolling on Android (That Actually Works)</h2>
+        <p>Willpower alone won't stop it. Here's what the research says, and what app-level enforcement can actually do about it.</p>
+        <span class="card-meta">May 2025 · 9 min read</span>
+        <span class="read-more">Read guide →</span>
+      </a>
+
+      <a class="card" href="app-blocker-adhd-android/">
+        <span class="card-tag">Guide</span>
+        <h2>Best App Blocker for ADHD on Android — Hard Enforcement Explained</h2>
+        <p>Soft timers don't work for ADHD. Here's why enforcement-level blocking is different, and which app delivers it on Android.</p>
+        <span class="card-meta">May 2025 · 7 min read</span>
+        <span class="read-more">Read guide →</span>
+      </a>
+
+    </div>
+  </main>
+
+  <footer>
+    <p>© 2025 TBTechs · <a href="../privacy-policy/">Privacy</a> · <a href="../terms-of-service/">Terms</a> · <a href="https://github.com/TITANICBHAI/focusflow-android">GitHub</a></p>
+  </footer>
+</body>
+</html>
