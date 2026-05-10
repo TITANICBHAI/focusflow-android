@@ -394,6 +394,146 @@ export default function FocusFlowLanding() {
       </section>
 
       {/* ═══════════════════════════════════════════════
+          USE CASES
+      ═══════════════════════════════════════════════ */}
+      <section style={{ marginTop: 40 }}>
+        <h2 style={h2}>Who Uses FocusFlow — Common Use Cases</h2>
+        <p>FocusFlow is used across several distinct contexts. Because the enforcement is native and hard, it works for people who have already tried soft-timer apps and found them insufficient.</p>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 16 }}>
+          {[
+            {
+              title: "Phone Addiction Recovery",
+              body: "FocusFlow is used by people recovering from compulsive social media use. Nuclear Mode allows permanent deletion of addictive apps. The Temptation Log shows exactly how many times you reached for a blocked app — data that is often more motivating than any timer.",
+              color: "#fff1f2", border: "#fecdd3"
+            },
+            {
+              title: "Students — Deep Study Blocks",
+              body: "Task-Based Focus Mode whitelists only study tools (notes apps, e-books, a dictionary) and blocks everything else during the study session. The Pomodoro timer automatically signals work and break phases with vibration and push notifications, without any interaction required.",
+              color: "#f0fdf4", border: "#bbf7d0"
+            },
+            {
+              title: "Professionals — Work-Hours Blocking",
+              body: "Scheduled Greyout Windows block social media Monday through Friday 09:00–18:00 without any session required. Recurring Block Schedules support optional VPN blocking per-schedule, so the apps lose internet access during work hours even if the accessibility enforcement is somehow bypassed.",
+              color: "#eff6ff", border: "#bfdbfe"
+            },
+            {
+              title: "Digital Minimalists",
+              body: "Always-On mode permanently enforces a blocklist without any time limit. Combined with the home screen launcher replacement, FocusFlow transforms the phone into a minimal tool that only shows whitelisted apps — permanently reshaping the default phone usage pattern.",
+              color: "#fef9c3", border: "#fde68a"
+            },
+            {
+              title: "ADHD Self-Management",
+              body: "The chronotype-aware task scheduler accounts for peak attention windows. Per-task allowed app lists mean that during a task that requires messaging, WhatsApp is allowed — but not Instagram. Aversive feedback (the instant screen dim + vibration when a blocked app is opened) creates a reliable external interrupt that reinforces the internal decision to focus.",
+              color: "#fdf4ff", border: "#e9d5ff"
+            },
+            {
+              title: "Parental Controls (Self-Managed)",
+              body: "Parents who want to limit their own usage of apps that compete with family time use FocusFlow's Device Admin + SHA-256 PIN setup. The PIN prevents the parent from easily reversing the block during a weak moment. Note: FocusFlow requires the device owner to set it up — it is designed for self-control, not third-party enforcement on a child's device.",
+              color: "#fff7ed", border: "#fed7aa"
+            },
+          ].map(card => (
+            <div key={card.title} style={{ background: card.color, border: `1px solid ${card.border}`, borderRadius: 10, padding: "16px 18px" }}>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6 }}>{card.title}</div>
+              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: "#374151" }}>{card.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════
+          POMODORO TIMER
+      ═══════════════════════════════════════════════ */}
+      <section style={{ marginTop: 40 }}>
+        <h2 style={h2}>Built-In Pomodoro Timer — Integrated with App Blocking</h2>
+        <p>FocusFlow includes a Pomodoro timer (<code>usePomodoro.ts</code>) tightly integrated with the app blocking system. This makes it one of the few apps in 2025 that combines a real Pomodoro cycle with hard-enforcement app blocking:</p>
+        <ul style={{ paddingLeft: 20, lineHeight: 2.1 }}>
+          <li><strong>Configurable cycle length</strong> — set work duration and break duration independently (e.g. 25 min work / 5 min break, or 50 min work / 10 min break)</li>
+          <li><strong>Automatic phase tracking</strong> — the timer calculates work/break phase and seconds remaining from the session start timestamp; it never drifts even if the screen is off</li>
+          <li><strong>Phase-transition notifications</strong> — when a work block ends, FocusFlow fires an immediate push notification ("Break Time — take 5 minutes") with a distinct vibration pattern. When a break ends, another notification fires ("Back to Work — focus session starting now")</li>
+          <li><strong>App blocking active throughout</strong> — blocked apps remain blocked during both work and break phases; the Pomodoro timer does not grant app access during breaks</li>
+          <li><strong>Chronotype-aware scheduling</strong> — the user profile collects peak focus time (morning / afternoon / evening / night) and preferred break style, which influences when tasks are scheduled</li>
+          <li><strong>Break style presets</strong> — short frequent (e.g. 5 min every 25 min), balanced (10 min every 45 min), long infrequent (15 min every 90 min), or no-break mode</li>
+        </ul>
+      </section>
+
+      {/* ═══════════════════════════════════════════════
+          TASK MANAGER
+      ═══════════════════════════════════════════════ */}
+      <section style={{ marginTop: 40 }}>
+        <h2 style={h2}>Integrated Task Manager with Per-Task App Blocking</h2>
+        <p>FocusFlow is not a standalone app blocker — it is a task manager where each task can carry its own app blocking configuration. This integration, defined in <code>types.ts</code>, means your allowed apps automatically change based on what you are working on:</p>
+        <ul style={{ paddingLeft: 20, lineHeight: 2.1 }}>
+          <li><strong>Four priority levels</strong> — low, medium, high, critical — the scheduling engine uses priority to resolve conflicts and decide which tasks shift when one runs over</li>
+          <li><strong>Per-task allowed app list</strong> — each task can define its own whitelist (<code>focusAllowedPackages</code>). A study task might allow only a dictionary app; a work task might allow a messaging app; a creative task might allow nothing</li>
+          <li><strong>Tags and colors</strong> — tasks are tagged (e.g. "work", "study", "health") and color-coded for visual organisation</li>
+          <li><strong>Three reminder types</strong> — pre-start reminders (e.g. 10 minutes before), at-start notifications, and post-start nudges (e.g. "your task started 5 minutes ago")</li>
+          <li><strong>Task status system</strong> — tasks move through: scheduled → active → completed / skipped / overdue. Status transitions trigger app blocking enforcement changes automatically</li>
+          <li><strong>Recurring Block Schedules</strong> — named block schedules (e.g. "Work Hours", "Evening Wind-Down") are defined once and auto-generate Greyout Windows. Each schedule supports optional per-package VPN blocking during its time window</li>
+        </ul>
+      </section>
+
+      {/* ═══════════════════════════════════════════════
+          IMPORT FROM OTHER APPS
+      ═══════════════════════════════════════════════ */}
+      <section style={{ marginTop: 40 }}>
+        <h2 style={h2}>Import Your Block List from Other Apps</h2>
+        <p>If you are switching to FocusFlow from another screen time app, FocusFlow can import your existing block list automatically. <code>ImportFromOtherAppModal.tsx</code> (871 lines) handles two entry paths:</p>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 12 }}>
+          <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: "14px 18px" }}>
+            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>File-Based Import (auto-detected format)</div>
+            <ul style={{ paddingLeft: 18, margin: 0, fontSize: 13, lineHeight: 2 }}>
+              <li><strong>Plain text (.txt)</strong> — one Android package name per line</li>
+              <li><strong>CSV</strong> — any column containing valid package names</li>
+              <li><strong>JSON</strong> — arrays or objects with packageName / package / appId keys</li>
+              <li><strong>Mixed / unknown format</strong> — scanned line-by-line for package name patterns</li>
+            </ul>
+            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 8 }}>Works with exports from: AppBlock, StayFree, ActionDash, Digital Wellbeing Takeout</div>
+          </div>
+          <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10, padding: "14px 18px" }}>
+            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Name-Based Import (fuzzy match)</div>
+            <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: "#374151" }}>
+              For apps that don't export files — type or paste app display names ("Instagram", "TikTok") one per line. FocusFlow fuzzy-matches them against all installed apps on your device and shows a preview before adding to your block list.
+            </p>
+            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 8 }}>Works with: Stay Focused, Lock Me Out free tier, and any app without export functionality</div>
+          </div>
+        </div>
+        <p style={{ marginTop: 14, fontSize: 14, color: "#475569" }}>
+          After either path, FocusFlow shows a preview of matched installed apps. Tap "Add to Block List" to merge them into your standalone block list. This makes switching from Freedom, AppBlock, StayFree, or Digital Wellbeing a one-step process.
+        </p>
+      </section>
+
+      {/* ═══════════════════════════════════════════════
+          WEEKLY ANALYTICS + CLEAN STREAK
+      ═══════════════════════════════════════════════ */}
+      <section style={{ marginTop: 40 }}>
+        <h2 style={h2}>Weekly Analytics and Clean Streak</h2>
+        <p>FocusFlow's Weekly Report screen (accessible inside the app) provides a detailed view of your week's blocking effectiveness — built entirely from the native Temptation Log:</p>
+        <ul style={{ paddingLeft: 20, lineHeight: 2.1 }}>
+          <li><strong>Day-by-day blocked attempt chart</strong> — bar chart showing total blocked-app attempts for each of the last 7 days (Mon–Sun)</li>
+          <li><strong>Top tempted apps</strong> — sorted list of blocked apps by attempt count for the current week</li>
+          <li><strong>Total this week vs. all time</strong> — how many blocked-app attempts occurred this week vs. over the entire lifetime of the app</li>
+          <li><strong>Clean Streak</strong> — consecutive days with zero blocked-app attempts. A "clean day" means you never once opened a blocked app, even instinctively. This is a stronger signal than "minutes of focus" because it counts the moments you did not slip, not just the ones you were actively working</li>
+        </ul>
+      </section>
+
+      {/* ═══════════════════════════════════════════════
+          PRIVACY + DARK MODE + BACKUP
+      ═══════════════════════════════════════════════ */}
+      <section style={{ marginTop: 40 }}>
+        <h2 style={h2}>Privacy, Dark Mode, and Backup</h2>
+        <ul style={{ paddingLeft: 20, lineHeight: 2.1 }}>
+          <li><strong>No root required</strong> — FocusFlow works entirely within the Android permission system (Accessibility Service, VPN, Device Admin). It does not require rooting or any system-level modification to the device.</li>
+          <li><strong>No data leaves the device</strong> — the local null-routing VPN never forwards packets to any external server. The Temptation Log, task data, and all blocking state are stored in Android SharedPreferences and SQLite on-device only. FocusFlow does not collect analytics or transmit user data.</li>
+          <li><strong>Dark mode</strong> — FocusFlow defaults to dark mode. The user can toggle dark/light mode independently of the system setting via <code>AppSettings.darkMode</code>.</li>
+          <li><strong>Backup and restore</strong> — FocusFlow uses Android's <code>ACTION_CREATE_DOCUMENT</code> API for reliable file saving, exporting a <code>.focusflow</code> backup file with rich metadata. Restoring from backup restores all tasks, settings, block lists, and greyout schedules.</li>
+          <li><strong>FLAG_SECURE</strong> — sensitive screens (PIN entry, block enforcement) set the <code>FLAG_SECURE</code> window flag, preventing screenshots and screen recordings of those views.</li>
+          <li><strong>Diagnostics modal</strong> — a built-in diagnostics screen shows timestamped startup logs, useful for troubleshooting accessibility service connectivity on OEM devices with aggressive battery optimization.</li>
+        </ul>
+      </section>
+
+      {/* ═══════════════════════════════════════════════
           FAQ SECTION — expanded with real code USPs
       ═══════════════════════════════════════════════ */}
       <section style={{ marginTop: 48 }}>
@@ -410,47 +550,79 @@ export default function FocusFlowLanding() {
           },
           {
             q: "What is the Temptation Log in FocusFlow?",
-            a: "The Temptation Log is a native log (stored in SharedPreferences via TemptationLogManager) that records every blocked-app attempt — the app name, package name, and timestamp — up to 500 entries. Every Sunday at 08:00, FocusFlow delivers a Weekly Temptation Report push notification showing your 7-day blocked-attempt totals grouped by app. This behavioral data shows you which apps you tried to open most, helping you make informed decisions about your blocking configuration. No other screen time app — Freedom, Opal, AppBlock, Digital Wellbeing — provides a temptation log or weekly behavioral report."
+            a: "The Temptation Log is a native log (stored in SharedPreferences via TemptationLogManager) that records every blocked-app attempt — the app name, package name, and timestamp — up to 500 entries. Every Sunday at 08:00, FocusFlow delivers a Weekly Temptation Report push notification showing your 7-day blocked-attempt totals grouped by app. No other screen time app — Freedom, Opal, AppBlock, Digital Wellbeing — provides a temptation log or weekly behavioral report."
           },
           {
             q: "How does FocusFlow prevent you from uninstalling it?",
-            a: "FocusFlow requests Android Device Administrator privileges via its FocusDayDeviceAdminReceiver component. Once granted, Android prevents the app from being uninstalled through Settings → Apps. The System Guard feature also intercepts navigation to the 'Uninstall', 'Clear Data', and 'Accessibility Settings' screens during active sessions. Additionally, a SHA-256 hashed session PIN (stored natively, never in the JavaScript layer) gates all stop-session operations — even if the JS bridge is compromised, the session cannot end without the PIN."
+            a: "FocusFlow uses three layers of tamper prevention: (1) Android Device Administrator mode blocks the normal Settings uninstall path; (2) System Guard intercepts navigation to Accessibility Settings, Clear Data, and Uninstall screens during active sessions; (3) A SHA-256 hashed session PIN stored natively gates all stop-session operations — even a compromised JavaScript bridge cannot end a session without the correct PIN."
           },
           {
             q: "Can FocusFlow block apps on a schedule without starting a session?",
-            a: "Yes. FocusFlow's Scheduled Greyout Windows feature lets you define calendar-based blocking schedules per app — for example, block Instagram Monday through Friday 09:00 to 18:00 — that enforce independently of any focus session or standalone block. This is separate from the three-mode blocking system and is stored as a native JSON schedule that the Accessibility Service reads directly."
+            a: "Yes. FocusFlow's Scheduled Greyout Windows feature lets you define calendar-based blocking schedules per app — for example, block Instagram Monday through Friday 09:00 to 18:00 — that enforce independently of any focus session. Recurring Block Schedules are named templates (e.g. 'Work Hours') that auto-generate Greyout Windows and optionally enable VPN blocking per package during their time window."
           },
           {
             q: "What happens if I install a new app while FocusFlow is blocking?",
-            a: "FocusFlow's PackageInstallReceiver monitors for ACTION_PACKAGE_ADDED broadcasts. When a new app is installed during an active blocking session, FocusFlow automatically adds it to the block list and triggers aversive vibration feedback to notify you that the install was detected. This closes the common loophole of installing a competing app to bypass the blocker mid-session."
+            a: "FocusFlow's PackageInstallReceiver monitors for ACTION_PACKAGE_ADDED broadcasts. When a new app is installed during an active blocking session, FocusFlow automatically adds it to the block list and triggers aversive vibration feedback. This closes the common loophole of installing a competing app to bypass the blocker mid-session."
           },
           {
             q: "Can FocusFlow block YouTube Shorts without blocking all of YouTube?",
-            a: "Yes. FocusFlow supports content-level blocking within a single app. The YouTube Shorts Blocker (controlled by PREF_BLOCK_YT_SHORTS) detects and closes the Shorts player within the YouTube app while leaving the main feed, search, subscriptions, and video playback accessible. Instagram Reels blocking (PREF_BLOCK_IG_REELS) works the same way."
+            a: "Yes. FocusFlow supports content-level blocking within a single app. The YouTube Shorts Blocker (PREF_BLOCK_YT_SHORTS) closes the Shorts player within YouTube while leaving the main feed, search, subscriptions, and video playback accessible. Instagram Reels blocking (PREF_BLOCK_IG_REELS) works the same way."
           },
           {
             q: "What is FocusFlow's Global VPN mode?",
-            a: "FocusFlow's NetworkBlockerVpnService has two modes. PER_APP mode routes only the blocked app's traffic through a local null-routing VPN — all other apps work normally. GLOBAL mode routes all device traffic through the VPN, cutting both WiFi and mobile data for every app on the phone except emergency calls (phone/dialer is always excluded). No traffic is sent to any external server — the VPN is entirely local."
+            a: "FocusFlow's NetworkBlockerVpnService has two modes. PER_APP mode routes only the blocked app's traffic through a local null-routing VPN — all other apps work normally. GLOBAL mode routes all device traffic through the VPN, cutting both WiFi and mobile data for every app except emergency calls. No traffic is sent to any external server — the VPN is entirely local."
           },
           {
             q: "Does FocusFlow work after a phone reboot?",
-            a: "Yes. FocusFlow includes a BootReceiver component that automatically restarts the Accessibility Service and VPN tunnel when the device reboots during an active session. Clock tamper detection is also handled at boot — sessions use native epoch timestamps validated by the Accessibility Service, making the 'change the system clock to expire the timer' bypass ineffective."
+            a: "Yes. FocusFlow includes a BootReceiver that automatically restarts the Accessibility Service and VPN tunnel when the device reboots during an active session. Clock tamper detection is also active at boot — sessions use native epoch timestamps validated by the Accessibility Service, making the 'change the system clock to expire the timer' bypass ineffective."
           },
           {
             q: "What is FocusFlow's home screen launcher?",
-            a: "FocusFlow includes a full Android home-screen launcher (LauncherActivity) that can replace your default launcher entirely. When set as the home app, pressing HOME lands on FocusFlow's minimal launcher showing only your whitelisted apps in a 4-column grid. The app drawer (swipe up) also only shows allowed apps. Long-press uninstall can be disabled from the launcher. This is an extreme commitment device — your home screen becomes the blocklist enforcer."
+            a: "FocusFlow includes a full Android home-screen launcher (LauncherActivity) that replaces your default launcher. When set as the home app, pressing HOME lands on FocusFlow's minimal launcher showing only whitelisted apps in a 4-column grid. Long-press uninstall can be disabled. This turns the home screen into the blocklist enforcer."
+          },
+          {
+            q: "Does FocusFlow have a Pomodoro timer?",
+            a: "Yes. FocusFlow includes a built-in Pomodoro timer (usePomodoro.ts) fully integrated with app blocking. Work duration and break duration are configurable. The timer fires vibration and push notifications at each phase transition ('Break Time' / 'Back to Work'). App blocking remains active during both work and break phases — breaks do not unlock blocked apps. The chronotype-aware user profile (morning/afternoon/evening/night) influences when tasks are scheduled."
+          },
+          {
+            q: "Can I import my block list from AppBlock, StayFree, Digital Wellbeing, or Freedom?",
+            a: "Yes. FocusFlow's import feature (ImportFromOtherAppModal) supports file-based import — auto-detecting TXT (one package name per line), CSV (any column with package names), and JSON (arrays or objects with packageName/package/appId keys). For apps without export functionality (Stay Focused, Lock Me Out free tier), the name-based import lets you type or paste app display names ('Instagram', 'TikTok') and fuzzy-matches them against installed apps. This makes switching from any other screen time app a one-step process."
+          },
+          {
+            q: "Does FocusFlow require root?",
+            a: "No. FocusFlow works entirely within the standard Android permission system — Accessibility Service, VPN, and Device Administrator. No rooting or system modification is required. It runs on stock Android 8.0+ on 30+ OEM brands without any root access."
+          },
+          {
+            q: "Is FocusFlow good for phone addiction?",
+            a: "Yes. FocusFlow targets the underlying habit loop of phone addiction, not just the symptom. The Temptation Log records every blocked-app attempt so you can see your weekly attempt data. Nuclear Mode lets you permanently remove the most addictive apps. Aversive feedback (screen dimming to 2% + vibration) creates a negative stimulus the brain starts associating with the 'caught reaching for the phone' feeling. The Weekly Temptation Report surfaces behavioral patterns over time."
+          },
+          {
+            q: "Can FocusFlow be used as a parental control?",
+            a: "FocusFlow is primarily a self-control tool — it is designed to be set up by the person who owns the device on their own phone. Parents who want to limit their own app usage during family time can use Device Admin + SHA-256 PIN to make the block effectively irreversible during a session. However, it is not designed for remotely managing a child's separate device — it lacks a remote admin console or guardian app."
+          },
+          {
+            q: "Can FocusFlow help with ADHD?",
+            a: "FocusFlow is not a medical tool and does not claim to treat ADHD. However, several of its features support the self-management challenges common with ADHD: per-task allowed app lists restrict available apps to only what is needed for the current task; aversive feedback provides an external interrupt that reinforces the internal decision to stay on task; the Pomodoro timer structures work into manageable blocks with automatic break notifications; and the chronotype-aware scheduler accounts for peak attention windows during the day."
+          },
+          {
+            q: "Does FocusFlow collect data or send data to servers?",
+            a: "No. FocusFlow's local null-routing VPN never forwards packets to any external server. The Temptation Log, task data, settings, and all blocking state are stored on-device in Android SharedPreferences and SQLite. FocusFlow does not transmit usage analytics, telemetry, or personal data to any server. Sensitive screens (PIN entry, session controls) set FLAG_SECURE to prevent screenshots."
           },
           {
             q: "Is FocusFlow free?",
-            a: "FocusFlow is completely free to use. It does not require a paid subscription or in-app purchase to access any of its features, including the Accessibility Service enforcement, VPN blocking, Device Administrator mode, Nuclear Mode, Temptation Log, Scheduled Greyout Windows, or the scheduling engine."
+            a: "FocusFlow is completely free. It requires no subscription or in-app purchase to use any feature — including Accessibility Service enforcement, VPN blocking, Device Admin mode, Nuclear Mode, Temptation Log, Weekly Report, Scheduled Greyout Windows, Pomodoro timer, or the scheduling engine."
           },
           {
             q: "How is FocusFlow different from Freedom app?",
-            a: "Both Freedom and FocusFlow use Accessibility Service and VPN-based blocking on Android. FocusFlow additionally provides: Device Admin mode (uninstallation prevention), System Guard (settings bypass prevention), Boot Recovery, SHA-256 native session PIN, Nuclear Mode (permanent app uninstall), Temptation Log with Weekly Report, PackageInstallReceiver (auto-blocking of newly installed apps), Scheduled Greyout Windows, aversive feedback (screen dimming + vibration), content-specific blocking (YouTube Shorts, Instagram Reels), and a home screen launcher replacement. Freedom costs $39.99 per year; FocusFlow is free."
+            a: "Both Freedom and FocusFlow use Accessibility Service and VPN-based blocking on Android. FocusFlow additionally provides: Device Admin mode (uninstallation prevention), System Guard (settings bypass prevention), Boot Recovery, SHA-256 native session PIN, Nuclear Mode (permanent app uninstall), Temptation Log with Weekly Report, PackageInstallReceiver (auto-blocking newly installed apps), Scheduled Greyout Windows, aversive feedback, content-specific blocking (YouTube Shorts, Instagram Reels), home screen launcher replacement, Pomodoro timer, and a task manager. Freedom costs $39.99/year; FocusFlow is free."
           },
           {
             q: "How is FocusFlow different from Google Digital Wellbeing?",
-            a: "Google Digital Wellbeing uses soft timers dismissable with a single tap, has no VPN enforcement, no Device Admin mode, no session PIN, no Temptation Log, and cannot prevent its own uninstallation. FocusFlow uses hard enforcement combining Accessibility Service, VPN, and Device Admin — with a SHA-256 session PIN, Nuclear Mode, Weekly Temptation Report, Scheduled Greyout Windows, and aversive conditioning. Digital Wellbeing is a nudge tool; FocusFlow is a commitment enforcement tool."
+            a: "Google Digital Wellbeing uses soft timers dismissable with a single tap, has no VPN enforcement, no Device Admin mode, no session PIN, no Temptation Log, and cannot prevent its own uninstallation. FocusFlow uses hard enforcement — Accessibility Service + VPN + Device Admin — with SHA-256 PIN, Nuclear Mode, Weekly Temptation Report, Scheduled Greyout Windows, aversive conditioning, and a home screen launcher. Digital Wellbeing is a nudge tool; FocusFlow is a commitment enforcement tool."
+          },
+          {
+            q: "How do I switch from Freedom, AppBlock, or StayFree to FocusFlow?",
+            a: "FocusFlow's import feature handles this in one step. For AppBlock, StayFree, and Digital Wellbeing: export your block list as a file (TXT, CSV, or JSON), then open FocusFlow → Import → Browse & Import file. For apps without export (Stay Focused, Lock Me Out): use the name-based import — paste app names like 'Instagram', 'TikTok', and FocusFlow fuzzy-matches them against installed apps. After import, review the matched apps and tap 'Add to Block List'."
           },
           {
             q: "Is FocusFlow the same as other apps called FocusFlow?",
