@@ -50,7 +50,7 @@ export async function startFocusMode(
 
   await dbStartFocusSession(session);
 
-  const nextTask = getUpcomingTask(allTasks.length > 0 ? allTasks : [task]);
+  const nextTask = getUpcomingTask(allTasks.length > 1 ? allTasks : [task]);
   const startMs = new Date(task.startTime).getTime();
   const endMs = new Date(task.endTime).getTime();
 
