@@ -154,8 +154,22 @@ class NetworkBlockerVpnService : VpnService() {
     override fun onRevoke() {
         val prefs     = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val selfHeal  = prefs.getBoolean("net_block_self_heal", false)
-        val focusOn   = prefs.getBoolean("focus_active",            false)
-        val saOn      = prefs.getBoolean("standalone_block_active", false)
+
+        val now = System.currentTimeMillis()
+        val focusOn = prefs.getBoolean("focus_active", false).let { on ->
+            if (!on) false
+            else {
+                val endMs = prefs.getLong("task_end_ms", 0L)
+                endMs <= 0L || now < endMs
+            }
+        }
+        val saOn = prefs.getBoolean("standalone_block_active", false).let { on ->
+            if (!on) false
+            else {
+                val untilMs = prefs.getLong("standalone_block_until_ms", 0L)
+                untilMs <= 0L || now < untilMs
+            }
+        }
 
         stopVpn()   // close the TUN fd first
 
@@ -170,7 +184,11 @@ class NetworkBlockerVpnService : VpnService() {
                         putExtra(EXTRA_PACKAGES, pkgs)
                         putExtra(EXTRA_MODE,     mode)
                     }
-                    ctx.startService(restartIntent)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        ctx.startForegroundService(restartIntent)
+                    } else {
+                        ctx.startService(restartIntent)
+                    }
                 } catch (_: Exception) {
                     // Session ended or another VPN took over — give up gracefully
                 }
@@ -223,19 +241,18 @@ class NetworkBlockerVpnService : VpnService() {
                     // PER_APP: route ONLY the blocked app(s) through the VPN
                     // addAllowedApplication() means: ONLY those packages go through the VPN;
                     // all others bypass it completely.
-                    builder.addRoute("0.0.0.0", 0)
-                    builder.addRoute("::", 0)
                     val packages = parseJsonArray(packagesJson)
                     if (packages.isEmpty()) {
-                        // No specific packages — fall back to global block
-                        ALWAYS_EXCLUDED.forEach { pkg ->
-                            runCatching { builder.addDisallowedApplication(pkg) }
-                        }
-                        runCatching { builder.addDisallowedApplication(packageName) }
-                    } else {
-                        packages.forEach { pkg ->
-                            runCatching { builder.addAllowedApplication(pkg) }
-                        }
+                        // No packages specified — abort rather than silently becoming a
+                        // global block. Caller must provide at least one package for per-app mode.
+                        isRunning = false
+                        stopSelf()
+                        return
+                    }
+                    builder.addRoute("0.0.0.0", 0)
+                    builder.addRoute("::", 0)
+                    packages.forEach { pkg ->
+                        runCatching { builder.addAllowedApplication(pkg) }
                     }
                 }
             }

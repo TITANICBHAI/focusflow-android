@@ -949,6 +949,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setTimeout(() => dispatch({ type: 'SET_FOCUS_VIOLATION', payload: null }), 4000);
       },
       { skipGoHome: true },
+      s.tasks,
     ).then(() => {
       const session: FocusSession = {
         taskId: active.id,
@@ -1338,7 +1339,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await _startFocusMode(task, allowedPackages, (app) => {
           dispatch({ type: 'SET_FOCUS_VIOLATION', payload: app });
           setTimeout(() => dispatch({ type: 'SET_FOCUS_VIOLATION', payload: null }), 4000);
-        });
+        }, {}, state.tasks);
 
         const session: FocusSession = {
           taskId: task.id,
@@ -1349,15 +1350,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'SET_FOCUS_SESSION', payload: session });
 
         // Start VPN network blocking if the toggle is on.
-        // Merge session packages with always-on packages so both sets are blocked.
+        // Focus sessions use only alwaysOnVpnPackages — standalone VPN packages
+        // belong to standalone block sessions and must not bleed into focus mode.
         // Best-effort — a failure here does not abort focus mode.
         if (state.settings.vpnBlockEnabled) {
-          const sessionVpnPkgs   = state.settings.standaloneVpnPackages ?? [];
-          const alwaysOnVpnPkgs  = state.settings.alwaysOnVpnPackages ?? [];
-          const mergedVpnPkgs    = Array.from(new Set([...alwaysOnVpnPkgs, ...sessionVpnPkgs]));
-          void NetworkBlockModule.startNetworkBlock(JSON.stringify(mergedVpnPkgs)).catch((e) =>
-            void logger.warn('AppContext', `network block start failed: ${String(e)}`),
-          );
+          const alwaysOnVpnPkgs = state.settings.alwaysOnVpnPackages ?? [];
+          if (alwaysOnVpnPkgs.length > 0) {
+            void NetworkBlockModule.startNetworkBlock(JSON.stringify(alwaysOnVpnPkgs)).catch((e) =>
+              void logger.warn('AppContext', `network block start failed: ${String(e)}`),
+            );
+          }
         }
       } catch (e) {
         void logger.error('AppContext', `startFocusMode failed: ${String(e)}`);

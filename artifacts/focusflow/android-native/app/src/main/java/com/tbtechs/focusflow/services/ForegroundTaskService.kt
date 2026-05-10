@@ -489,15 +489,20 @@ class ForegroundTaskService : Service() {
     }
 
     /**
-     * Stops the VPN network blocker when a session ends.
-     * Only acts if net_block_enabled is true so sessions without network blocking
-     * are not affected. The JS layer's net_block_restore flag is respected:
-     * if false the VPN is stopped but WiFi/data are not explicitly re-enabled
-     * (though they were never disabled by this service directly).
+     * Stops the VPN network blocker when a focus session ends.
+     * Only acts if net_block_enabled is true. Does NOT stop the VPN if a
+     * standalone block session is still active — the VPN must keep running
+     * for the standalone block even after the focus session ends.
      */
     private fun stopNetworkBlock() {
         val prefs = getSharedPreferences(AppBlockerAccessibilityService.PREFS_NAME, Context.MODE_PRIVATE)
         if (!prefs.getBoolean("net_block_enabled", false)) return
+        // Guard: if a standalone block is still active, leave the VPN running.
+        val saActive = prefs.getBoolean("standalone_block_active", false)
+        if (saActive) {
+            val untilMs = prefs.getLong("standalone_block_until_ms", 0L)
+            if (untilMs <= 0L || System.currentTimeMillis() < untilMs) return
+        }
         try {
             val intent = Intent(this, NetworkBlockerVpnService::class.java).apply {
                 action = NetworkBlockerVpnService.ACTION_STOP
@@ -523,7 +528,7 @@ class ForegroundTaskService : Service() {
     private fun checkAndHealVpn() {
         val prefs = blockPrefs
         if (!prefs.getBoolean("net_block_self_heal", false)) return
-        if (!prefs.getBoolean("net_block_vpn", true)) return
+        if (!prefs.getBoolean("net_block_vpn", false)) return
         if (NetworkBlockerVpnService.isRunning) return
 
         val now = System.currentTimeMillis()

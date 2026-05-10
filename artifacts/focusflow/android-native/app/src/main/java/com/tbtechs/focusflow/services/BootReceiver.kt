@@ -59,9 +59,6 @@ class BootReceiver : BroadcastReceiver() {
         // before reboot to make the session appear expired.
         // If the wall clock was set forward by X ms, (now - lastWrittenMs) > durationMs
         // even though real elapsed time is < durationMs — mismatch reveals tampering.
-        // We re-derive estimated end from write time + remaining duration at write time.
-        val remainingAtWrite = endTimeMs - lastWrittenMs
-        val estimatedEnd = lastWrittenMs + remainingAtWrite  // same as endTimeMs, tautology guard
         val secondaryValid = durationMs > 0L && lastWrittenMs > 0L &&
                              (now - lastWrittenMs) < durationMs + 60_000L
 

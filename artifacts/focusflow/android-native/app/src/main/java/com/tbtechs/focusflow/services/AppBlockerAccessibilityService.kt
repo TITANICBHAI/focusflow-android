@@ -978,18 +978,6 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             }
         }
 
-        // ALWAYS_BLOCKED is now empty — kept for safety.
-        if (ALWAYS_BLOCKED.any { pkg.equals(it, ignoreCase = true) }) {
-            val samePackage = pkg == lastBlockedPkg
-            val cooldownExpired = (now - lastBlockedAtMs) > 2_000L
-            if (!samePackage || cooldownExpired) {
-                lastBlockedPkg = pkg
-                lastBlockedAtMs = now
-                handleBlockedApp(pkg)
-            }
-            return
-        }
-
         // ── Greyout Schedule check (time-window blocking, session-independent) ─
         // Works even when no focus session or standalone block is active — the user
         // pre-committed to blocking certain apps during specific hours and days.
@@ -1114,11 +1102,24 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     private fun checkAndHealVpn() {
         if (!::prefs.isInitialized) return
         if (!prefs.getBoolean("net_block_self_heal", false)) return
-        if (!prefs.getBoolean("net_block_vpn", true)) return
+        if (!prefs.getBoolean("net_block_vpn", false)) return
         if (NetworkBlockerVpnService.isRunning) return
 
-        val focusActive = prefs.getBoolean(PREF_FOCUS_ON, false)
-        val saActive    = prefs.getBoolean(PREF_SA_ACTIVE, false)
+        val now = System.currentTimeMillis()
+        val focusActive = prefs.getBoolean(PREF_FOCUS_ON, false).let { on ->
+            if (!on) false
+            else {
+                val endMs = prefs.getLong("task_end_ms", 0L)
+                endMs <= 0L || now < endMs
+            }
+        }
+        val saActive = prefs.getBoolean(PREF_SA_ACTIVE, false).let { on ->
+            if (!on) false
+            else {
+                val untilMs = prefs.getLong(PREF_SA_UNTIL, 0L)
+                untilMs <= 0L || now < untilMs
+            }
+        }
         if (!focusActive && !saActive) return
 
         // Bail out if VPN permission was revoked — cannot restart silently
@@ -2033,8 +2034,6 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         saActive: Boolean,
         alwaysBlockActive: Boolean = false,
     ): Boolean {
-        if (ALWAYS_BLOCKED.any { pkg.equals(it, ignoreCase = true) }) return true
-
         if (focusActive || saActive || alwaysBlockActive) {
             if (INSTALLER_PACKAGES.any { pkg.equals(it, ignoreCase = true) }) return true
         }
@@ -2137,7 +2136,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
      */
     private fun triggerNetworkBlock(blockedPackage: String) {
         if (!prefs.getBoolean("net_block_enabled", false)) return
-        if (!prefs.getBoolean("net_block_vpn", true)) return
+        if (!prefs.getBoolean("net_block_vpn", false)) return
         if (NetworkBlockerVpnService.isRunning) return   // already active
 
         // Per-app VPN: if a non-empty package selection list is configured,
