@@ -59,6 +59,9 @@ FocusFlow is completely free. No subscription, no in-app purchase, no premium ti
 - Compare: https://focusflow-tbtechs.replit.app/compare/
   Summary: Side-by-side comparison of FocusFlow vs Freedom, Opal, AppBlock, and Digital Wellbeing; switching/migration guide
 
+- Alternatives: https://focusflow-tbtechs.replit.app/alternatives/
+  Summary: Honest comparison of app blocker alternatives for Android — Opal, Freedom, AppBlock, Digital Wellbeing vs FocusFlow. Who each app is for, feature table, FAQ targeting "Opal app Android alternative" and "AppBlock alternative free" search queries.
+
 - How it works: https://focusflow-tbtechs.replit.app/how-it-works/
   Summary: Step-by-step setup guide (6 steps, ~5 min), architecture explanation, what happens when a blocked app is opened, blocking mode descriptions (HowTo schema)
 
