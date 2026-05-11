@@ -7,7 +7,7 @@ const PRIMARY_DB_NAME = 'focusday.db';
 const RECOVERY_DB_NAME = 'focusday_recovery.db';
 
 const DEFAULT_SETTINGS: AppSettings = {
-  darkMode: false,
+  darkMode: true,
   defaultDuration: 60,
   defaultReminderOffsets: [-10, -5, 0],
   focusModeEnabled: true,
@@ -21,6 +21,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   privacyAccepted: false,
   standaloneBlockPackages: [],
   standaloneBlockUntil: null,
+  alwaysOnPackages: [],
+  autoCopyToAlwaysOn: false,
   dailyAllowanceEntries: [],
   onboardingComplete: false,
   blockedWords: [],
@@ -29,7 +31,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   aversionSoundEnabled: false,
   weeklyReportEnabled: false,
   greyoutSchedule: [],
-  systemGuardEnabled: false,
+  systemGuardEnabled: true,
   blockInstallActionsEnabled: false,
   blockYoutubeShortsEnabled: false,
   blockInstagramReelsEnabled: false,
@@ -44,10 +46,13 @@ const DEFAULT_SETTINGS: AppSettings = {
   launcherEnabled: false,
   launcherHiddenPackages: [],
   launcherPinnedPackages: [],
+  launcherDockPackages: [],
   launcherWallpaperUri: null,
   launcherClockStyle: 'digital',
-  launcherBlockUninstall: true,
+  launcherBlockUninstall: false,
   launcherLockDuringStandalone: true,
+  overlayWallpaper: '',
+  overlayQuotes: [],
 };
 
 /**
@@ -357,6 +362,40 @@ export async function dbUpdateTask(task: Task): Promise<void> {
   ).then(() => undefined));
 }
 
+/**
+ * Atomically update multiple tasks inside a single SQLite transaction.
+ * If any row update fails the entire batch is rolled back, so the schedule
+ * is never left in a half-shifted state (e.g. mid-way through extendTaskTime).
+ */
+export async function dbUpdateTasksBatch(tasks: Task[]): Promise<void> {
+  if (tasks.length === 0) return;
+  return runWithDb('dbUpdateTasksBatch', async (database) => {
+    await database.withTransactionAsync(async () => {
+      for (const task of tasks) {
+        await database.runAsync(
+          `UPDATE tasks SET title=?, description=?, start_time=?, end_time=?, duration_minutes=?, status=?, priority=?, tags=?, reminders=?, color=?, focus_mode=?, focus_allowed_packages=?, updated_at=? WHERE id=?`,
+          [
+            task.title,
+            task.description ?? null,
+            task.startTime,
+            task.endTime,
+            task.durationMinutes,
+            task.status,
+            task.priority,
+            JSON.stringify(task.tags),
+            JSON.stringify(task.reminders),
+            task.color,
+            task.focusMode ? 1 : 0,
+            task.focusAllowedPackages !== undefined ? JSON.stringify(task.focusAllowedPackages) : null,
+            task.updatedAt,
+            task.id,
+          ],
+        );
+      }
+    });
+  });
+}
+
 export async function dbDeleteTask(taskId: string): Promise<void> {
   return runWithDb('dbDeleteTask', (database) =>
     database.runAsync('DELETE FROM tasks WHERE id = ?', [taskId]).then(() => undefined),
@@ -547,12 +586,14 @@ export async function dbBackfillDayCompletions(daysBack: number = 30): Promise<v
         if (r.status === 'completed') b.completed += 1;
         buckets.set(d, b);
       }
-      for (const [date, b] of buckets) {
-        await database.runAsync(
-          `INSERT OR REPLACE INTO daily_completions (date, completed, total) VALUES (?, ?, ?)`,
-          [date, b.completed, b.total],
-        );
-      }
+      await database.withTransactionAsync(async () => {
+        for (const [date, b] of buckets) {
+          await database.runAsync(
+            `INSERT OR REPLACE INTO daily_completions (date, completed, total) VALUES (?, ?, ?)`,
+            [date, b.completed, b.total],
+          );
+        }
+      });
     });
   } catch (e) {
     console.error('[database] dbBackfillDayCompletions failed:', e);

@@ -13,6 +13,7 @@ import {
   dbGetRecentUnresolvedTasks,
   dbInsertTask,
   dbUpdateTask,
+  dbUpdateTasksBatch,
   dbDeleteTask,
   dbGetSettings,
   dbSaveSettings,
@@ -1238,10 +1239,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         const { updatedSchedule, needsUserConfirm, skipped, shifted } = rebalanceAfterOverrun(extended, extraMinutes, tasks);
 
-        await dbUpdateTask(extended);
-        for (const t of updatedSchedule) {
-          if (t.id !== extended.id) await dbUpdateTask(t);
-        }
+        await dbUpdateTasksBatch([extended, ...updatedSchedule.filter((t) => t.id !== extended.id)]);
 
         const updatedById = new Map(updatedSchedule.map((t) => [t.id, t]));
         const finalTasks = tasks.map((t) => {
@@ -1409,10 +1407,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch { /* best-effort — VPN may already be stopped */ }
     // After stopping the session VPN, restart it with always-on packages so
     // 24/7 VPN blocking continues working even when no focus session is active.
+    // A short delay is required here: ACTION_STOP is processed asynchronously
+    // by NetworkBlockerVpnService. Without it, the always-on startNetworkBlock
+    // call can race with the teardown of the previous TUN interface, causing
+    // the VPN service to fail silently or start in a broken state.
     try {
       const settings = stateRef.current.settings;
       const alwaysOnVpnPkgs = settings.alwaysOnVpnPackages ?? [];
       if ((settings.vpnBlockEnabled ?? false) && alwaysOnVpnPkgs.length > 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 400));
         void NetworkBlockModule.startNetworkBlock(JSON.stringify(alwaysOnVpnPkgs)).catch((e) =>
           void logger.warn('AppContext', `always-on VPN restart after focus failed: ${String(e)}`),
         );
