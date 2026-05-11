@@ -3,247 +3,883 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FocusFlow — Hard-Enforcement Android App Blocker</title>
-  <meta name="description" content="FocusFlow blocks distracting apps at the OS level with 5 independent enforcement layers: AccessibilityService, null-routing VPN, Device Admin, System Guard, and SHA-256 PIN. Bypassing it is not a single tap." />
-  <meta property="og:title" content="FocusFlow — Hard-Enforcement Android App Blocker" />
-  <meta property="og:description" content="5-layer OS enforcement. AccessibilityService + null-routing VPN + Device Admin + SHA-256 PIN. Real blocking, not a soft timer." />
-  <meta property="og:url" content="https://focusflowapp.pages.dev" />
-  <link rel="icon" href="https://titanicbhai.github.io/assets/tbtechs-logo.png" type="image/png" />
+
+  <!-- ── Core SEO ─────────────────────────────────────────────── -->
+  <title>FocusFlow — Hard-Enforcement App Blocker for Android | TBTechs</title>
+  <meta name="description" content="FocusFlow by TBTechs — the hardest-to-bypass app blocker for Android. Accessibility Service + local VPN + Device Admin + Temptation Log + Weekly Report. Free." />
+  <meta name="keywords" content="FocusFlow, app blocker Android, screen time blocker, temptation log, block YouTube Shorts, block Instagram Reels, TBTechs, hard enforcement blocker, distraction blocker, focus app, Freedom app alternative, Opal app alternative, AppBlock alternative, block apps without slowing phone, Android accessibility service blocker, phone addiction app Android, ADHD focus app Android, app blocker for studying, digital detox app, no root required" />
+  <meta name="author" content="TBTechs" />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://focusflowapp.pages.dev/" />
+  <meta name="google-site-verification" content="sou-98cZYPWFJmbwxJgJptO-ZaIPNJqz2ven_iS4NjI" />
+  <meta name="msvalidate.01" content="FC2887EF2F94BFFE090CAB25A456AE86" />
+
+  <!-- ── Open Graph ──────────────────────────────────────────── -->
+  <meta property="og:title" content="FocusFlow — Hard-Enforcement App Blocker for Android | TBTechs" />
+  <meta property="og:description" content="The hardest-to-bypass screen time blocker. Accessibility Service + local null-routing VPN + Device Admin + Temptation Log + Weekly Report. 30+ OEM brands. Free." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://focusflowapp.pages.dev/" />
+  <meta property="og:site_name" content="FocusFlow by TBTechs" />
+  <meta property="og:locale" content="en_US" />
+
+  <!-- ── Twitter Card ────────────────────────────────────────── -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="FocusFlow — Hard-Enforcement App Blocker | TBTechs" />
+  <meta name="twitter:description" content="Accessibility Service + VPN + Device Admin + Temptation Log + Weekly Report. Blocks YouTube Shorts, Instagram Reels. 30+ Android OEMs. Free." />
+
+  <!-- ── JSON-LD: WebSite + Organization ────────────────────── -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://focusflowapp.pages.dev/#website",
+        "url": "https://focusflowapp.pages.dev/",
+        "name": "FocusFlow by TBTechs",
+        "description": "Hard-enforcement screen time and app blocking for Android.",
+        "publisher": { "@id": "https://focusflowapp.pages.dev/#organization" },
+        "inLanguage": "en-US"
+      },
+      {
+        "@type": "Organization",
+        "@id": "https://focusflowapp.pages.dev/#organization",
+        "name": "TBTechs",
+        "url": "https://focusflowapp.pages.dev/",
+        "description": "Developer of FocusFlow, a hard-enforcement screen time management app for Android."
+      }
+    ]
+  }
+  </script>
+
+  <!-- ── JSON-LD: SoftwareApplication ──────────────────────── -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "@id": "https://focusflowapp.pages.dev/#app",
+    "name": "FocusFlow",
+    "alternateName": ["FocusFlow by TBTechs", "FocusFlow app blocker"],
+    "description": "FocusFlow (by TBTechs) is a hard-enforcement screen time management and app blocking suite for Android. It combines Android Accessibility Service, a local null-routing VPN, and Android Device Administrator mode. Unique features include Temptation Log, Weekly Temptation Report, SHA-256 native session PIN, and aversive conditioning feedback. Supports 30+ Android OEM brands. Free.",
+    "applicationCategory": "ProductivityApplication",
+    "applicationSubCategory": "Screen Time Management",
+    "operatingSystem": "Android 8.0+",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "author": { "@id": "https://focusflowapp.pages.dev/#organization" },
+    "datePublished": "2025-05-01",
+    "dateModified": "2025-05-10",
+    "url": "https://focusflowapp.pages.dev/",
+    "softwareVersion": "1.0",
+    "featureList": [
+      "Hard app blocking via Android Accessibility Service",
+      "Local null-routing VPN (no external server, entirely on-device)",
+      "Global VPN kill mode — cuts all internet except emergency calls",
+      "Android Device Administrator mode — blocks uninstallation via Settings",
+      "Temptation Log — records every blocked-app attempt with timestamp",
+      "Weekly Temptation Report — Sunday push notification with 7-day summary",
+      "Scheduled Greyout Windows — calendar-based blocking without a session",
+      "SHA-256 native session PIN — gates stop-session at native layer",
+      "YouTube Shorts-specific content blocker",
+      "Instagram Reels-specific content blocker",
+      "Aversive feedback: screen dimming + vibration + sound",
+      "30+ Android OEM brand support",
+      "Boot Recovery — auto-restarts service after device reboot"
+    ]
+  }
+  </script>
+
+  <!-- ── JSON-LD: FAQPage ───────────────────────────────────── -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "What is FocusFlow?",
+        "acceptedAnswer": { "@type": "Answer", "text": "FocusFlow (by TBTechs) is a hard-enforcement screen time management and app blocking suite for Android. It blocks distracting apps using Android Accessibility Service, a local null-routing VPN, and Android Device Administrator mode. Unlike soft-timer apps like Google Digital Wellbeing, FocusFlow cannot be bypassed with a single tap. It is free." }
+      },
+      {
+        "@type": "Question",
+        "name": "What is the Temptation Log in FocusFlow?",
+        "acceptedAnswer": { "@type": "Answer", "text": "The Temptation Log is a native record of every blocked-app attempt — the app name, package name, and timestamp — capped at 500 entries. Every Sunday at 08:00, FocusFlow delivers a Weekly Temptation Report push notification showing your 7-day blocked-app attempt totals by app." }
+      },
+      {
+        "@type": "Question",
+        "name": "How does FocusFlow prevent you from uninstalling it?",
+        "acceptedAnswer": { "@type": "Answer", "text": "FocusFlow uses three layers: (1) Android Device Administrator mode blocks the normal Settings uninstall path; (2) System Guard intercepts navigation to Accessibility Settings, Clear Data, and Uninstall screens during active sessions; (3) A SHA-256 hashed session PIN gates all stop-session operations even if the JavaScript bridge is compromised." }
+      },
+      {
+        "@type": "Question",
+        "name": "Can FocusFlow block YouTube Shorts without blocking all of YouTube?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Yes. FocusFlow supports content-level blocking. The YouTube Shorts Blocker closes the Shorts player within YouTube while leaving the main feed, search, and video playback accessible. Instagram Reels blocking works the same way." }
+      },
+      {
+        "@type": "Question",
+        "name": "Does FocusFlow require root?",
+        "acceptedAnswer": { "@type": "Answer", "text": "No. FocusFlow works entirely within the standard Android permission system — Accessibility Service, VPN, and Device Administrator. No rooting is required. It runs on stock Android 8.0+ on 30+ OEM brands." }
+      },
+      {
+        "@type": "Question",
+        "name": "Does FocusFlow collect data or send data to servers?",
+        "acceptedAnswer": { "@type": "Answer", "text": "No. The local VPN never forwards packets to any external server. The Temptation Log, task data, and all blocking state are stored on-device in Android SharedPreferences and SQLite. FocusFlow does not transmit usage analytics, telemetry, or personal data." }
+      },
+      {
+        "@type": "Question",
+        "name": "How is FocusFlow different from Freedom app?",
+        "acceptedAnswer": { "@type": "Answer", "text": "FocusFlow additionally provides: Device Admin mode, System Guard (settings bypass prevention), Boot Recovery, SHA-256 native session PIN, Temptation Log with Weekly Report, Scheduled Greyout Windows, aversive feedback, content-specific blocking (YouTube Shorts, Instagram Reels), and a home screen launcher replacement. Freedom costs $39.99/year; FocusFlow is free." }
+      },
+      {
+        "@type": "Question",
+        "name": "Is FocusFlow free?",
+        "acceptedAnswer": { "@type": "Answer", "text": "FocusFlow is completely free. It requires no subscription or in-app purchase to use any feature — including Accessibility Service enforcement, VPN blocking, Device Administrator mode, Temptation Log, or Weekly Report." }
+      }
+    ]
+  }
+  </script>
+
+  <!-- ── JSON-LD: WebPage ───────────────────────────────────── -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "@id": "https://focusflowapp.pages.dev/#webpage",
+    "url": "https://focusflowapp.pages.dev/",
+    "name": "FocusFlow App Blocker for Android | TBTechs",
+    "description": "Hard-enforcement screen time and app blocker for Android by TBTechs.",
+    "isPartOf": { "@id": "https://focusflowapp.pages.dev/#website" },
+    "about": { "@id": "https://focusflowapp.pages.dev/#app" },
+    "publisher": { "@id": "https://focusflowapp.pages.dev/#organization" },
+    "datePublished": "2025-05-01",
+    "dateModified": "2025-05-10",
+    "inLanguage": "en-US"
+  }
+  </script>
+
+  <meta property="og:image" content="https://focusflowapp.pages.dev/og-image.jpg" />
+  <meta name="twitter:image" content="https://focusflowapp.pages.dev/og-image.jpg" />
+  <link rel="icon" href="logo-transparent.png" />
+  <meta name="theme-color" content="#0D0D14" />
+
+  <!-- Non-blocking font load -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&display=swap" />
+  <link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&display=swap" />
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&display=swap" /></noscript>
+
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
     :root {
-      --bg: #0a0b0f; --surface: #111318; --surface2: #181b22;
-      --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.12);
-      --accent: #3b82f6; --accent-glow: rgba(59,130,246,0.3);
-      --red: #ef4444; --red-bg: rgba(239,68,68,0.08);
-      --text: #f1f5f9; --muted: #94a3b8; --radius: 12px;
+      --accent: #6C63FF;
+      --accent-dark: #4B44CC;
+      --accent-subtle: rgba(108, 99, 255, 0.12);
+      --bg: #0D0D14;
+      --surface: #16161F;
+      --surface2: #1E1E2E;
+      --text: #F0F0FF;
+      --muted: #9090B0;
+      --border: rgba(108, 99, 255, 0.2);
     }
+
     html { scroll-behavior: smooth; }
-    body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; }
+
+    body {
+      font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { color: var(--text); }
+
+    /* ── Nav ─────────────────────────────────────────────────── */
     nav {
-      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 1rem 2rem; background: rgba(10,11,15,0.85); backdrop-filter: blur(16px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.25rem 2rem;
       border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: rgba(13, 13, 20, 0.88);
+      backdrop-filter: blur(14px);
+      z-index: 100;
     }
-    .nav-brand { display: flex; align-items: center; gap: 0.75rem; font-weight: 700; font-size: 1.05rem; color: var(--text); text-decoration: none; }
-    .nav-logo { width: 28px; height: 28px; border-radius: 6px; }
-    .nav-links { display: flex; gap: 1.5rem; }
-    .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.875rem; font-weight: 500; transition: color 0.2s; }
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--text);
+      letter-spacing: -0.02em;
+    }
+    .nav-logo img {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+    }
+    .nav-links { display: flex; gap: 1.5rem; align-items: center; }
+    .nav-links a { color: var(--muted); font-size: 0.92rem; transition: color 0.2s; }
     .nav-links a:hover { color: var(--text); }
-    .btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1.2rem; border-radius: 8px; font-size: 0.875rem; font-weight: 600; text-decoration: none; cursor: pointer; border: none; transition: all 0.2s; }
-    .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 0 20px var(--accent-glow); }
-    .btn-primary:hover { background: #2563eb; transform: translateY(-1px); }
-    .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
-    .btn-ghost:hover { color: var(--text); border-color: var(--border2); }
-    .hero {
-      min-height: 100vh; display: flex; flex-direction: column;
-      align-items: center; justify-content: center; text-align: center;
-      padding: 8rem 2rem 4rem; position: relative; overflow: hidden;
+    .nav-cta {
+      background: var(--accent);
+      color: #fff !important;
+      padding: 0.45rem 1.1rem;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.88rem !important;
+      transition: background 0.2s !important;
     }
-    .hero-glow {
-      position: absolute; top: 30%; left: 50%; transform: translate(-50%,-50%);
-      width: 600px; height: 600px; border-radius: 50%;
-      background: radial-gradient(circle, rgba(59,130,246,0.10) 0%, transparent 70%);
+    .nav-cta:hover { background: var(--accent-dark) !important; color: #fff !important; }
+
+    @media (max-width: 720px) {
+      nav { flex-direction: column; gap: 1rem; padding: 1rem; }
+      .nav-links { flex-wrap: wrap; justify-content: center; gap: 0.75rem 1rem; }
+    }
+
+    /* ── Hero ────────────────────────────────────────────────── */
+    .hero {
+      text-align: center;
+      padding: 7rem 1.5rem 5rem;
+      position: relative;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -60px; left: 50%; transform: translateX(-50%);
+      width: 700px; height: 700px;
+      background: radial-gradient(circle, rgba(108, 99, 255, 0.13) 0%, transparent 70%);
       pointer-events: none;
     }
     .badge {
-      display: inline-flex; align-items: center; gap: 0.5rem;
-      padding: 0.35rem 0.9rem; border-radius: 999px;
-      border: 1px solid rgba(59,130,246,0.3); background: rgba(59,130,246,0.08);
-      font-size: 0.8rem; font-weight: 600; color: var(--accent); margin-bottom: 1.5rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: var(--accent-subtle);
+      border: 1px solid var(--border);
+      color: var(--accent);
+      padding: 0.3rem 0.9rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 1.75rem;
     }
-    .blocked-badge {
-      display: inline-flex; align-items: center; gap: 0.5rem;
-      padding: 0.35rem 0.9rem; border-radius: 999px;
-      border: 1px solid rgba(239,68,68,0.3); background: rgba(239,68,68,0.08);
-      font-size: 0.8rem; font-weight: 700; color: var(--red); margin-bottom: 1rem; margin-left: 0.5rem; letter-spacing: 0.05em;
+    h1 {
+      font-size: clamp(2.6rem, 7vw, 4.5rem);
+      font-weight: 800;
+      line-height: 1.08;
+      letter-spacing: -0.03em;
+      margin-bottom: 1.25rem;
     }
-    .badges { display: flex; justify-content: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
-    h1 { font-size: clamp(2.5rem,6vw,4.5rem); font-weight: 800; line-height: 1.1; letter-spacing: -0.03em; margin-bottom: 1.25rem; }
     h1 span { color: var(--accent); }
-    .hero-sub { font-size: clamp(1rem,2vw,1.15rem); color: var(--muted); max-width: 560px; margin: 0 auto 2.5rem; }
-    .hero-cta { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; }
-    .section { padding: 5rem 2rem; max-width: 1100px; margin: 0 auto; }
-    .section-label { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin-bottom: 0.75rem; }
-    .section-title { font-size: clamp(1.75rem,4vw,2.5rem); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 1rem; }
-    .section-desc { color: var(--muted); font-size: 1rem; max-width: 540px; }
-    .layers { display: flex; flex-direction: column; gap: 1rem; margin-top: 3rem; }
-    .layer { display: flex; align-items: flex-start; gap: 1.25rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; transition: border-color 0.2s; }
-    .layer:hover { border-color: rgba(59,130,246,0.25); }
-    .layer-num { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 700; color: var(--accent); background: rgba(59,130,246,0.10); border: 1px solid rgba(59,130,246,0.2); border-radius: 6px; padding: 0.25rem 0.6rem; min-width: 36px; text-align: center; margin-top: 0.1rem; }
-    .layer-body h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.35rem; }
-    .layer-body p { font-size: 0.875rem; color: var(--muted); line-height: 1.6; }
-    .grid-3 { display: grid; grid-template-columns: repeat(auto-fit,minmax(260px,1fr)); gap: 1.25rem; margin-top: 3rem; }
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.75rem; transition: border-color 0.2s, transform 0.2s; }
-    .card:hover { border-color: rgba(59,130,246,0.3); transform: translateY(-2px); }
-    .card-icon { width: 44px; height: 44px; border-radius: 10px; background: rgba(59,130,246,0.10); border: 1px solid rgba(59,130,246,0.2); display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: var(--accent); }
-    .card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem; }
-    .card p { font-size: 0.875rem; color: var(--muted); line-height: 1.65; }
-    .stack-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 2rem; }
-    .tag { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 500; padding: 0.3rem 0.7rem; border-radius: 6px; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); }
-    .divider { height: 1px; background: var(--border); max-width: 1100px; margin: 0 auto; }
-    .cta-section { padding: 5rem 2rem; text-align: center; }
-    .cta-box { max-width: 600px; margin: 0 auto; background: var(--surface); border: 1px solid rgba(59,130,246,0.2); border-radius: 20px; padding: 3rem 2rem; position: relative; overflow: hidden; }
-    .cta-box::before { content:''; position:absolute; top:0; left:50%; transform:translateX(-50%); width:200px; height:1px; background:linear-gradient(90deg,transparent,var(--accent),transparent); }
-    .cta-box h2 { font-size: 1.875rem; font-weight: 800; margin-bottom: 0.75rem; }
-    .cta-box p { color: var(--muted); margin-bottom: 2rem; }
-    .cta-buttons { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
-    footer { border-top: 1px solid var(--border); padding: 2rem; text-align: center; color: var(--muted); font-size: 0.85rem; }
-    footer a { color: var(--accent); text-decoration: none; }
-    footer a:hover { text-decoration: underline; }
-    @media (max-width: 640px) { nav { padding: 1rem; } .nav-links { display: none; } }
+    .hero-sub {
+      font-size: 1.15rem;
+      color: var(--muted);
+      max-width: 540px;
+      margin: 0 auto 2.5rem;
+      line-height: 1.65;
+    }
+    .cta-group { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 0.45rem;
+      background: var(--accent);
+      color: #fff;
+      padding: 0.9rem 2rem;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 1rem;
+      transition: background 0.2s, transform 0.15s;
+    }
+    .btn-primary:hover { background: var(--accent-dark); transform: translateY(-2px); color: #fff; }
+    .btn-ghost {
+      display: inline-flex; align-items: center; gap: 0.45rem;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.9rem 2rem;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 1rem;
+      transition: border-color 0.2s, transform 0.15s;
+    }
+    .btn-ghost:hover { border-color: var(--accent); transform: translateY(-2px); color: var(--text); }
+
+    /* stat strip */
+    .stat-strip {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 2.5rem;
+      margin-top: 4rem;
+      padding-top: 3rem;
+      border-top: 1px solid var(--border);
+    }
+    .stat { text-align: center; }
+    .stat-num { font-size: 1.9rem; font-weight: 800; color: var(--accent); letter-spacing: -0.02em; }
+    .stat-label { font-size: 0.82rem; color: var(--muted); margin-top: 0.2rem; }
+
+    /* ── Sections ────────────────────────────────────────────── */
+    section { padding: 5rem 1.5rem; }
+    .section-inner { max-width: 1100px; margin: 0 auto; }
+    .section-label {
+      text-align: center;
+      color: var(--accent);
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 0.65rem;
+    }
+    h2 {
+      text-align: center;
+      font-size: clamp(1.9rem, 4vw, 2.8rem);
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      margin-bottom: 0.75rem;
+    }
+    .section-sub {
+      text-align: center;
+      color: var(--muted);
+      font-size: 1.05rem;
+      max-width: 540px;
+      margin: 0 auto 3.5rem;
+      line-height: 1.65;
+    }
+
+    /* ── Enforcement layers ──────────────────────────────────── */
+    .layers-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.25rem;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+    .layer-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 2rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .layer-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: var(--accent);
+    }
+    .layer-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px; height: 36px;
+      background: var(--accent-subtle);
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      font-size: 0.9rem;
+      font-weight: 800;
+      color: var(--accent);
+      margin-bottom: 1rem;
+    }
+    .layer-card h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .layer-card p { color: var(--muted); font-size: 0.9rem; line-height: 1.6; }
+
+    /* ── Features grid ───────────────────────────────────────── */
+    .features-bg { background: var(--surface); }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.25rem;
+    }
+    .feature-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.75rem;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .feature-card:hover { border-color: var(--accent); transform: translateY(-3px); }
+    .feature-icon {
+      width: 44px; height: 44px;
+      background: var(--accent-subtle);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.3rem;
+      margin-bottom: 1rem;
+    }
+    .feature-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.4rem; }
+    .feature-card p { color: var(--muted); font-size: 0.88rem; line-height: 1.6; }
+
+    /* ── How it works ────────────────────────────────────────── */
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 2rem;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+    .step { text-align: center; }
+    .step-num {
+      width: 52px; height: 52px;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 50%;
+      font-size: 1.2rem;
+      font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 1rem;
+    }
+    .step h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.4rem; }
+    .step p { color: var(--muted); font-size: 0.88rem; line-height: 1.55; }
+
+    /* ── Comparison table ────────────────────────────────────── */
+    .compare-bg { background: var(--surface); }
+    .table-wrap { overflow-x: auto; max-width: 860px; margin: 0 auto; border-radius: 14px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    thead tr { background: var(--accent); color: #fff; }
+    thead th { padding: 0.9rem 1rem; text-align: left; font-weight: 700; }
+    tbody tr { border-bottom: 1px solid var(--border); }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:nth-child(even) { background: rgba(255,255,255,0.025); }
+    tbody td { padding: 0.8rem 1rem; color: var(--muted); }
+    tbody td:first-child { color: var(--text); font-weight: 600; }
+    .check { color: #4ade80; font-size: 1rem; }
+    .cross { color: #f87171; font-size: 1rem; }
+    .partial { color: #fbbf24; font-size: 0.85rem; }
+
+    /* ── FAQ ─────────────────────────────────────────────────── */
+    .faq-list {
+      max-width: 780px;
+      margin: 0 auto;
+      display: grid;
+      gap: 0.75rem;
+    }
+    details {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    details[open] { border-color: var(--accent); }
+    summary {
+      padding: 1.2rem 1.5rem;
+      font-weight: 600;
+      font-size: 0.97rem;
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+    }
+    summary::-webkit-details-marker { display: none; }
+    summary::after {
+      content: '+';
+      font-size: 1.4rem;
+      font-weight: 300;
+      color: var(--accent);
+      flex-shrink: 0;
+      transition: transform 0.2s;
+    }
+    details[open] summary::after { transform: rotate(45deg); }
+    .faq-body {
+      padding: 0 1.5rem 1.25rem;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.7;
+    }
+
+    /* ── Tech stack ──────────────────────────────────────────── */
+    .tech-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.65rem;
+      justify-content: center;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    .tech-pill {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0.4rem 1rem;
+      font-size: 0.83rem;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    /* ── CTA banner ──────────────────────────────────────────── */
+    .cta-section {
+      text-align: center;
+      background: linear-gradient(135deg, rgba(108,99,255,0.14) 0%, rgba(108,99,255,0.04) 100%);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .cta-section h2 { margin-bottom: 0.85rem; }
+    .cta-section p { color: var(--muted); margin-bottom: 2rem; }
+
+    /* ── Footer ──────────────────────────────────────────────── */
+    footer {
+      padding: 2.5rem 2rem;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.84rem;
+      border-top: 1px solid var(--border);
+    }
+    footer a { color: var(--accent); }
   </style>
 </head>
 <body>
+
+  <!-- Nav -->
   <nav>
-    <a href="https://titanicbhai.github.io" class="nav-brand">
-      <img src="https://titanicbhai.github.io/assets/tbtechs-logo.png" alt="TBTechs" class="nav-logo" />
+    <a class="nav-logo" href="#">
+      <img src="logo-transparent.png" alt="FocusFlow logo" />
       FocusFlow
     </a>
     <div class="nav-links">
-      <a href="#enforcement">Enforcement</a>
-      <a href="#features">Features</a>
-      <a href="https://github.com/TITANICBHAI/FocusFlow" target="_blank" rel="noopener">GitHub</a>
+      <a href="features/">Features</a>
+      <a href="compare/">Compare</a>
+      <a href="alternatives/">Alternatives</a>
+      <a href="how-it-works/">How it works</a>
+      <a href="faq/">FAQ</a>
+      <a href="blog/">Blog</a>
+      <a class="nav-cta" href="https://github.com/TITANICBHAI/FocusFlow/releases">Download APK</a>
     </div>
-    <a href="https://focusflowapp.pages.dev" class="btn btn-primary" target="_blank" rel="noopener">Launch App</a>
   </nav>
 
+  <!-- Hero -->
   <section class="hero">
-    <div class="hero-glow"></div>
-    <div class="badges">
-      <div class="badge">Android App Blocker</div>
-      <div class="blocked-badge">BLOCKED</div>
+    <div class="badge">🛡 Android · Open Source · Free</div>
+    <h1>The App Blocker<br /><span>That Can't Be Bypassed.</span></h1>
+    <p class="hero-sub">
+      FocusFlow enforces focus at the OS level — Accessibility Service + local VPN + Device Admin.
+      No soft timers, no single-tap override. Just unbreakable blocking.
+    </p>
+    <div class="cta-group">
+      <a class="btn-primary" href="https://github.com/TITANICBHAI/FocusFlow/releases">⬇ Download APK</a>
+      <a class="btn-ghost" href="https://github.com/TITANICBHAI/FocusFlow">View on GitHub →</a>
     </div>
-    <h1>Five layers.<br /><span>No way around it.</span></h1>
-    <p class="hero-sub">FocusFlow enforces focus at the OS level with five independent enforcement layers. It is not a reminder. It does not ask nicely. Bypassing it is not a single tap.</p>
-    <div class="hero-cta">
-      <a href="https://focusflowapp.pages.dev" class="btn btn-primary" target="_blank" rel="noopener">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-        Open FocusFlow
-      </a>
-      <a href="https://github.com/TITANICBHAI/FocusFlow" class="btn btn-ghost" target="_blank" rel="noopener">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
-        View Source
-      </a>
+
+    <div class="stat-strip">
+      <div class="stat">
+        <div class="stat-num">3</div>
+        <div class="stat-label">Enforcement layers<br />(Accessibility + VPN + Device Admin)</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">30+</div>
+        <div class="stat-label">Android OEM brands<br />supported</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">$0</div>
+        <div class="stat-label">Forever free<br />no subscription</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">No root</div>
+        <div class="stat-label">Works on stock<br />Android 8.0+</div>
+      </div>
     </div>
   </section>
 
-  <div class="divider"></div>
-
-  <section class="section" id="enforcement">
-    <div class="section-label">Enforcement Layers</div>
-    <h2 class="section-title">Five independent blockers. All active at once.</h2>
-    <p class="section-desc">Each layer works independently. Disable one and the other four still hold. This is not a timer app with a lock screen on top.</p>
-    <div class="layers">
-      <div class="layer">
-        <div class="layer-num">01</div>
-        <div class="layer-body">
-          <h3>AccessibilityService</h3>
-          <p>Intercepts every window-change event instantly using Android's AccessibilityService API. The moment a blocked app gains focus, it is pushed away — before the user can interact with it.</p>
+  <!-- Enforcement layers -->
+  <section id="enforcement">
+    <div class="section-inner">
+      <p class="section-label">Architecture</p>
+      <h2>Three layers of enforcement</h2>
+      <p class="section-sub">Most blockers use one layer — FocusFlow stacks three. Each layer closes a bypass the previous one leaves open.</p>
+      <div class="layers-grid">
+        <div class="layer-card">
+          <div class="layer-num">1</div>
+          <h3>Accessibility Service</h3>
+          <p>Monitors every app window. Fires within milliseconds of detecting a blocked app — up to 5 re-checks at 300 ms intervals. Also intercepts Play Store installs, uninstall dialogs, and navigation to Accessibility Settings during active sessions.</p>
         </div>
-      </div>
-      <div class="layer">
-        <div class="layer-num">02</div>
-        <div class="layer-body">
-          <h3>Null-Routing VPN</h3>
-          <p>An on-device VPN tunnel routes all traffic for blocked apps to a null interface — completely cutting network access without any external server, without root, and without modifying system hosts.</p>
+        <div class="layer-card">
+          <div class="layer-num">2</div>
+          <h3>Local Null-Routing VPN</h3>
+          <p>Routes blocked app traffic into a local VPN tunnel that never forwards packets. <strong>PER_APP mode:</strong> only the blocked app loses internet. <strong>GLOBAL mode:</strong> all internet cut except emergency calls. No traffic ever leaves your device.</p>
         </div>
-      </div>
-      <div class="layer">
-        <div class="layer-num">03</div>
-        <div class="layer-body">
-          <h3>Device Administrator Mode</h3>
-          <p>Android Device Admin prevents FocusFlow from being uninstalled through Settings during an active session. Removing it requires the session to end first — which requires the SHA-256 PIN.</p>
-        </div>
-      </div>
-      <div class="layer">
-        <div class="layer-num">04</div>
-        <div class="layer-body">
-          <h3>System Guard</h3>
-          <p>Monitors and intercepts navigation to the Accessibility Settings screen and the app's Clear Data screen during active sessions. Common workarounds that disable other blockers are themselves blocked.</p>
-        </div>
-      </div>
-      <div class="layer">
-        <div class="layer-num">05</div>
-        <div class="layer-body">
-          <h3>SHA-256 Session PIN</h3>
-          <p>All stop-session operations are gated by a native SHA-256 hashed PIN — computed in the native layer. Even if the JavaScript bridge were bypassed, the hash check still runs in native code.</p>
+        <div class="layer-card">
+          <div class="layer-num">3</div>
+          <h3>Device Administrator</h3>
+          <p>Blocks uninstallation via Android Settings. System Guard intercepts navigation to Clear Data and Accessibility screens during sessions. SHA-256 hashed session PIN stored natively — even a compromised JS bridge can't end a session without the correct PIN.</p>
         </div>
       </div>
     </div>
   </section>
 
-  <div class="divider"></div>
-
-  <section class="section" id="features">
-    <div class="section-label">Features</div>
-    <h2 class="section-title">Built beyond basic blocking</h2>
-    <p class="section-desc">Content-level blocking, aversive feedback, weekly reports, 30+ OEM brands supported. Completely free.</p>
-    <div class="grid-3">
-      <div class="card">
-        <div class="card-icon">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+  <!-- Features -->
+  <section id="features" class="features-bg">
+    <div class="section-inner">
+      <p class="section-label">What's inside</p>
+      <h2>Features no other blocker has</h2>
+      <p class="section-sub">These aren't incremental improvements. They're capabilities you won't find in Freedom, Opal, AppBlock, or Digital Wellbeing.</p>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">📊</div>
+          <h3>Temptation Log + Weekly Report</h3>
+          <p>Records every blocked-app attempt with timestamp (up to 500 entries). Every Sunday at 08:00, a push notification delivers your 7-day behavioral summary by app. Patterns, not just timers.</p>
         </div>
-        <h3>Content-Level Blocking</h3>
-        <p>Blocks specific content within apps — YouTube Shorts, Instagram Reels — not just the entire app. The rest of the app remains accessible.</p>
-      </div>
-      <div class="card">
-        <div class="card-icon">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <div class="feature-card">
+          <div class="feature-icon">📅</div>
+          <h3>Scheduled Greyout Windows</h3>
+          <p>Block Instagram Mon–Fri 09:00–18:00 without any active session. Per-app, per-day-of-week calendar blocking. Independent of the four timed modes — enforced directly by the Accessibility Service.</p>
         </div>
-        <h3>Session Recovery on Boot</h3>
-        <p>Active sessions survive device reboots. All five enforcement layers are re-activated automatically at boot — no way to escape via restart.</p>
-      </div>
-      <div class="card">
-        <div class="card-icon">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        <div class="feature-card">
+          <div class="feature-icon">📱</div>
+          <h3>Content-Specific Blocking</h3>
+          <p>YouTube Shorts Blocker closes the Shorts player while leaving YouTube fully accessible. Instagram Reels Blocker works the same way. Block the addiction loop, not the whole app.</p>
         </div>
-        <h3>Weekly Temptation Report</h3>
-        <p>A weekly digest shows which blocked apps were attempted most, peak distraction hours, and session completion rates. Awareness, quantified.</p>
-      </div>
-      <div class="card">
-        <div class="card-icon">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.62 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.6a16 16 0 0 0 6 6l.96-.96a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        <div class="feature-card">
+          <div class="feature-icon">⚡</div>
+          <h3>Aversive Feedback</h3>
+          <p>Screen dimmed to 2% hardware brightness + 70% black overlay + vibration pulse loop + notification sound — all firing simultaneously on blocked-app detection. Conditions the reflex, not just the behaviour.</p>
         </div>
-        <h3>Aversive Feedback</h3>
-        <p>Optional haptic and visual disruption when a blocked app is attempted. Not a pleasant notification — a deliberate friction point.</p>
-      </div>
-      <div class="card">
-        <div class="card-icon">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+        <div class="feature-card">
+          <div class="feature-icon">🏠</div>
+          <h3>Launcher Replacement</h3>
+          <p>Set FocusFlow as your home screen. HOME button shows only whitelisted apps in a minimal grid. The app drawer also respects the blocklist. Your home screen becomes the enforcer.</p>
         </div>
-        <h3>30+ OEM Brands</h3>
-        <p>Tested and tuned for quirks across Samsung, Xiaomi, OnePlus, Oppo, Vivo, Realme, and 25+ more. OEM-specific AccessibilityService behaviors handled per-brand.</p>
-      </div>
-      <div class="card">
-        <div class="card-icon">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        <div class="feature-card">
+          <div class="feature-icon">🔄</div>
+          <h3>Boot Recovery</h3>
+          <p>BootReceiver auto-restarts the Accessibility Service and VPN after any device reboot. Clock tamper detection validates session timestamps at boot — the "change system clock" bypass doesn't work.</p>
         </div>
-        <h3>Completely Free</h3>
-        <p>No subscription. No premium tier. No ads. Every enforcement layer is available to every user from the first install.</p>
+        <div class="feature-card">
+          <div class="feature-icon">📦</div>
+          <h3>Sideload Guard</h3>
+          <p>PackageInstallReceiver monitors ACTION_PACKAGE_ADDED. Any app installed during a session is auto-blocked and triggers aversive feedback. The "install a different browser to bypass" loophole is closed.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">⏱</div>
+          <h3>Daily Allowance Engine</h3>
+          <p>Three sub-modes per app: count (opens per day), time-budget (minutes per day), and interval (cooldown between uses). Granular control that goes beyond blunt session blocking.</p>
+        </div>
       </div>
     </div>
   </section>
 
-  <div class="divider"></div>
-
-  <section class="cta-section" id="cta">
-    <div class="cta-box">
-      <h2>Start a session</h2>
-      <p>FocusFlow is free, open source, and available now. No account required.</p>
-      <div class="cta-buttons">
-        <a href="https://focusflowapp.pages.dev" class="btn btn-primary" target="_blank" rel="noopener">Open the App</a>
-        <a href="https://github.com/TITANICBHAI/FocusFlow" class="btn btn-ghost" target="_blank" rel="noopener">Star on GitHub</a>
+  <!-- How it works -->
+  <section id="how">
+    <div class="section-inner">
+      <p class="section-label">Getting started</p>
+      <h2>Up and running in minutes</h2>
+      <p class="section-sub">Grant two permissions and you're protected. FocusFlow handles everything else in the background.</p>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <h3>Grant Permissions</h3>
+          <p>Enable Accessibility Service and Usage Stats access — both are needed to detect and block apps at the OS level.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <h3>Choose Your Mode</h3>
+          <p>Task-Based, Standalone, Always-On, or Scheduled Greyout. Add the apps you want blocked (or a whitelist of what's allowed).</p>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <h3>Start Blocking</h3>
+          <p>FocusFlow activates all three enforcement layers. A persistent notification shows session status and controls.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <h3>Review Your Data</h3>
+          <p>Check the Temptation Log. Read the Sunday report. See which apps pull your attention most and adjust your blocklist.</p>
+        </div>
       </div>
     </div>
   </section>
 
+  <!-- Comparison table -->
+  <section id="compare" class="compare-bg">
+    <div class="section-inner">
+      <p class="section-label">Side by side</p>
+      <h2>FocusFlow vs the competition</h2>
+      <p class="section-sub">A direct comparison of hard enforcement features across the major screen time apps.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Feature</th>
+              <th>FocusFlow</th>
+              <th>Freedom</th>
+              <th>Opal</th>
+              <th>Digital Wellbeing</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Accessibility Service blocking</td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+            </tr>
+            <tr>
+              <td>Local VPN enforcement</td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="cross">✗</span></td>
+            </tr>
+            <tr>
+              <td>Device Administrator (uninstall lock)</td>
+              <td><span class="check">✓</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+            </tr>
+            <tr>
+              <td>Temptation Log + Weekly Report</td>
+              <td><span class="check">✓</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+            </tr>
+            <tr>
+              <td>Content-level blocking (Shorts / Reels)</td>
+              <td><span class="check">✓</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+            </tr>
+            <tr>
+              <td>Aversive feedback (dimming + vibration)</td>
+              <td><span class="check">✓</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+            </tr>
+            <tr>
+              <td>Boot recovery &amp; clock tamper detection</td>
+              <td><span class="check">✓</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+            </tr>
+            <tr>
+              <td>Price</td>
+              <td><strong style="color:var(--text)">Free</strong></td>
+              <td>$39.99/yr</td>
+              <td>$39.99/yr</td>
+              <td>Free</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq">
+    <div class="section-inner">
+      <p class="section-label">Questions</p>
+      <h2>Frequently asked</h2>
+      <p class="section-sub">Everything you need to know before installing.</p>
+      <div class="faq-list">
+
+        <details>
+          <summary>Does FocusFlow require root?</summary>
+          <div class="faq-body">No. FocusFlow works entirely within the standard Android permission system — Accessibility Service, VPN, and Device Administrator. No rooting or system modification is required. It runs on stock Android 8.0+ on 30+ OEM brands.</div>
+        </details>
+
+        <details>
+          <summary>How does FocusFlow prevent me from uninstalling it?</summary>
+          <div class="faq-body">Three layers: (1) Android Device Administrator mode blocks the normal Settings → Apps → Uninstall path; (2) System Guard intercepts navigation to Accessibility Settings, Clear Data, and Uninstall during active sessions; (3) A SHA-256 hashed session PIN stored natively means even a compromised JavaScript layer cannot end a session without the correct PIN.</div>
+        </details>
+
+        <details>
+          <summary>What is the Temptation Log and Weekly Report?</summary>
+          <div class="faq-body">The Temptation Log records every blocked-app attempt — app name, package name, timestamp — capped at 500 entries. Every Sunday at 08:00, FocusFlow delivers a push notification with your 7-day totals by app (e.g. "Instagram: 18 attempts, TikTok: 14 attempts this week"). No other screen time app offers a weekly behavioral report.</div>
+        </details>
+
+        <details>
+          <summary>Can FocusFlow block YouTube Shorts without blocking all of YouTube?</summary>
+          <div class="faq-body">Yes. The YouTube Shorts Blocker closes the Shorts player within YouTube while leaving the main feed, search, subscriptions, and video playback fully accessible. Instagram Reels blocking works the same way — Reels feed blocked, the rest of Instagram untouched.</div>
+        </details>
+
+        <details>
+          <summary>What happens if I install a new app during a session?</summary>
+          <div class="faq-body">PackageInstallReceiver monitors for ACTION_PACKAGE_ADDED broadcasts. Any newly installed app is automatically added to the block list and triggers aversive vibration feedback. The common "install a competing browser mid-session" loophole is closed.</div>
+        </details>
+
+        <details>
+          <summary>Does FocusFlow collect or share my data?</summary>
+          <div class="faq-body">No. The local VPN never forwards packets to any external server. The Temptation Log, task data, and all blocking state are stored on-device in Android SharedPreferences and SQLite. FocusFlow transmits zero telemetry, analytics, or personal data to any server.</div>
+        </details>
+
+        <details>
+          <summary>Does FocusFlow work after a phone reboot?</summary>
+          <div class="faq-body">Yes. BootReceiver automatically restarts the Accessibility Service and VPN after any device reboot during an active session. Clock tamper detection also validates session timestamps at boot — the "change the system clock to expire the timer" bypass is ineffective.</div>
+        </details>
+
+        <details>
+          <summary>Which Android devices does FocusFlow support?</summary>
+          <div class="faq-body">30+ Android OEM brands: Samsung (OneUI), Xiaomi (MIUI/HyperOS), Oppo (ColorOS), Realme, Vivo (Funtouch/OriginOS), OnePlus (OxygenOS), Huawei (EMUI/HarmonyOS), Honor, Motorola, Asus (ZenUI/ROG), Nothing OS, Nokia/HMD, Sony Xperia, Meizu (Flyme), LG, Lenovo, TCL/Alcatel, ZTE, Wiko, Black Shark, and Transsion brands (Infinix, Tecno, itel).</div>
+        </details>
+
+        <details>
+          <summary>Is FocusFlow really free?</summary>
+          <div class="faq-body">Yes, completely free. No subscription, no in-app purchase, no premium tier. Every feature — Accessibility Service enforcement, VPN blocking, Device Admin, Temptation Log, Weekly Report, Scheduled Greyout Windows, scheduling engine — is available at no cost.</div>
+        </details>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Tech stack -->
+  <section style="background: var(--surface);">
+    <div class="section-inner">
+      <p class="section-label">Tech stack</p>
+      <h2>Built with modern tools</h2>
+      <p class="section-sub">React Native + Expo on the JS layer. Six custom Kotlin native modules on the Android side.</p>
+      <div class="tech-grid">
+        <span class="tech-pill">Expo SDK 54</span>
+        <span class="tech-pill">React Native 0.81</span>
+        <span class="tech-pill">Expo Router</span>
+        <span class="tech-pill">TypeScript</span>
+        <span class="tech-pill">SQLite (expo-sqlite)</span>
+        <span class="tech-pill">Kotlin</span>
+        <span class="tech-pill">Android Accessibility Service</span>
+        <span class="tech-pill">Android Foreground Service</span>
+        <span class="tech-pill">AppWidget API</span>
+        <span class="tech-pill">UsageStats API</span>
+        <span class="tech-pill">VpnService API</span>
+        <span class="tech-pill">DeviceAdminReceiver</span>
+        <span class="tech-pill">expo-notifications</span>
+        <span class="tech-pill">Reanimated v4</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-section">
+    <div class="section-inner">
+      <h2>Ready to actually focus?</h2>
+      <p>Download the APK or build it yourself from source. Completely free, forever.</p>
+      <div class="cta-group">
+        <a class="btn-primary" href="https://github.com/TITANICBHAI/FocusFlow/releases">⬇ Download APK</a>
+        <a class="btn-ghost" href="https://github.com/TITANICBHAI/FocusFlow">View Source →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
   <footer>
-    <p>FocusFlow by <a href="https://titanicbhai.github.io" target="_blank" rel="noopener">TBTechs</a> &mdash; also see <a href="https://github.com/TITANICBHAI/FocusFlow-jvm" target="_blank" rel="noopener">FocusFlow JVM</a> for Windows</p>
+    <p>
+      FocusFlow by TBTechs — open source under the AGPL v3.0 licence ·
+      <a href="privacy-policy/">Privacy Policy</a> ·
+      <a href="terms-of-service/">Terms of Service</a> ·
+      <a href="https://github.com/TITANICBHAI/FocusFlow">GitHub</a>
+    </p>
   </footer>
+
 </body>
 </html>
