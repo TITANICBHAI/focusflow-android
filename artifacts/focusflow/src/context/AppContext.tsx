@@ -1471,9 +1471,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_SETTINGS', payload: newSettings });
     await SharedPrefsModule.setDailyAllowanceConfig(entries);
     // Enable always-on enforcement whenever allowance entries are configured.
-    const packages = newSettings.standaloneBlockPackages ?? [];
-    const alwaysActive = packages.length > 0 || entries.length > 0;
-    await SharedPrefsModule.setAlwaysBlockActive(alwaysActive, packages).catch(() => {});
+    // Must use alwaysOnPackages (the 24/7 block list), NOT standaloneBlockPackages
+    // (the timed-session list), so that saving daily allowance entries does not
+    // overwrite always_block_packages in SharedPreferences with the wrong list.
+    // Also gate on alwaysOnEnforcementEnabled to match _syncAlwaysBlock behaviour.
+    const alwaysOnPkgs = newSettings.alwaysOnPackages ?? [];
+    const enforcementOn = newSettings.alwaysOnEnforcementEnabled !== false;
+    const alwaysActive = enforcementOn && (alwaysOnPkgs.length > 0 || entries.length > 0);
+    await SharedPrefsModule.setAlwaysBlockActive(alwaysActive, alwaysOnPkgs).catch(() => {});
   }, [state.settings]);
 
   const setBlockedWords = useCallback(async (words: string[]) => {
