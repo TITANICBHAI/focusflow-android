@@ -23,6 +23,7 @@ import {
   dbBackfillDayCompletions,
   dbRecordDayCompletion,
   dbCheckpointWal,
+  resetDb,
 } from '@/data/database';
 import {
   getTodayTasks,
@@ -284,6 +285,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
     const sub = RNAppState.addEventListener('change', handleAppStateChange);
     return () => sub.remove();
+  }, []);
+
+  // ── Foreground resume: reload tasks on app-active ────────────────────────────
+  // When Android trims the process while the app is backgrounded, the native
+  // SQLite handle is silently invalidated. The React state remains in memory
+  // (no remount, so init() does NOT re-run), but any subsequent DB call will
+  // fail with a NullPointerException on the dead handle. runWithDb already
+  // retries once on that error, but if the retry also races a slow reopen the
+  // task list is left empty for the rest of the session — which is exactly what
+  // the user perceives as "data disappeared; comes back after restart".
+  //
+  // Fix: on every foreground resume, proactively reset the singleton handle so
+  // the very next DB operation (refreshTasks) always opens a fresh connection,
+  // then immediately reload tasks. This is cheap (SQLite open ≈ a few ms) and
+  // is the same strategy used by other React Native apps with long-lived SQLite.
+  const appStatePrev = useRef(RNAppState.currentState);
+  useEffect(() => {
+    const handleResume = (nextState: AppStateStatus) => {
+      if (
+        (appStatePrev.current === 'background' || appStatePrev.current === 'inactive') &&
+        nextState === 'active'
+      ) {
+        void logger.info('AppContext', '[FOREGROUND_RESUME] resetting DB handle and refreshing tasks');
+        resetDb();
+        void refreshTasks().catch((e) => {
+          void logger.warn('AppContext', `foreground resume refreshTasks failed: ${String(e)}`);
+        });
+      }
+      appStatePrev.current = nextState;
+    };
+    const sub = RNAppState.addEventListener('change', handleResume);
+    return () => sub.remove();
+  // refreshTasks is stable (useCallback with no deps), so this effect only runs once.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function init() {
