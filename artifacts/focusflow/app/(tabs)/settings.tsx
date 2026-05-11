@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  Linking,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -130,7 +131,7 @@ function SettingsScreen() {
     if (backupBusy) return;
     setBackupBusy(true);
     try {
-      const result = await exportBackup(settings, 'v1.2.0');
+      const result = await exportBackup(settings, 'v1.0.2');
       if (!result.ok) {
         Alert.alert('Export failed', result.error ?? 'Could not create backup file.');
       }
@@ -701,10 +702,20 @@ function SettingsScreen() {
             description="How FocusFlow handles your data and the rules of use"
             onPress={() => router.push('/privacy-policy')}
           />
+          <SettingButton
+            icon="mail-outline"
+            label="Contact Support"
+            description="Email us at tbtechsdev@gmail.com"
+            onPress={() =>
+              Linking.openURL(
+                'mailto:tbtechsdev@gmail.com?subject=FocusFlow%20Support'
+              )
+            }
+          />
         </Section>
 
         <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: theme.muted }]}>FocusFlow v1.2.0 (build 12)</Text>
+          <Text style={[styles.footerText, { color: theme.muted }]}>FocusFlow v1.0.2 (build 3)</Text>
           <Text style={[styles.footerText, { color: theme.muted }]}>All data stored locally on device</Text>
         </View>
       </ScrollView>
