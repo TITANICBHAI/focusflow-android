@@ -593,6 +593,30 @@ export async function dbGetStreak(): Promise<number> {
   });
 }
 
+// ─── WAL checkpoint ───────────────────────────────────────────────────────────
+//
+// SQLite WAL mode keeps recent writes in a separate -wal sidecar file.
+// When Android's Auto Backup agent copies the database it grabs the .db file
+// as-is. If the -wal file has uncommitted pages that haven't been folded back
+// into the main .db yet, the backup will be missing those writes.
+//
+// `dbCheckpointWal` runs a FULL checkpoint that:
+//  1. Ensures all WAL frames are written back to the main .db file.
+//  2. Makes the -wal file safe to truncate (Android does this on its own).
+//
+// Call this whenever the app goes to background and periodically during idle
+// so the on-disk database is always in sync with what the user expects.
+
+export async function dbCheckpointWal(): Promise<void> {
+  try {
+    await runWithDb('dbCheckpointWal', async (database) => {
+      await database.execAsync('PRAGMA wal_checkpoint(FULL);');
+    });
+  } catch (e) {
+    void logger.warn('database', `WAL checkpoint failed (non-fatal): ${String(e)}`);
+  }
+}
+
 // ─── All-time / heatmap stats ─────────────────────────────────────────────────
 
 /** Returns all daily_completions rows for the last `days` days, sorted oldest-first. */

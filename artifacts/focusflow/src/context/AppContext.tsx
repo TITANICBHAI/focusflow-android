@@ -6,7 +6,7 @@ import React, {
   useCallback,
   useRef,
 } from 'react';
-import { Alert } from 'react-native';
+import { Alert, AppState as RNAppState, type AppStateStatus } from 'react-native';
 import type { Task, AppSettings, FocusSession, DailyAllowanceEntry, RecurringBlockSchedule, GreyoutWindow } from '@/data/types';
 import {
   dbGetTasksForDate,
@@ -21,6 +21,7 @@ import {
   dbGetStreak,
   dbBackfillDayCompletions,
   dbRecordDayCompletion,
+  dbCheckpointWal,
 } from '@/data/database';
 import {
   getTodayTasks,
@@ -265,6 +266,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => {
       if (tickRef.current) clearInterval(tickRef.current);
     };
+  }, []);
+
+  // ── WAL checkpoint on app background ────────────────────────────────────────
+  // Android's Auto Backup agent copies the .db file whenever the app is
+  // backgrounded (typically once per day). If the WAL sidecar has unfolded
+  // pages, the backup will miss recent writes. Running a FULL checkpoint right
+  // when the app goes to background ensures the main .db is always up-to-date
+  // before the OS can copy it or trim the process.
+  useEffect(() => {
+    const handleAppStateChange = (nextState: AppStateStatus) => {
+      if (nextState === 'background' || nextState === 'inactive') {
+        void dbCheckpointWal();
+        void logger.info('AppContext', 'WAL checkpoint triggered on app background');
+      }
+    };
+    const sub = RNAppState.addEventListener('change', handleAppStateChange);
+    return () => sub.remove();
   }, []);
 
   async function init() {

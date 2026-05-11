@@ -62,6 +62,22 @@ const CHANGELOG: Entry[] = [
     ],
   },
   {
+    version: '1.0.3',
+    date: 'May 2026',
+    sections: [
+      {
+        heading: 'Database Reliability',
+        icon: 'shield-checkmark-outline',
+        items: [
+          'WAL checkpoint on app background — every time FocusFlow moves to the background, a FULL WAL checkpoint is triggered so the on-disk database is always in sync before Android can back it up or trim the process',
+          'Android Auto Backup now correctly includes the SQLite database and its WAL/SHM sidecar files — tasks, settings, and streaks are restored from Google Drive after a reinstall instead of resetting to a blank state',
+          'Backup rules configured for both Android < 12 (fullBackupContent) and Android 12+ (dataExtractionRules), covering cloud backup and device-to-device transfer',
+          'SharedPreferences (privacy accepted, onboarding complete) always included in backups alongside the database, preventing onboarding screens from reappearing after a restore',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.0.2',
     date: 'May 2026',
     sections: [
