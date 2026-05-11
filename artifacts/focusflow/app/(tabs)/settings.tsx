@@ -52,18 +52,8 @@ function SettingsScreen() {
   const [defPinVisible, setDefPinVisible] = useState(false);
   const [pinSetupVisible, setPinSetupVisible] = useState(false);
   const pendingDefAction = useRef<(() => void) | null>(null);
-  // Diagnostics is gated on the native debuggable flag (not __DEV__) so that
-  // debug-built APKs running prebundled JS still expose the section. We
-  // optimistically default to __DEV__ so Metro builds show it on first paint,
-  // then refine with the native check on mount.
-  const [showDiagnostics, setShowDiagnostics] = useState<boolean>(__DEV__);
-  useEffect(() => {
-    let cancelled = false;
-    void SharedPrefsModule.isDebuggableBuild().then((isDebug) => {
-      if (!cancelled) setShowDiagnostics(isDebug);
-    });
-    return () => { cancelled = true; };
-  }, []);
+  // Diagnostics section is development-only — hidden entirely in release builds.
+  const showDiagnostics = __DEV__;
 
   if (!state.isDbReady) {
     return (

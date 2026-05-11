@@ -127,6 +127,7 @@ function rotate(): void {
 }
 
 export async function log(level: LogLevel, tag: string, message: string): Promise<void> {
+  if (!__DEV__) return;
   await ensureLoaded();
   const entry: LogEntry = {
     ts: new Date().toISOString(),
@@ -138,9 +139,6 @@ export async function log(level: LogLevel, tag: string, message: string): Promis
   rotate();
   queuePersist();
 
-  // Probe once on first call (cheap, idempotent), then mirror to console
-  // whenever this is a debuggable build. ERROR-level entries are also mirrored
-  // unconditionally so production crashes still surface in adb logcat.
   probeDebuggable();
   if (cachedDebuggable || level === 'ERROR') {
     const prefix = `[${level}][${tag}]`;
@@ -198,6 +196,7 @@ let _isNewProcess = true;
  * this session's entries.
  */
 export async function logBootMarker(): Promise<string> {
+  if (!__DEV__) return '';
   await ensureLoaded();
 
   const isFirstCallInProcess = _isNewProcess;
@@ -224,27 +223,27 @@ export async function logBootMarker(): Promise<string> {
  * `logBootMarker` hasn't run yet.
  */
 export function getBootSessionId(): string | null {
+  if (!__DEV__) return null;
   return bootSessionId;
 }
 
 /** Return last N entries from the in-memory log (most recent last). */
 export async function getRecentLogs(n = 100): Promise<LogEntry[]> {
+  if (!__DEV__) return [];
   await ensureLoaded();
   return memoryLog.slice(-n);
 }
 
 /** Return all log entries from the in-memory log. */
 export async function getAllLogs(): Promise<LogEntry[]> {
+  if (!__DEV__) return [];
   await ensureLoaded();
   return [...memoryLog];
 }
 
-/** Clear all logs from memory, AsyncStorage, and the log file.
- *  Chained through persistChain so any in-flight persist completes
- *  first, then the clear executes — preventing a queued write from
- *  repopulating the log after the clear resolves.
- */
+/** Clear all logs from memory, AsyncStorage, and the log file. */
 export function clearLogs(): Promise<void> {
+  if (!__DEV__) return Promise.resolve();
   persistChain = persistChain
     .then(async () => {
       memoryLog = [];
@@ -268,6 +267,7 @@ export function clearLogs(): Promise<void> {
 
 /** Format all logs as a plain-text string suitable for sharing. */
 export async function formatLogsForShare(): Promise<string> {
+  if (!__DEV__) return '';
   await ensureLoaded();
   const header = `FocusFlow Startup Log — ${new Date().toISOString()}\n${'─'.repeat(60)}\n`;
   const body = memoryLog
@@ -278,5 +278,6 @@ export async function formatLogsForShare(): Promise<string> {
 
 /** Returns the path to the persistent log file (for sharing via expo-sharing). */
 export function getLogFilePath(): string | null {
+  if (!__DEV__) return null;
   return logFilePath();
 }
