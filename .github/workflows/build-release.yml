@@ -128,6 +128,8 @@ jobs:
           )
 
           # Patch buildTypes.release to reference signingConfigs.release
+          # Scope the match to inside buildTypes only to avoid corrupting the
+          # signingConfigs.release block that was just inserted above.
           def patch_release(m):
               s = m.group(0)
               s = re.sub(r'signingConfig\s+\S+', 'signingConfig signingConfigs.release', s)
@@ -135,7 +137,10 @@ jobs:
                   s = re.sub(r'(release\s*\{)', r'\1\n            signingConfig signingConfigs.release', s, count=1)
               return s
 
-          text = re.sub(r'(?s)\brelease\s*\{[^{}]*\}', patch_release, text)
+          def patch_build_types(m):
+              return re.sub(r'(?s)\brelease\s*\{[^{}]*\}', patch_release, m.group(0))
+
+          text = re.sub(r'(?s)\bbuildTypes\s*\{(?:[^{}]|\{[^{}]*\})*\}', patch_build_types, text)
 
           open(path, 'w').write(text)
           print('v1+v2+v3 signing patched into app/build.gradle')
@@ -302,7 +307,10 @@ jobs:
                   s = re.sub(r'(release\s*\{)', r'\1\n            signingConfig signingConfigs.release', s, count=1)
               return s
 
-          text = re.sub(r'(?s)\brelease\s*\{[^{}]*\}', patch_release, text)
+          def patch_build_types(m):
+              return re.sub(r'(?s)\brelease\s*\{[^{}]*\}', patch_release, m.group(0))
+
+          text = re.sub(r'(?s)\bbuildTypes\s*\{(?:[^{}]|\{[^{}]*\})*\}', patch_build_types, text)
 
           open(path, 'w').write(text)
           print('v1+v2+v3 signing patched into app/build.gradle')
