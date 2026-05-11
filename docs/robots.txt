@@ -5,6 +5,7 @@
 User-agent: *
 Allow: /
 Allow: /llms.txt
+Allow: /llms-full.txt
 Disallow: /404
 
 # Sitemaps and AI-specific documentation
