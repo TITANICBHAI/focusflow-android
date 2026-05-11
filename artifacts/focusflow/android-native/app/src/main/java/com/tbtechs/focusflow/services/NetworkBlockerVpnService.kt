@@ -173,6 +173,14 @@ class NetworkBlockerVpnService : VpnService() {
 
         stopVpn()   // close the TUN fd first
 
+        // Signal to the JS layer that VPN permission was lost.
+        // This flag is read by NetworkBlockModule.isVpnPermissionGranted() and
+        // used to surface the re-grant prompt in the UI. The flag is cleared
+        // by startVpn() if a subsequent restart succeeds.
+        if (focusOn || saOn) {
+            prefs.edit().putBoolean("vpn_permission_lost", true).apply()
+        }
+
         if (selfHeal && (focusOn || saOn)) {
             val ctx  = applicationContext
             val pkgs = prefs.getString("net_block_packages", "[]") ?: "[]"
@@ -190,7 +198,8 @@ class NetworkBlockerVpnService : VpnService() {
                         ctx.startService(restartIntent)
                     }
                 } catch (_: Exception) {
-                    // Session ended or another VPN took over — give up gracefully
+                    // Session ended or another VPN took over — give up gracefully.
+                    // vpn_permission_lost stays true so the UI can show the re-grant prompt.
                 }
             }, 3_000L)
         }
@@ -260,16 +269,26 @@ class NetworkBlockerVpnService : VpnService() {
             vpnInterface = builder.establish()
             isRunning = vpnInterface != null
 
-            // Persist mode and packages so we can restore after an OS restart
-            getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-                .putString("net_block_packages", packagesJson)
-                .putString("net_block_mode",     mode)
-                .apply()
-
-            // Schedule the AlarmManager watchdog so the VPN is restarted even if
-            // Android kills the entire process (battery optimisers, memory pressure).
+            val sp = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             if (isRunning) {
+                // Persist mode and packages so we can restore after an OS restart.
+                // Also clear the permission-lost flag — the tunnel is up again.
+                sp.edit()
+                    .putString("net_block_packages",  packagesJson)
+                    .putString("net_block_mode",       mode)
+                    .putBoolean("vpn_permission_lost", false)
+                    .apply()
+                // Schedule the AlarmManager watchdog so the VPN is restarted even if
+                // Android kills the entire process (battery optimisers, memory pressure).
                 VpnWatchdogReceiver.schedule(applicationContext)
+            } else {
+                // builder.establish() returned null — this usually means VPN permission
+                // was revoked between the prepare() check and the actual establish() call
+                // (race with the user dismissing the system prompt, another VPN starting, etc.)
+                sp.edit()
+                    .putBoolean("vpn_permission_lost", true)
+                    .apply()
+                stopSelf()
             }
 
             // Do NOT start a read loop on the TUN fd — packets that enter the tunnel

@@ -79,6 +79,12 @@ class ForegroundTaskService : Service() {
         /** How often the in-process VPN health check runs (ms). */
         private const val VPN_HEALTH_CHECK_MS = 60_000L
 
+        /**
+         * How often the UsageStats-based allowance sync fires (ms).
+         * Every 60 s is accurate enough for a daily time budget and cheap on battery.
+         */
+        private const val ALLOWANCE_SYNC_MS = 60_000L
+
         /** Notification channel for full-screen block-overlay intent. */
         private const val BLOCK_ALERT_CHANNEL  = "focusday_block_alert"
         private const val BLOCK_ALERT_NOTIF_ID = 9001
@@ -222,6 +228,107 @@ class ForegroundTaskService : Service() {
         }
     }
 
+    /**
+     * UsageStats-based allowance sync — runs every [ALLOWANCE_SYNC_MS] (60 s).
+     *
+     * Uses Android's UsageStatsManager (PACKAGE_USAGE_STATS permission) to read the
+     * *actual* foreground time each tracked app has accumulated since the start of today.
+     * This is the ground-truth source — it is device-managed, cannot be inflated by
+     * spurious accessibility events, and persists across service kills/reboots.
+     *
+     * Only updates `time_budget` entries in daily_allowance_used. The count and interval
+     * modes don't map cleanly onto the UsageStats API and keep their own tracking.
+     *
+     * The sync is additive — it only raises `usedMs` when UsageStats reports more time
+     * than the current stored value, so a freshly accumulated event-based write is never
+     * overwritten downward by a stale 60-second snapshot.
+     */
+    private val allowanceSyncRunnable = object : Runnable {
+        override fun run() {
+            try { syncAllowanceFromUsageStats() } catch (_: Exception) { /* best-effort */ }
+            handler.postDelayed(this, ALLOWANCE_SYNC_MS)
+        }
+    }
+
+    private fun syncAllowanceFromUsageStats() {
+        val configJson = blockPrefs.getString("daily_allowance_config", null) ?: return
+        if (configJson.isBlank() || configJson == "null") return
+
+        // Parse only time_budget packages — collect pkg → budgetMs
+        val timeBudgetPkgs = mutableMapOf<String, Long>()
+        try {
+            val arr = org.json.JSONArray(configJson)
+            for (i in 0 until arr.length()) {
+                val obj = arr.optJSONObject(i) ?: continue
+                if (obj.optString("mode") != "time_budget") continue
+                val pkg      = obj.optString("packageName", "")
+                val budgetMs = obj.optInt("budgetMinutes", 30).toLong() * 60_000L
+                if (pkg.isNotEmpty()) timeBudgetPkgs[pkg] = budgetMs
+            }
+        } catch (_: Exception) { return }
+        if (timeBudgetPkgs.isEmpty()) return
+
+        // Gate on Usage Access permission — AppOps check (mirrors UsageStatsModule)
+        val appOps = getSystemService(Context.APP_OPS_SERVICE) as? android.app.AppOpsManager ?: return
+        val mode   = appOps.checkOpNoThrow(
+            android.app.AppOpsManager.OPSTR_GET_USAGE_STATS,
+            android.os.Process.myUid(), packageName
+        )
+        // MODE_ALLOWED or MODE_DEFAULT (some Samsung OneUI builds) are both acceptable
+        if (mode == android.app.AppOpsManager.MODE_IGNORED ||
+            mode == android.app.AppOpsManager.MODE_ERRORED) return
+
+        val usm = getSystemService(Context.USAGE_STATS_SERVICE)
+            as? android.app.usage.UsageStatsManager ?: return
+
+        // Query from midnight today → now so we only count today's foreground time
+        val cal = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        val startOfDay = cal.timeInMillis
+        val now        = System.currentTimeMillis()
+        val today      = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                           .format(java.util.Date())
+
+        val statsMap = try {
+            usm.queryUsageStats(android.app.usage.UsageStatsManager.INTERVAL_DAILY, startOfDay, now)
+                ?.associateBy { it.packageName } ?: return
+        } catch (_: Exception) { return }
+
+        val usedJson = blockPrefs.getString("daily_allowance_used", "{}") ?: "{}"
+        val allUsed  = try { org.json.JSONObject(usedJson) } catch (_: Exception) { return }
+        var changed  = false
+
+        for ((pkg, budgetMs) in timeBudgetPkgs) {
+            val actualMs = (statsMap[pkg]?.totalTimeInForeground ?: 0L)
+                .coerceAtMost(budgetMs)
+            if (actualMs <= 0L) continue
+
+            val pkgUsed    = allUsed.optJSONObject(pkg) ?: org.json.JSONObject()
+            val storedDate = pkgUsed.optString("date", "")
+            val storedMs   = if (storedDate == today) pkgUsed.optLong("usedMs", 0L) else 0L
+
+            // Only raise — never lower — so an event-based write that is more recent
+            // than the last 60-second snapshot is never clobbered.
+            if (actualMs > storedMs) {
+                pkgUsed.put("mode",   "time_budget")
+                pkgUsed.put("date",   today)
+                pkgUsed.put("usedMs", actualMs)
+                allUsed.put(pkg, pkgUsed)
+                changed = true
+            }
+        }
+
+        if (changed) {
+            blockPrefs.edit()
+                .putString("daily_allowance_used", allUsed.toString())
+                .apply()
+        }
+    }
+
     private val tickRunnable = object : Runnable {
         override fun run() {
             val remaining = endTimeMs - System.currentTimeMillis()
@@ -350,6 +457,9 @@ class ForegroundTaskService : Service() {
         // Start the in-process VPN health check. First tick is staggered by
         // half the interval so it doesn't race the AccessibilityService check.
         handler.postDelayed(vpnHealthRunnable, VPN_HEALTH_CHECK_MS / 2)
+        // Start the UsageStats allowance sync. Staggered 10 s to let other
+        // startup work settle first. Runs every 60 s while the service is alive.
+        handler.postDelayed(allowanceSyncRunnable, 10_000L)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -462,6 +572,7 @@ class ForegroundTaskService : Service() {
         handler.removeCallbacks(tickRunnable)
         handler.removeCallbacks(fallbackPollRunnable)
         handler.removeCallbacks(vpnHealthRunnable)
+        handler.removeCallbacks(allowanceSyncRunnable)
         WakeLockManager.release()
         super.onDestroy()
     }
@@ -548,9 +659,13 @@ class ForegroundTaskService : Service() {
         }
         if (!focusActive && !saActive) return
 
-        // Cannot restart without VPN permission
+        // Cannot restart without VPN permission.
+        // Write the permission-lost flag so the JS layer can surface a re-grant prompt.
         try {
-            if (android.net.VpnService.prepare(this) != null) return
+            if (android.net.VpnService.prepare(this) != null) {
+                prefs.edit().putBoolean("vpn_permission_lost", true).apply()
+                return
+            }
         } catch (_: Exception) { return }
 
         val pkgs   = prefs.getString("net_block_packages", "[]") ?: "[]"

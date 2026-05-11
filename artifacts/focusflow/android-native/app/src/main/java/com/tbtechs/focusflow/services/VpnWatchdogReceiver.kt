@@ -138,9 +138,14 @@ class VpnWatchdogReceiver : BroadcastReceiver() {
         if (NetworkBlockerVpnService.isRunning) return
 
         // ── VPN permission check — cannot restart silently without it ───────────
+        // Write the permission-lost flag so the JS layer can surface a re-grant prompt
+        // the next time the user opens the app.
 
         try {
-            if (VpnService.prepare(context) != null) return
+            if (VpnService.prepare(context) != null) {
+                prefs.edit().putBoolean("vpn_permission_lost", true).apply()
+                return
+            }
         } catch (_: Exception) { return }
 
         // ── Restart the VPN tunnel ──────────────────────────────────────────────

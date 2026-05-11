@@ -473,6 +473,24 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+
+        // Restore any timed session that was active when the service was interrupted
+        // (killed by Android, device rebooted, user toggled accessibility off/on).
+        // Charging elapsed gap here prevents users from bypassing a time-budget limit
+        // by force-stopping or toggling the accessibility service.
+        val savedPkg    = prefs.getString("timed_session_pkg", null)
+        val savedOpenAt = prefs.getLong("timed_session_open_at_ms", 0L)
+        if (savedPkg != null && savedOpenAt > 0L) {
+            val entry = findAllowanceEntry(savedPkg)
+            if (entry != null && (entry.mode == "time_budget" || entry.mode == "interval")) {
+                accumulateTimedUsage(savedPkg, entry, savedOpenAt)
+            }
+            prefs.edit()
+                .remove("timed_session_pkg")
+                .remove("timed_session_open_at_ms")
+                .apply()
+        }
+
         // Start the VPN self-heal health check loop. The first check fires after
         // 10 s so we don't run anything during the cold-start window.
         vpnHealthHandler.postDelayed(vpnHealthRunnable, 10_000L)
@@ -1078,6 +1096,28 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     }
 
     override fun onInterrupt() {
+        // Persist any in-progress timed session so onServiceConnected can charge
+        // the gap elapsed while the service was down. This prevents the time-budget
+        // bypass that previously allowed users to gain free time by toggling the
+        // accessibility service off and back on.
+        if (::prefs.isInitialized) {
+            if (currentTimedPkg != null && currentTimedOpenAtMs > 0L) {
+                prefs.edit()
+                    .putString("timed_session_pkg", currentTimedPkg)
+                    .putLong("timed_session_open_at_ms", currentTimedOpenAtMs)
+                    .apply()
+            } else {
+                prefs.edit()
+                    .remove("timed_session_pkg")
+                    .remove("timed_session_open_at_ms")
+                    .apply()
+            }
+        }
+        timedExpireRunnable?.let { handler.removeCallbacks(it) }
+        timedExpireRunnable = null
+        currentTimedPkg = null
+        currentTimedOpenAtMs = 0L
+        currentTimedSessionEndMs = 0L
         lastBlockedPkg = null
         dismissWindowOverlay()
         vpnHealthHandler.removeCallbacks(vpnHealthRunnable)
@@ -1122,8 +1162,12 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         }
         if (!focusActive && !saActive) return
 
-        // Bail out if VPN permission was revoked — cannot restart silently
-        if (VpnService.prepare(this) != null) return
+        // Bail out if VPN permission was revoked — cannot restart silently.
+        // Write the permission-lost flag so the JS layer can show a re-grant prompt.
+        if (VpnService.prepare(this) != null) {
+            prefs.edit().putBoolean("vpn_permission_lost", true).apply()
+            return
+        }
 
         val pkgs   = prefs.getString("net_block_packages", "[]") ?: "[]"
         val global = prefs.getBoolean("net_block_global", false)
@@ -1838,7 +1882,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
      * to the legacy PREF_DAILY_ALLOWANCE_PKGS (count:1 for migrated entries).
      */
     private fun findAllowanceEntry(pkg: String): AllowanceEntry? {
-        // Try new rich config first
+        // Try new rich config first.
         val configJson = prefs.getString(PREF_DAILY_ALLOWANCE_CONFIG, null)
         if (!configJson.isNullOrBlank() && configJson != "null") {
             try {
@@ -1848,19 +1892,27 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                     val entryPkg = obj.optString("packageName", "")
                     if (entryPkg.equals(pkg, ignoreCase = true)) {
                         return AllowanceEntry(
-                            pkg          = entryPkg,
-                            mode         = obj.optString("mode", "count"),
-                            countPerDay  = obj.optInt("countPerDay", 1).coerceAtLeast(1),
-                            budgetMs     = obj.optLong("budgetMinutes", 30L) * 60_000L,
-                            intervalMs   = obj.optLong("intervalMinutes", 5L) * 60_000L,
-                            windowMs     = obj.optLong("intervalHours", 1L) * 3_600_000L,
+                            pkg         = entryPkg,
+                            mode        = obj.optString("mode", "count"),
+                            countPerDay = obj.optInt("countPerDay", 1).coerceAtLeast(1),
+                            // Use optInt (not optLong) — JS serialises these as plain integers.
+                            // Multiplied to ms after parsing so the data class stays in ms.
+                            budgetMs    = obj.optInt("budgetMinutes", 30).toLong() * 60_000L,
+                            intervalMs  = obj.optInt("intervalMinutes", 5).toLong() * 60_000L,
+                            windowMs    = obj.optInt("intervalHours", 1).toLong() * 3_600_000L,
                         )
                     }
                 }
-            } catch (_: Exception) {}
-            return null // Config exists but this pkg is not in it
+                // Package not found in the config — do NOT fall through to legacy.
+                // The config is authoritative when it exists; falling through would
+                // incorrectly give a count:1 allowance to any pkg in the legacy list
+                // even if the user deliberately removed it from the new config.
+                return null
+            } catch (_: Exception) {
+                // JSON is corrupt — fall through to legacy as a best-effort recovery.
+            }
         }
-        // Legacy fallback: simple string array → count:1
+        // Legacy fallback: plain string array written by old setDailyAllowancePackages → count:1
         val legacyJson = prefs.getString(PREF_DAILY_ALLOWANCE_PKGS, "[]") ?: "[]"
         return try {
             val arr = org.json.JSONArray(legacyJson)
@@ -1955,6 +2007,12 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     /**
      * Accumulates elapsed usage time for a timed-mode app session.
      * Called when the user switches away to a different app (or when the session timer fires).
+     *
+     * Fixes applied vs the original:
+     *   • time_budget: correctly handles midnight crossings — only today's portion is charged
+     *     to today's budget; elapsed time before midnight is dropped (yesterday's budget is gone).
+     *   • interval: caps accumulation at the window boundary so time used after a window
+     *     expires mid-session is not charged to the new (not-yet-started) window.
      */
     private fun accumulateTimedUsage(pkg: String, entry: AllowanceEntry, openedAtMs: Long) {
         val now = System.currentTimeMillis()
@@ -1966,15 +2024,39 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
         when (entry.mode) {
             "time_budget" -> {
-                val today = todayDateString()
-                val usedDate = pkgUsed.optString("date", "")
-                val prevUsedMs = if (usedDate == today) pkgUsed.optLong("usedMs", 0L) else 0L
-                pkgUsed.put("date", today)
-                pkgUsed.put("usedMs", (prevUsedMs + elapsed).coerceAtMost(entry.budgetMs))
+                val today      = todayDateString()
+                val midnightMs = getMidnightMs()
+
+                if (openedAtMs < midnightMs) {
+                    // The session started before today's midnight (service was killed and
+                    // restarted after midnight, or the timer was delayed by Doze).
+                    // Only charge the portion of elapsed time that falls within today —
+                    // yesterday's budget period is already closed.
+                    val elapsedToday = (now - midnightMs).coerceAtLeast(0L)
+                    pkgUsed.put("date",   today)
+                    pkgUsed.put("usedMs", elapsedToday.coerceAtMost(entry.budgetMs))
+                } else {
+                    val usedDate   = pkgUsed.optString("date", "")
+                    val prevUsedMs = if (usedDate == today) pkgUsed.optLong("usedMs", 0L) else 0L
+                    pkgUsed.put("date",   today)
+                    pkgUsed.put("usedMs", (prevUsedMs + elapsed).coerceAtMost(entry.budgetMs))
+                }
             }
             "interval" -> {
-                val prevUsedMs = pkgUsed.optLong("usedMs", 0L)
-                pkgUsed.put("usedMs", (prevUsedMs + elapsed).coerceAtMost(entry.intervalMs))
+                val windowStartMs = pkgUsed.optLong("windowStartMs", 0L)
+                val windowEndMs   = windowStartMs + entry.windowMs
+
+                if (windowStartMs > 0L && now > windowEndMs) {
+                    // The rolling window expired while the session was open.
+                    // Only charge the portion of elapsed time up to the window boundary —
+                    // time after the window expired is free (the next open gets a fresh window).
+                    val elapsedInWindow = (windowEndMs - openedAtMs).coerceAtLeast(0L)
+                    val prevUsedMs      = pkgUsed.optLong("usedMs", 0L)
+                    pkgUsed.put("usedMs", (prevUsedMs + elapsedInWindow).coerceAtMost(entry.intervalMs))
+                } else {
+                    val prevUsedMs = pkgUsed.optLong("usedMs", 0L)
+                    pkgUsed.put("usedMs", (prevUsedMs + elapsed).coerceAtMost(entry.intervalMs))
+                }
             }
         }
 
@@ -2021,9 +2103,21 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         return try { org.json.JSONObject(json) } catch (_: Exception) { org.json.JSONObject() }
     }
 
-    private fun todayDateString(): String {
+    /** ISO-8601 date string for today in the device's local timezone (e.g. "2025-01-09"). */
+    private fun todayDateString(): String =
+        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+
+    /**
+     * Returns epoch ms for the start of today (midnight) in the device's local timezone.
+     * Used to correctly split elapsed time across a midnight boundary.
+     */
+    private fun getMidnightMs(): Long {
         val cal = java.util.Calendar.getInstance()
-        return "${cal.get(java.util.Calendar.YEAR)}-${cal.get(java.util.Calendar.MONTH) + 1}-${cal.get(java.util.Calendar.DAY_OF_MONTH)}"
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+        cal.set(java.util.Calendar.MINUTE, 0)
+        cal.set(java.util.Calendar.SECOND, 0)
+        cal.set(java.util.Calendar.MILLISECOND, 0)
+        return cal.timeInMillis
     }
 
     // ─── Block determination ──────────────────────────────────────────────────

@@ -76,6 +76,15 @@ export function DailyAllowanceModal({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Live usage data read from SharedPreferences (daily_allowance_used JSON)
+  const [usageMap, setUsageMap] = useState<Record<string, {
+    mode?: string;
+    date?: string;
+    count?: number;
+    usedMs?: number;
+    windowStartMs?: number;
+  }>>({});
+
   // Defense PIN verify state
   const [pinVerifyVisible, setPinVerifyVisible] = useState(false);
   const pendingRemovePkg = useRef<string | 'clear' | null>(null);
@@ -95,6 +104,25 @@ export function DailyAllowanceModal({
         .catch(() => {})
         .finally(() => setLoading(false));
     }
+    // Load live usage data so we can show remaining time/opens per app
+    SharedPrefsModule.getString('daily_allowance_used')
+      .then((raw) => {
+        if (!raw) return;
+        try {
+          const parsed = JSON.parse(raw) as Record<string, {
+            mode?: string; date?: string; count?: number;
+            usedMs?: number; windowStartMs?: number;
+          }>;
+          const today = new Date().toISOString().slice(0, 10); // "yyyy-MM-dd"
+          // Zero out stale entries (different date = fresh day)
+          const fresh: typeof parsed = {};
+          for (const [pkg, val] of Object.entries(parsed)) {
+            fresh[pkg] = val.date === today ? val : {};
+          }
+          setUsageMap(fresh);
+        } catch { /* ignore parse errors */ }
+      })
+      .catch(() => {});
   }, [visible]);
 
   const filtered = useMemo(() => {
@@ -211,15 +239,67 @@ export function DailyAllowanceModal({
     }
   };
 
+  /** Returns a human-readable "X remaining" string for the given entry using live usage data. */
+  const getRemainingLabel = useCallback((entry: DailyAllowanceEntry): string | null => {
+    const usage = usageMap[entry.packageName];
+    if (!usage) return null;
+    const today = new Date().toISOString().slice(0, 10);
+    if (usage.date && usage.date !== today) return null;
+
+    if (entry.mode === 'count') {
+      const used = usage.count ?? 0;
+      const remaining = Math.max(0, (entry.countPerDay ?? 1) - used);
+      if (used === 0) return null;
+      return remaining === 0
+        ? 'No opens left today'
+        : `${remaining} of ${entry.countPerDay ?? 1} open${remaining !== 1 ? 's' : ''} remaining`;
+    }
+    if (entry.mode === 'time_budget') {
+      const usedMs = usage.usedMs ?? 0;
+      if (usedMs === 0) return null;
+      const budgetMs = (entry.budgetMinutes ?? 30) * 60_000;
+      const remainingMs = Math.max(0, budgetMs - usedMs);
+      const usedMin = Math.round(usedMs / 60_000);
+      const remMin = Math.round(remainingMs / 60_000);
+      return remainingMs === 0
+        ? `Budget exhausted (${usedMin}m used)`
+        : `${remMin}m remaining of ${entry.budgetMinutes ?? 30}m`;
+    }
+    if (entry.mode === 'interval') {
+      const usedMs = usage.usedMs ?? 0;
+      if (usedMs === 0) return null;
+      const windowStartMs = usage.windowStartMs ?? 0;
+      const windowEndMs = windowStartMs + (entry.intervalHours ?? 1) * 3_600_000;
+      const now = Date.now();
+      if (now > windowEndMs) return 'Window reset — full allowance available';
+      const intervalMs = (entry.intervalMinutes ?? 5) * 60_000;
+      const remainingMs = Math.max(0, intervalMs - usedMs);
+      const remMin = Math.round(remainingMs / 60_000);
+      const windowResetMin = Math.round((windowEndMs - now) / 60_000);
+      return remainingMs === 0
+        ? `Used up — window resets in ${windowResetMin}m`
+        : `${remMin}m left in this window`;
+    }
+    return null;
+  }, [usageMap]);
+
   const renderModeConfig = (entry: DailyAllowanceEntry) => {
     const pkg = entry.packageName;
     const entryLocked = isEntryLocked(pkg);
+    const remainingLabel = getRemainingLabel(entry);
     return (
       <View style={[styles.configPanel, { backgroundColor: theme.surface ?? theme.background, borderTopColor: theme.border }]}>
         {entryLocked && (
           <View style={styles.lockNotice}>
             <Ionicons name="lock-closed-outline" size={12} color={COLORS.orange} />
             <Text style={styles.lockNoticeText}>Values locked while block is active</Text>
+          </View>
+        )}
+
+        {remainingLabel && (
+          <View style={[styles.usageBanner, { backgroundColor: COLORS.orange + '14' }]}>
+            <Ionicons name="stats-chart-outline" size={12} color={COLORS.orange} />
+            <Text style={[styles.usageBannerText, { color: COLORS.orange }]}>{remainingLabel}</Text>
           </View>
         )}
 
@@ -730,6 +810,19 @@ const styles = StyleSheet.create({
     fontSize: FONT.xs,
     color: COLORS.orange,
     fontStyle: 'italic',
+  },
+  usageBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 5,
+    borderRadius: RADIUS.sm,
+    marginBottom: 2,
+  },
+  usageBannerText: {
+    fontSize: FONT.xs,
+    fontWeight: '600',
   },
   stepValue: {
     minWidth: 52,
