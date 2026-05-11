@@ -1,0 +1,57 @@
+FocusFlow is your discipline operating system — the app that doesn't just remind you of tasks, it physically stops distractions so you can finish them.
+
+Unlike ordinary to-do apps or timers, FocusFlow uses Android's Accessibility Service to enforce real focus sessions. When you start a focus block, non-essential apps are blocked at the system level until your task is done. No more doom-scrolling, no more "just five minutes" excuses.
+
+── WHAT MAKES FOCUSFLOW DIFFERENT ──
+
+✦ Hardware-Level App Blocking
+FocusFlow uses Android's Accessibility Service to block any app you choose during a focus session. Social media, games, shopping — locked out until you're done.
+
+✦ Intelligent Daily Scheduler
+Plan your entire day with an intelligent scheduling engine. It handles task conflicts, protects high-priority work, and rebalances your schedule if a task runs over.
+
+✦ Focus Mode with Allowed Apps
+Not all apps are distractions. Whitelist your essential apps — Phone, WhatsApp, your work tools — while everything else stays locked.
+
+✦ Pomodoro Timer Built-In
+Use the classic 25-minute focus / 5-minute break cycle to power through deep work, or set your own custom durations.
+
+✦ Background Enforcement (Survives Minimise & Reboot)
+A foreground service keeps FocusFlow alive even when you minimise it. Boot recovery automatically restarts your session after a reboot.
+
+✦ Emergency Override (Logged)
+Life happens. An emergency override option is available, but every use is logged so you stay honest with yourself.
+
+✦ Focus Violation Tracking
+Every attempt to open a blocked app is recorded. Review your violation history to understand your distraction patterns.
+
+✦ Statistics & Accountability
+See your daily task completion rate, total tasks done, and focus streaks over time.
+
+✦ Timeline & List Views
+Switch between a visual timeline of your day and a clean task list — whichever helps you think clearer.
+
+── WHO IS FOCUSFLOW FOR? ──
+
+• Students who need to study without distractions
+• Remote workers fighting notification overload
+• Entrepreneurs who want to protect deep-work time
+• Anyone who picks up their phone every 5 minutes
+
+── PERMISSIONS EXPLAINED ──
+
+FocusFlow requires several system-level permissions to enforce focus sessions. Here's why each is needed:
+
+• Accessibility Service — Required to detect and block access to non-allowed apps in real time.
+• Usage Stats — Required to identify which app the user has opened.
+• System Alert Window — Required to display the "App Blocked" overlay screen.
+• Foreground Service — Required to keep the timer and blocker running when you leave the app.
+• Exact Alarm — Required for scheduled task notifications and reminders.
+
+No location, camera, microphone, or storage access is ever requested. FocusFlow does not collect or transmit any personal data.
+
+── OPEN SOURCE ──
+
+FocusFlow's source code is available on GitHub: https://github.com/TITANICBHAI/FocusFlow
+
+Build your focus. Protect your time. Get things done.

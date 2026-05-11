@@ -16,8 +16,8 @@ import { useTheme } from '@/hooks/useTheme';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
 
-const PRIVACY_URL = 'https://titanicbhai.github.io/FocusFlow/privacy-policy/';
-const TERMS_URL   = 'https://titanicbhai.github.io/FocusFlow/terms-of-service/';
+const PRIVACY_URL = 'https://focusflowapp.pages.dev/privacy-policy/';
+const TERMS_URL   = 'https://focusflowapp.pages.dev/terms-of-service/';
 
 type Tab = 'privacy' | 'terms';
 
