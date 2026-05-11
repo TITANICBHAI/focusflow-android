@@ -277,7 +277,7 @@ jobs:
                       keyPassword  (System.getenv("RELEASE_KEY_PASSWORD")     ?: "")
                       v1SigningEnabled true
                       v2SigningEnabled true
-                      enableV3Signing true
+                      v3SigningEnabled true
                   }
               }'''
 
