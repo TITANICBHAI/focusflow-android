@@ -276,6 +276,31 @@ export interface AppSettings {
   pendingPresets?: PendingPresets;
 }
 
+/**
+ * A custom node-blocking rule derived from NodeSpy captures or compatible
+ * JSON exports. The AccessibilityService uses these to detect and intercept
+ * specific UI nodes (e.g. addictive feed elements) inside a target app.
+ */
+export interface CustomNodeRule {
+  id: string;
+  label: string;
+  pkg: string;
+  matchResId?: string;
+  matchText?: string;
+  matchCls?: string;
+  /** 'overlay' = show block overlay, 'home' = go home immediately */
+  action: 'overlay' | 'home';
+  enabled: boolean;
+  importedAt: string;
+  confidence?: number;
+  qualityTier?: 'strong' | 'medium' | 'weak';
+  selectorType?: string;
+  stability?: number;
+  warnings?: string[];
+  captureTimestamp?: number;
+  sourceName?: string;
+}
+
 /** Preset payload from a `.focusflow` import that has not been applied yet. */
 export interface PendingPresets {
   blockApps?: { packages: string[]; sourceName?: string; importedAt: string };

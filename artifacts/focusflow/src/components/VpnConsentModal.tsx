@@ -131,21 +131,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   title: {
-    fontFamily: FONT.semiBold,
+    fontWeight: '600' as const,
     fontSize: 18,
     color: '#FFFFFF',
     textAlign: 'center',
     marginBottom: SPACING.md,
   },
   intro: {
-    fontFamily: FONT.regular,
     fontSize: 14,
     color: '#B8B8CC',
     lineHeight: 22,
     marginBottom: SPACING.sm + 2,
   },
   bold: {
-    fontFamily: FONT.semiBold,
+    fontWeight: '600' as const,
     color: '#E0E0F0',
   },
   factRow: {
@@ -160,7 +159,6 @@ const styles = StyleSheet.create({
   },
   factText: {
     flex: 1,
-    fontFamily: FONT.regular,
     fontSize: 14,
     color: '#B8B8CC',
     lineHeight: 22,
@@ -176,7 +174,6 @@ const styles = StyleSheet.create({
   },
   noteText: {
     flex: 1,
-    fontFamily: FONT.regular,
     fontSize: 12,
     color: '#777788',
     lineHeight: 18,
@@ -194,7 +191,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelText: {
-    fontFamily: FONT.medium,
+    fontWeight: '500' as const,
     fontSize: 14,
     color: '#777788',
   },
@@ -206,7 +203,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   confirmText: {
-    fontFamily: FONT.semiBold,
+    fontWeight: '600' as const,
     fontSize: 14,
     color: '#FFFFFF',
   },
