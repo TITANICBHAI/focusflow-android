@@ -263,6 +263,17 @@ Relevant source files:
 
 ---
 
+## HUAWEI APPGALLERY — SENSITIVE PERMISSION DESCRIPTION
+*(Paste into the sensitive permission description field. Covers both "with" and "without" android.permission. prefix so Huawei's validator recognises it.)*
+
+```
+FocusFlow uses android.permission.BIND_ACCESSIBILITY_SERVICE (BIND_ACCESSIBILITY_SERVICE) exclusively to detect which app is in the foreground by listening to TYPE_WINDOW_STATE_CHANGED events. When a user opens a blocked app during a focus session, the service reads only the package name of that app and displays a blocking overlay. It does not read, access, collect, store, or transmit any SMS messages, call logs, passwords, screen content, or personal data. Phone/dialer apps are unconditionally whitelisted — calls are never blocked. The android.permission.BIND_ACCESSIBILITY_SERVICE permission is not used for any purpose other than real-time foreground app detection for user-initiated blocking sessions.
+```
+
+*(Select "Display caller IDs and block harassment" as the required scenario checkbox — it is the closest match to FocusFlow's blocking function. The description above clarifies no SMS/call data is accessed.)*
+
+---
+
 ## GOOGLE PLAY CONSOLE — ACCESSIBILITY DECLARATION
 *(Fill this in under App content → Sensitive app permissions → Accessibility)*
 
