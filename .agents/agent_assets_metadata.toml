@@ -132,6 +132,12 @@ uri = "file://store-assets/icon-final-v3.png"
 type = "image"
 title = "horseshoe arc icon clean"
 
+[[generated]]
+id = "UNF1LaZImEa3S8dKl57gD"
+uri = "file://artifacts/focusflow-accessibility-demo/public/images/tech-bg.png"
+type = "image"
+title = "dark technological data flow background"
+
 [[outputs]]
 id = "tgalAfT1-750LJk0Yh4R6"
 uri = "file://artifacts/focusflow/store-assets/STORE_LISTING.md"

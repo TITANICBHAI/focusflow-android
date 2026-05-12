@@ -38,6 +38,10 @@ args = "Start FocusFlow Ad"
 task = "workflow.run"
 args = "Serve Docs Website"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start FocusFlow Accessibility Demo"
+
 [[workflows.workflow]]
 name = "Push to GitHub"
 author = "agent"
@@ -96,6 +100,18 @@ waitForPort = 3000
 [workflows.workflow.metadata]
 outputType = "console"
 
+[[workflows.workflow]]
+name = "Start FocusFlow Accessibility Demo"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=3003 BASE_PATH=/ pnpm --filter @workspace/focusflow-accessibility-demo run dev"
+waitForPort = 3003
+
+[workflows.workflow.metadata]
+outputType = "console"
+
 [agent]
 stack = "BEST_EFFORT_FALLBACK"
 expertMode = true
@@ -131,6 +147,10 @@ externalPort = 3001
 [[ports]]
 localPort = 25669
 externalPort = 3000
+
+[[ports]]
+localPort = 3003
+externalPort = 3003
 
 [nix]
 channel = "stable-25_05"
