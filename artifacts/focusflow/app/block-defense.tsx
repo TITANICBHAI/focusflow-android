@@ -35,6 +35,7 @@ import { useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/useTheme';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { GreyoutScheduleModal } from '@/components/GreyoutScheduleModal';
+import { NuclearModeModal } from '@/components/NuclearModeModal';
 import { PinVerifyModal } from '@/components/PinVerifyModal';
 import { PinSetupModal } from '@/components/PinSetupModal';
 import { PinRotationModal } from '@/components/PinRotationModal';
@@ -60,6 +61,7 @@ export default function BlockDefenseScreen() {
   const params = useLocalSearchParams<{ tab?: string }>();
 
   const [greyoutModalVisible, setGreyoutModalVisible] = useState(false);
+  const [nuclearModeVisible, setNuclearModeVisible] = useState(false);
   const [pinModal, setPinModal] = useState<PinModalState>({ type: 'none' });
   const [focusPinSet, setFocusPinSet] = useState(false);
   const [defensePinSet, setDefensePinSet] = useState(false);
@@ -356,6 +358,14 @@ export default function BlockDefenseScreen() {
             The layers that make your blocks impossible to bypass
           </Text>
         </View>
+        <TouchableOpacity
+          onPress={() => setNuclearModeVisible(true)}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          style={[styles.nuclearBtn, { backgroundColor: COLORS.red + '18' }]}
+        >
+          <Ionicons name="nuclear-outline" size={16} color={COLORS.red} />
+          <Text style={[styles.nuclearBtnText, { color: COLORS.red }]}>Nuclear</Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -800,6 +810,10 @@ export default function BlockDefenseScreen() {
           vpnConsentResolveRef.current = null;
         }}
       />
+      <NuclearModeModal
+        visible={nuclearModeVisible}
+        onClose={() => setNuclearModeVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -952,6 +966,16 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: FONT.lg, fontWeight: '800' },
   subtitle: { fontSize: FONT.xs, marginTop: 2 },
+  nuclearBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
+    borderRadius: RADIUS.sm,
+    marginLeft: SPACING.sm,
+  },
+  nuclearBtnText: { fontSize: FONT.xs, fontWeight: '700' },
   scroll: { flex: 1 },
   content: { padding: SPACING.lg, gap: SPACING.md },
   introBanner: {
