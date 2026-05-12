@@ -1,4 +1,5 @@
 import * as SQLite from 'expo-sqlite';
+import { Appearance } from 'react-native';
 import type { Task, AppSettings, FocusSession, DailyAllowanceEntry } from './types';
 import { logger } from '@/services/startupLogger';
 
@@ -7,7 +8,7 @@ const PRIMARY_DB_NAME = 'focusday.db';
 const RECOVERY_DB_NAME = 'focusday_recovery.db';
 
 const DEFAULT_SETTINGS: AppSettings = {
-  darkMode: true,
+  darkMode: Appearance.getColorScheme() === 'dark',
   defaultDuration: 60,
   defaultReminderOffsets: [-10, -5, 0],
   focusModeEnabled: true,
@@ -31,7 +32,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   aversionSoundEnabled: false,
   weeklyReportEnabled: false,
   greyoutSchedule: [],
-  systemGuardEnabled: true,
+  systemGuardEnabled: false,
   blockInstallActionsEnabled: false,
   blockYoutubeShortsEnabled: false,
   blockInstagramReelsEnabled: false,
@@ -39,7 +40,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   recurringBlockSchedules: [],
   beginnerMode: true,
   tipsCardDismissed: false,
-  alwaysOnEnforcementEnabled: true,
+  alwaysOnEnforcementEnabled: false,
   lastShownStreakMilestone: 0,
   vpnBlockEnabled: false,
   standaloneVpnPackages: [],
@@ -699,6 +700,29 @@ export async function dbGetAllTimeFocusSessions(): Promise<number> {
       `SELECT COUNT(*) as count FROM focus_sessions WHERE is_active = 0`,
     );
     return row?.count ?? 0;
+  });
+}
+
+/**
+ * Deletes old records to keep the database lean.
+ * Removes completed focus sessions and daily completion records older than
+ * `daysToKeep` days. Called once per app session after the DB is ready.
+ * Non-fatal — errors are silently swallowed by the caller.
+ */
+export async function dbPruneOldData(daysToKeep = 90): Promise<void> {
+  return runWithDbOr('dbPruneOldData', undefined, async (database) => {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - daysToKeep);
+    const cutoffIso  = cutoff.toISOString();
+    const cutoffDate = cutoffIso.slice(0, 10);
+    await database.runAsync(
+      `DELETE FROM focus_sessions WHERE is_active = 0 AND ended_at IS NOT NULL AND ended_at < ?`,
+      [cutoffIso],
+    );
+    await database.runAsync(
+      `DELETE FROM daily_completions WHERE date < ?`,
+      [cutoffDate],
+    );
   });
 }
 

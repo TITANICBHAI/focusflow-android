@@ -2,11 +2,12 @@ import React, {
   createContext,
   useContext,
   useEffect,
+  useMemo,
   useReducer,
   useCallback,
   useRef,
 } from 'react';
-import { Alert, AppState as RNAppState, type AppStateStatus } from 'react-native';
+import { Alert, AppState as RNAppState, Appearance, type AppStateStatus } from 'react-native';
 import type { Task, AppSettings, FocusSession, DailyAllowanceEntry, RecurringBlockSchedule, GreyoutWindow } from '@/data/types';
 import {
   dbGetTasksForDate,
@@ -23,6 +24,7 @@ import {
   dbBackfillDayCompletions,
   dbRecordDayCompletion,
   dbCheckpointWal,
+  dbPruneOldData,
   resetDb,
 } from '@/data/database';
 import {
@@ -112,7 +114,7 @@ function reducer(state: AppState, action: AppAction): AppState {
 }
 
 const defaultSettings: AppSettings = {
-  darkMode: true,
+  darkMode: Appearance.getColorScheme() === 'dark',
   defaultDuration: 60,
   defaultReminderOffsets: [-10, -5, 0],
   focusModeEnabled: true,
@@ -136,7 +138,7 @@ const defaultSettings: AppSettings = {
   aversionSoundEnabled: false,
   weeklyReportEnabled: false,
   greyoutSchedule: [],
-  systemGuardEnabled: true,
+  systemGuardEnabled: false,
   blockInstallActionsEnabled: false,
   blockYoutubeShortsEnabled: false,
   blockInstagramReelsEnabled: false,
@@ -235,6 +237,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Tracks which unresolved task IDs have already triggered a "did you finish
   // your previous task?" alert so we don't show the same prompt twice.
   const alertedUnresolvedRef = useRef<Set<string>>(new Set());
+
+  // ── Prune old data once per session after DB is ready ────────────────────
+  useEffect(() => {
+    if (!state.isDbReady) return;
+    void dbPruneOldData(90).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.isDbReady]);
 
   // ── 12-second splash watchdog ─────────────────────────────────────────────
   // If SET_DB_READY hasn't fired within 12 s, force the app past the splash
@@ -664,7 +673,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   async function _syncSystemGuard(settings: AppSettings): Promise<void> {
     try {
-      await SharedPrefsModule.setSystemGuardEnabled(settings.systemGuardEnabled ?? true);
+      await SharedPrefsModule.setSystemGuardEnabled(settings.systemGuardEnabled ?? false);
     } catch (e) {
       void logger.warn('AppContext', `system guard sync failed: ${String(e)}`);
     }
@@ -1068,38 +1077,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       (t) => t.id !== active.id && isAwaitingDecision(t),
     );
 
-    for (const t of unresolved) {
-      if (alertedUnresolvedRef.current.has(t.id)) continue;
-      alertedUnresolvedRef.current.add(t.id);
+    const toAlert = unresolved.filter((t) => !alertedUnresolvedRef.current.has(t.id));
+    if (toAlert.length === 0) return;
+    toAlert.forEach((t) => alertedUnresolvedRef.current.add(t.id));
+
+    const batchResolve = async (items: typeof toAlert, status: 'completed' | 'skipped') => {
+      const now = new Date().toISOString();
+      const updated = items.map((t) => ({ ...t, status, updatedAt: now }));
+      try {
+        await dbUpdateTasksBatch(updated);
+        updated.forEach((u) => dispatch({ type: 'UPDATE_TASK', payload: u }));
+      } catch { /* non-fatal */ }
+    };
+
+    if (toAlert.length === 1) {
+      const t = toAlert[0];
       Alert.alert(
         'Previous Task Unresolved',
         `"${t.title}" ended without being marked done or skipped.\n\nDid you complete it?`,
         [
-          {
-            text: 'Mark Done',
-            onPress: () => {
-              void (async () => {
-                try {
-                  const updated = { ...t, status: 'completed' as const, updatedAt: new Date().toISOString() };
-                  await dbUpdateTask(updated);
-                  dispatch({ type: 'UPDATE_TASK', payload: updated });
-                } catch { /* non-fatal */ }
-              })();
-            },
-          },
-          {
-            text: 'Skip It',
-            style: 'destructive',
-            onPress: () => {
-              void (async () => {
-                try {
-                  const updated = { ...t, status: 'skipped' as const, updatedAt: new Date().toISOString() };
-                  await dbUpdateTask(updated);
-                  dispatch({ type: 'UPDATE_TASK', payload: updated });
-                } catch { /* non-fatal */ }
-              })();
-            },
-          },
+          { text: 'Mark Done', onPress: () => void batchResolve([t], 'completed') },
+          { text: 'Skip It', style: 'destructive', onPress: () => void batchResolve([t], 'skipped') },
+          { text: 'Keep Working', style: 'cancel' },
+        ],
+        { cancelable: false },
+      );
+    } else {
+      const taskList = toAlert.map((t) => `• ${t.title}`).join('\n');
+      Alert.alert(
+        `${toAlert.length} Tasks Unresolved`,
+        `These tasks ended without a decision:\n\n${taskList}\n\nHow would you like to handle them?`,
+        [
+          { text: 'Mark All Done', onPress: () => void batchResolve(toAlert, 'completed') },
+          { text: 'Skip All', style: 'destructive', onPress: () => void batchResolve(toAlert, 'skipped') },
           { text: 'Keep Working', style: 'cancel' },
         ],
         { cancelable: false },
@@ -1625,12 +1635,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Derived ──────────────────────────────────────────────────────────────────
 
-  const todayTasks = getTodayTasks(state.tasks);
-  const activeTask = getActiveTask(state.tasks);
-  const currentTask = getCurrentTask(state.tasks);
-  const activeTasks = getAllActiveTasks(state.tasks);
+  const todayTasks  = useMemo(() => getTodayTasks(state.tasks),    [state.tasks]);
+  const activeTask  = useMemo(() => getActiveTask(state.tasks),    [state.tasks]);
+  const currentTask = useMemo(() => getCurrentTask(state.tasks),   [state.tasks]);
+  const activeTasks = useMemo(() => getAllActiveTasks(state.tasks), [state.tasks]);
 
-  const value: AppContextValue = {
+  const value = useMemo<AppContextValue>(() => ({
     state,
     todayTasks,
     activeTask,
@@ -1651,7 +1661,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setBlockedWords,
     setRecurringBlockSchedules,
     refreshTasks,
-  };
+  }), [
+    state, todayTasks, activeTask, currentTask, activeTasks,
+    addTask, updateTask, deleteTask, completeTask, skipTask,
+    extendTaskTime, startFocusMode, stopFocusMode, updateSettings,
+    setStandaloneBlock, setStandaloneBlockAndAllowance, setDailyAllowanceEntries,
+    setBlockedWords, setRecurringBlockSchedules, refreshTasks,
+  ]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

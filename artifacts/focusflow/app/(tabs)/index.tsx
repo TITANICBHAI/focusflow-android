@@ -4,7 +4,7 @@ import { withScreenErrorBoundary } from '@/components/withScreenErrorBoundary';
 import {
   View,
   Text,
-  ScrollView,
+  FlatList,
   TouchableOpacity,
   StyleSheet,
   Alert,
@@ -144,32 +144,35 @@ function ScheduleScreen() {
       )}
 
       {/* Task list */}
-      <ScrollView
-        style={styles.list}
-        contentContainerStyle={[styles.listContent, { paddingBottom: 60 + insets.bottom + 80 }]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      >
-        {todayTasks.length === 0 && (
-          <View style={styles.emptyState}>
-            <Ionicons name="calendar-outline" size={48} color={theme.border} />
-            <Text style={[styles.emptyText, { color: theme.muted }]}>No tasks scheduled for today</Text>
-            <Text style={[styles.emptySubtext, { color: theme.border }]}>Tap + to add your first task</Text>
-          </View>
-        )}
-
-        {todayTasks.map((task) => (
+      <FlatList
+        data={todayTasks}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
           <TaskCard
-            key={task.id}
-            task={task}
-            isActive={task.id === activeTask?.id}
+            task={item}
+            isActive={item.id === activeTask?.id}
             onPress={(t) => setSelectedTask(t)}
             onComplete={handleCompleteTask}
             onSkip={handleSkipTask}
             onExtend={(id) => setExtendTaskId(id)}
             onStartFocus={startFocusMode}
           />
-        ))}
-      </ScrollView>
+        )}
+        style={styles.list}
+        contentContainerStyle={[styles.listContent, { paddingBottom: 60 + insets.bottom + 80 }]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Ionicons name="calendar-outline" size={48} color={theme.border} />
+            <Text style={[styles.emptyText, { color: theme.muted }]}>No tasks scheduled for today</Text>
+            <Text style={[styles.emptySubtext, { color: theme.border }]}>Tap + to add your first task</Text>
+          </View>
+        }
+        removeClippedSubviews
+        initialNumToRender={10}
+        maxToRenderPerBatch={5}
+        windowSize={5}
+      />
 
       {/* FAB */}
       <TouchableOpacity style={[styles.fab, { bottom: 60 + insets.bottom + 12 }]} onPress={() => setShowAddModal(true)}>

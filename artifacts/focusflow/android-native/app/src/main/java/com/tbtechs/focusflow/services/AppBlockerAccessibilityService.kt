@@ -541,7 +541,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // Does NOT affect the UI lock — settings can be changed when no timed
         // session is running (focusActive == false && saActive == false).
         val alwaysBlockActive = prefs.getBoolean(PREF_ALWAYS_BLOCK, false)
-        val systemGuardEnabled = prefs.getBoolean(PREF_SYSTEM_GUARD_ENABLED, true)
+        val systemGuardEnabled = prefs.getBoolean(PREF_SYSTEM_GUARD_ENABLED, false)
         val blockInstallActions = prefs.getBoolean(PREF_BLOCK_INSTALL_ACTIONS, false)
         val blockYoutubeShorts  = prefs.getBoolean(PREF_BLOCK_YT_SHORTS, false)
         val blockInstagramReels = prefs.getBoolean(PREF_BLOCK_IG_REELS, false)

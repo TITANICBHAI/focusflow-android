@@ -75,6 +75,20 @@ jobs:
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Read app version
+        id: app-version
+        working-directory: artifacts/focusflow
+        run: |
+          VERSION=$(node -e "const j=require('./app.json'); console.log(j.expo.version)")
+          VCODE=$(node -e "const j=require('./app.json'); console.log(j.expo.android.versionCode)")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "versionCode=$VCODE" >> $GITHUB_OUTPUT
+          echo "### Build Info" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** $VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "- **versionCode:** $VCODE" >> $GITHUB_STEP_SUMMARY
+          echo "- **Type:** Release APKs (arm64 + arm32 + universal)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build number:** ${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+
       - name: Expo Prebuild
         working-directory: artifacts/focusflow
         run: npx expo prebuild --platform android --clean --no-install
@@ -165,21 +179,21 @@ jobs:
       - name: Upload arm64-v8a APK
         uses: actions/upload-artifact@v4
         with:
-          name: focusflow-arm64-v8a-release-${{ github.run_number }}
+          name: focusflow-arm64-v8a-release-v${{ steps.app-version.outputs.version }}-vc${{ steps.app-version.outputs.versionCode }}-run${{ github.run_number }}
           path: artifacts/focusflow/android/app/build/outputs/apk/release/app-arm64-v8a-release.apk
           retention-days: 30
 
       - name: Upload armeabi-v7a APK
         uses: actions/upload-artifact@v4
         with:
-          name: focusflow-armeabi-v7a-release-${{ github.run_number }}
+          name: focusflow-armeabi-v7a-release-v${{ steps.app-version.outputs.version }}-vc${{ steps.app-version.outputs.versionCode }}-run${{ github.run_number }}
           path: artifacts/focusflow/android/app/build/outputs/apk/release/app-armeabi-v7a-release.apk
           retention-days: 30
 
       - name: Upload universal APK
         uses: actions/upload-artifact@v4
         with:
-          name: focusflow-universal-release-${{ github.run_number }}
+          name: focusflow-universal-release-v${{ steps.app-version.outputs.version }}-vc${{ steps.app-version.outputs.versionCode }}-run${{ github.run_number }}
           path: artifacts/focusflow/android/app/build/outputs/apk/release/app-universal-release.apk
           retention-days: 30
 
@@ -235,6 +249,20 @@ jobs:
 
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Read app version
+        id: app-version
+        working-directory: artifacts/focusflow
+        run: |
+          VERSION=$(node -e "const j=require('./app.json'); console.log(j.expo.version)")
+          VCODE=$(node -e "const j=require('./app.json'); console.log(j.expo.android.versionCode)")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "versionCode=$VCODE" >> $GITHUB_OUTPUT
+          echo "### Build Info" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** $VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "- **versionCode:** $VCODE" >> $GITHUB_STEP_SUMMARY
+          echo "- **Type:** Release AAB (Play Store)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build number:** ${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
 
       - name: Expo Prebuild
         working-directory: artifacts/focusflow
@@ -334,7 +362,7 @@ jobs:
       - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
-          name: focusflow-release-aab-${{ github.run_number }}
+          name: focusflow-release-aab-v${{ steps.app-version.outputs.version }}-vc${{ steps.app-version.outputs.versionCode }}-run${{ github.run_number }}
           path: artifacts/focusflow/android/app/build/outputs/bundle/release/app-release.aab
           retention-days: 30
 

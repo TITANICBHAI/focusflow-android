@@ -263,7 +263,7 @@ export function SideMenu({ visible, onOpen, onClose, tabBarHeight }: SideMenuPro
               icon="lock-closed-outline"
               label="System Protection"
               description="Power menu, Settings lockdown"
-              badge={(settings.systemGuardEnabled ?? true) ? 'on' : undefined}
+              badge={(settings.systemGuardEnabled ?? false) ? 'on' : undefined}
               onPress={() => navigate('/block-defense?tab=system')}
               isDark={isDark}
             />

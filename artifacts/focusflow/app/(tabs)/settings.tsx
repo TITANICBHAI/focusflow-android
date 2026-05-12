@@ -485,11 +485,11 @@ function SettingsScreen() {
             }
           >
             <Switch
-              value={settings.systemGuardEnabled ?? true}
+              value={settings.systemGuardEnabled ?? false}
               onValueChange={handleSystemGuardToggle}
-              disabled={blockProtectionActive && (settings.systemGuardEnabled ?? true)}
+              disabled={blockProtectionActive && (settings.systemGuardEnabled ?? false)}
               trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
-              thumbColor={(settings.systemGuardEnabled ?? true) ? COLORS.primary : COLORS.muted}
+              thumbColor={(settings.systemGuardEnabled ?? false) ? COLORS.primary : COLORS.muted}
             />
           </SettingRow>
 

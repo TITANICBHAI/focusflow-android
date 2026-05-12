@@ -516,13 +516,13 @@ export default function BlockDefenseScreen() {
             <SwitchRow
               label="Protect system controls"
               description={
-                blockProtectionActive && (settings.systemGuardEnabled ?? true)
+                blockProtectionActive && (settings.systemGuardEnabled ?? false)
                   ? 'Locked on — active block in progress'
                   : 'Power menu, Emergency mode & sensitive Settings pages — guarded all the time when on'
               }
-              value={settings.systemGuardEnabled ?? true}
+              value={settings.systemGuardEnabled ?? false}
               onValueChange={handleSystemGuardToggle}
-              disabled={blockProtectionActive && (settings.systemGuardEnabled ?? true)}
+              disabled={blockProtectionActive && (settings.systemGuardEnabled ?? false)}
               theme={theme}
             />
             <SwitchRow
@@ -626,11 +626,11 @@ export default function BlockDefenseScreen() {
             <SwitchRow
               label="Enable always-on enforcement"
               description={
-                (settings.alwaysOnEnforcementEnabled ?? true)
+                (settings.alwaysOnEnforcementEnabled ?? false)
                   ? `On — ${(settings.alwaysOnPackages ?? []).length} app${(settings.alwaysOnPackages ?? []).length !== 1 ? 's' : ''} blocked 24/7`
                   : 'Off — always-on list is paused (list is preserved, not deleted)'
               }
-              value={settings.alwaysOnEnforcementEnabled ?? true}
+              value={settings.alwaysOnEnforcementEnabled ?? false}
               onValueChange={handleAlwaysOnEnforcementToggle}
               theme={theme}
             />
