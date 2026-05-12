@@ -8,6 +8,11 @@ Allow: /llms.txt
 Allow: /llms-full.txt
 Disallow: /404
 
+# Explicitly allow legal/rights pages
+Allow: /privacy-policy/
+Allow: /terms-of-service/
+Allow: /data-subject-rights/
+
 # Sitemaps and AI-specific documentation
 Sitemap: https://focusflowapp.pages.dev/sitemap.xml
 

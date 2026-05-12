@@ -74,6 +74,9 @@ FocusFlow is completely free. No subscription, no in-app purchase, no premium ti
 - Terms of Service: https://focusflowapp.pages.dev/terms-of-service/
   Summary: Standard terms; emergency access disclaimer; no warranty.
 
+- Data Subject Rights: https://focusflowapp.pages.dev/data-subject-rights/
+  Summary: Explains user data rights (access, correction, deletion, portability, objection). All data is stored locally on-device; users can delete everything via Android Settings → Clear Data or by uninstalling. Contact: tbtechsdev@gmail.com.
+
 ## Blog posts (in-depth guides)
 
 - How to Block YouTube Shorts on Android: https://focusflowapp.pages.dev/blog/how-to-block-youtube-shorts-android/
