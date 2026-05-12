@@ -2,167 +2,200 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useVideoPlayer } from '@/lib/video';
 import { sceneTransitions } from '@/lib/video/animations';
-import { Smartphone, Ban, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { Ban, ShieldCheck } from 'lucide-react';
 
-const ACCENT = '#6366f1'; // Indigo
+const BG = '#111827';
+const CARD = '#1f2937';
+const BORDER = '#374151';
+const PRIMARY = '#6366f1';
+const RED = '#ef4444';
+const MUTED = '#9ca3af';
+const TEXT = '#f3f4f6';
 
-function Scene1({ currentScene }: { currentScene: number }) {
+function PhoneMockup({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      width: 200, height: 400, background: '#0d0d0d',
+      borderRadius: 32, border: '2px solid #374151',
+      boxShadow: '0 32px 64px rgba(0,0,0,0.8)', overflow: 'hidden', position: 'relative',
+    }}>
+      <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', width: 50, height: 5, background: '#2d3748', borderRadius: 3 }} />
+      <div style={{ paddingTop: 28, height: '100%' }}>{children}</div>
+    </div>
+  );
+}
+
+function Scene1({ }: { currentScene: number }) {
   const [phase, setPhase] = useState(0);
   useEffect(() => {
-    const timers = [
-      setTimeout(() => setPhase(1), 500),
-      setTimeout(() => setPhase(2), 1500),
-      setTimeout(() => setPhase(3), 4500),
-    ];
-    return () => timers.forEach(clearTimeout);
+    const t = [setTimeout(() => setPhase(1), 600), setTimeout(() => setPhase(2), 1600), setTimeout(() => setPhase(3), 2800)];
+    return () => t.forEach(clearTimeout);
   }, []);
-
+  const apps = ['Instagram', 'YouTube', 'TikTok', 'Twitter', 'Reddit'];
   return (
-    <motion.div className="absolute inset-0 flex flex-col items-center justify-center z-10" {...sceneTransitions.scaleFade}>
-      <motion.div className="flex flex-col items-center" animate={phase >= 2 ? { y: -80 } : { y: 0 }} transition={{ duration: 1, ease: "circOut" }}>
-        <Smartphone size={80} className="text-white/20 mb-6" strokeWidth={1} />
-        <h1 className="text-6xl font-display font-bold tracking-tight mb-4 text-center">
-          Distractions are <span className="text-brand-500">Everywhere</span>
-        </h1>
+    <motion.div className="absolute inset-0 flex flex-col items-center justify-center gap-10 z-10" {...sceneTransitions.scaleFade}>
+      <motion.div className="text-center flex flex-col gap-4" animate={phase >= 2 ? { y: -50 } : { y: 0 }} transition={{ duration: 0.8, ease: 'circOut' }}>
+        <h1 className="text-6xl font-black text-white leading-tight">Apps that steal your<br /><span style={{ color: RED }}>focus</span></h1>
+        <p className="text-2xl" style={{ color: MUTED }}>are on your phone right now.</p>
       </motion.div>
-      <motion.p className="text-2xl text-white/50 absolute top-[60%]"
-        initial={{ opacity: 0, y: 20 }}
-        animate={phase >= 2 ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-        transition={{ duration: 0.8 }}>
-        Social media, games, infinite feeds.
-      </motion.p>
+      <AnimatePresence mode="popLayout">
+        {phase >= 2 && (
+          <motion.div key="apps" className="flex flex-wrap justify-center gap-3"
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+            {apps.map((app, i) => (
+              <motion.div key={app} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: i * 0.1 }}
+                style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: '8px 18px' }}>
+                <span style={{ color: TEXT, fontSize: 15, fontWeight: 600 }}>{app}</span>
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence mode="popLayout">
+        {phase >= 3 && (
+          <motion.p key="cta" className="text-2xl font-semibold" style={{ color: PRIMARY }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            FocusFlow blocks them all.
+          </motion.p>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
 
-function Scene2({ currentScene }: { currentScene: number }) {
+function Scene2({ }: { currentScene: number }) {
+  const [shake, setShake] = useState(false);
   const [phase, setPhase] = useState(0);
   useEffect(() => {
-    const timers = [
-      setTimeout(() => setPhase(1), 500),
-      setTimeout(() => setPhase(2), 2000),
-      setTimeout(() => setPhase(3), 4500),
-    ];
-    return () => timers.forEach(clearTimeout);
+    const t = [setTimeout(() => setShake(true), 200), setTimeout(() => setPhase(1), 800), setTimeout(() => setPhase(2), 1700)];
+    return () => t.forEach(clearTimeout);
   }, []);
-
   return (
-    <motion.div className="absolute inset-0 flex flex-col items-center justify-center z-10" {...sceneTransitions.wipe}>
-      <div className="absolute inset-0 bg-brand-900/40" />
-      <motion.h2 className="text-5xl font-display font-bold mb-12 relative z-10"
-        initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
-        FocusFlow <span style={{ color: ACCENT }}>App Blocking</span>
-      </motion.h2>
-      
-      <div className="flex gap-8 relative z-10">
-        {['Instagram', 'TikTok', 'YouTube'].map((app, i) => (
-          <motion.div key={app} 
-            className="w-32 h-32 glass-panel rounded-2xl flex flex-col items-center justify-center gap-3 relative overflow-hidden"
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.5 + i * 0.2 }}>
-            <div className="w-12 h-12 rounded-xl bg-white/10" />
-            <span className="text-sm font-mono">{app}</span>
+    <motion.div className="absolute inset-0 flex items-center justify-center gap-20 z-10" {...sceneTransitions.scaleFade}>
+      <div className="flex flex-col gap-4 items-center">
+        <p className="text-2xl font-bold" style={{ color: MUTED }}>User opens Instagram…</p>
+        <motion.div style={{ fontSize: 56 }}>📱</motion.div>
+        <motion.p className="text-xl font-semibold" style={{ color: RED }}
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
+          Instantly intercepted
+        </motion.p>
+      </div>
+      <PhoneMockup>
+        <motion.div
+          animate={shake ? { x: [0, 12, -10, 8, -6, 0] } : {}}
+          transition={{ duration: 0.5, ease: 'easeInOut' }}
+          style={{ width: '100%', height: '100%', background: 'rgba(0,0,0,0.92)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '0 16px' }}>
+          <motion.div initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.15, type: 'spring', tension: 80, friction: 8 }}
+            style={{ width: 70, height: 70, borderRadius: 35, background: `${RED}18`, border: `2px solid ${RED}44`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Ban size={32} color={RED} />
+          </motion.div>
+          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
+            style={{ color: RED, fontSize: 10, fontWeight: 800, letterSpacing: 3, textTransform: 'uppercase' }}>APP BLOCKED</motion.p>
+          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
+            style={{ color: '#fff', fontSize: 18, fontWeight: 800, textAlign: 'center' }}>Instagram</motion.p>
+          <AnimatePresence mode="popLayout">
+            {phase >= 1 && (
+              <motion.p key="desc" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, textAlign: 'center', lineHeight: 1.5 }}>
+                This app is blocked while focus mode or a block schedule is active.
+              </motion.p>
+            )}
+          </AnimatePresence>
+          <div style={{ width: '80%', height: 1, background: 'rgba(255,255,255,0.12)' }} />
+          <AnimatePresence mode="popLayout">
             {phase >= 2 && (
-              <motion.div className="absolute inset-0 bg-red-500/20 backdrop-blur-sm flex items-center justify-center"
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.2 }}>
-                <Ban className="text-red-500" size={40} />
+              <motion.div key="status" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <ShieldCheck size={12} color={PRIMARY} />
+                <span style={{ color: PRIMARY, fontSize: 10, fontWeight: 600 }}>FocusFlow is protecting your focus</span>
               </motion.div>
             )}
-          </motion.div>
+          </AnimatePresence>
+          <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10 }}>This will dismiss automatically</p>
+        </motion.div>
+      </PhoneMockup>
+    </motion.div>
+  );
+}
+
+function Scene3({ }: { currentScene: number }) {
+  const [phase, setPhase] = useState(0);
+  useEffect(() => {
+    const t = [setTimeout(() => setPhase(1), 400), setTimeout(() => setPhase(2), 1200)];
+    return () => t.forEach(clearTimeout);
+  }, []);
+  const items = [
+    { emoji: '🚫', label: 'Standalone Block', sub: 'Block now for any duration' },
+    { emoji: '🛡️', label: 'Task Focus', sub: 'Focus Mode tied to your task' },
+    { emoji: '☀️', label: 'Daily Allowance', sub: '3 apps configured', badge: 'ACTIVE' },
+    { emoji: '⏰', label: 'Block Schedules', sub: 'Block apps during set hours' },
+  ];
+  return (
+    <motion.div className="absolute inset-0 flex flex-col items-center justify-center gap-8 z-10" {...sceneTransitions.scaleFade}>
+      <div className="text-center flex flex-col gap-2">
+        <p style={{ color: MUTED, fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase' }}>BLOCK CONTROLS</p>
+        <h2 className="text-5xl font-black text-white">Multiple ways to block</h2>
+        <p className="text-xl" style={{ color: MUTED }}>Swipe right or tap › to open the quick menu</p>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: 500 }}>
+        {items.map((item, i) => (
+          <AnimatePresence mode="popLayout" key={item.label}>
+            {phase >= 1 && (
+              <motion.div key={item.label}
+                initial={{ opacity: 0, x: -28 }} animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.15, duration: 0.4 }}
+                style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: `${PRIMARY}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>{item.emoji}</div>
+                <div style={{ flex: 1 }}>
+                  <p style={{ color: TEXT, fontSize: 14, fontWeight: 600 }}>{item.label}</p>
+                  <p style={{ color: MUTED, fontSize: 12 }}>{item.sub}</p>
+                </div>
+                {item.badge && (
+                  <span style={{ background: `${RED}22`, color: RED, fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 999, letterSpacing: 1 }}>{item.badge}</span>
+                )}
+                <span style={{ color: BORDER }}>›</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
         ))}
       </div>
     </motion.div>
   );
 }
 
-function Scene3({ currentScene }: { currentScene: number }) {
-  const [phase, setPhase] = useState(0);
+function Scene4() {
+  const [count, setCount] = useState(0);
   useEffect(() => {
-    const timers = [
-      setTimeout(() => setPhase(1), 500),
-      setTimeout(() => setPhase(2), 1500),
-    ];
-    return () => timers.forEach(clearTimeout);
+    let n = 0; const id = setInterval(() => { n++; setCount(n); if (n >= 47) clearInterval(id); }, 45);
+    return () => clearInterval(id);
   }, []);
-
   return (
-    <motion.div className="absolute inset-0 flex items-center justify-center z-10" {...sceneTransitions.morphExpand}>
-      <motion.div className="w-[320px] h-[600px] border-[8px] border-white/10 rounded-[3rem] overflow-hidden relative bg-[#111]"
-        initial={{ scale: 0.8, rotateY: 30, transformPerspective: 1000 }}
-        animate={{ scale: 1.2, rotateY: 0 }}
-        transition={{ duration: 1.5, ease: "circOut" }}>
-        
-        {/* Fake phone UI */}
-        <div className="absolute inset-0 p-6 flex flex-col items-center justify-center">
-          <motion.div className="w-20 h-20 bg-brand-500 rounded-3xl mb-8 flex items-center justify-center"
-            initial={{ scale: 0 }} animate={phase >= 1 ? { scale: 1 } : { scale: 0 }} transition={{ type: "spring", bounce: 0.5 }}>
-            <ShieldAlert size={40} className="text-white" />
-          </motion.div>
-          <motion.h3 className="text-2xl font-bold text-center mb-2"
-            initial={{ opacity: 0, y: 10 }} animate={phase >= 2 ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}>
-            App Blocked
-          </motion.h3>
-          <motion.p className="text-white/50 text-center text-sm mb-12"
-            initial={{ opacity: 0 }} animate={phase >= 2 ? { opacity: 1 } : { opacity: 0 }} transition={{ delay: 0.2 }}>
-            This app is restricted during your Focus Session.
-          </motion.p>
-        </div>
-        
+    <motion.div className="absolute inset-0 flex flex-col items-center justify-center gap-8 z-10" {...sceneTransitions.scaleFade}>
+      <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', duration: 0.8 }}
+        style={{ width: 130, height: 130, borderRadius: 65, background: `${PRIMARY}18`, border: `2px solid ${PRIMARY}44`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <ShieldCheck size={60} color={PRIMARY} />
       </motion.div>
-    </motion.div>
-  );
-}
-
-function Scene4({ currentScene }: { currentScene: number }) {
-  return (
-    <motion.div className="absolute inset-0 flex flex-col items-center justify-center z-10" {...sceneTransitions.clipCircle}>
-      <motion.div className="absolute inset-0 bg-brand-600" />
-      <CheckCircle2 size={100} className="text-white mb-8" />
-      <h2 className="text-7xl font-display font-black tracking-tighter text-white">
-        No Bypass.
-      </h2>
-      <h2 className="text-7xl font-display font-black tracking-tighter text-white/50 mt-2">
-        No Excuses.
-      </h2>
-    </motion.div>
-  );
-}
-
-function Scene5({ currentScene }: { currentScene: number }) {
-  return (
-    <motion.div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-[#08080f]" {...sceneTransitions.scaleFade}>
-      <motion.div className="w-24 h-24 rounded-3xl bg-brand-500 flex items-center justify-center mb-6 shadow-[0_0_60px_rgba(99,102,241,0.4)]"
-        animate={{ scale: [1, 1.05, 1] }} transition={{ duration: 4, repeat: Infinity }}>
-        <ShieldAlert size={48} className="text-white" />
-      </motion.div>
-      <h1 className="text-4xl font-display font-bold tracking-widest text-white mb-2 uppercase">FocusFlow</h1>
-      <p className="text-brand-300 font-mono">Discipline Operating System</p>
-    </motion.div>
-  );
-}
-
-const SCENE_DURATIONS = { open: 5500, middle1: 6000, middle2: 6000, climax: 5000, close: 5000 };
-
-export default function VideoTemplate() {
-  const { currentScene } = useVideoPlayer({ durations: SCENE_DURATIONS });
-
-  return (
-    <div className="relative w-full h-screen overflow-hidden bg-[#08080f] text-white">
-      {/* Background layer */}
-      <div className="absolute inset-0">
-        <motion.div className="absolute w-[80vw] h-[80vw] rounded-full opacity-20 blur-[100px]"
-          style={{ background: `radial-gradient(circle, ${ACCENT}, transparent)` }}
-          animate={{ x: ['-20%', '20%', '-10%'], y: ['-10%', '30%', '10%'] }}
-          transition={{ duration: 15, repeat: Infinity, ease: 'linear' }} />
+      <h1 className="text-7xl font-black text-white text-center leading-tight">Zero bypass.<br />Zero exceptions.</h1>
+      <div className="flex items-end gap-4">
+        <span style={{ fontSize: 80, fontWeight: 900, color: PRIMARY, lineHeight: 1 }}>{count}</span>
+        <span className="text-3xl font-bold mb-3" style={{ color: MUTED }}>apps blocked today</span>
       </div>
+      <p className="text-lg" style={{ color: MUTED }}>Accessibility Service · Standalone Block · Block Schedules</p>
+    </motion.div>
+  );
+}
 
+export default function AppBlocking() {
+  const { currentScene } = useVideoPlayer(4, 7000);
+  return (
+    <div className="w-full h-screen relative overflow-hidden" style={{ background: BG, fontFamily: 'Inter, system-ui, sans-serif' }}>
+      <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 25% 50%, #1a0505 0%, transparent 55%), radial-gradient(ellipse at 75% 50%, #05050f 0%, transparent 55%)' }} />
       <AnimatePresence mode="popLayout">
         {currentScene === 0 && <Scene1 key="s1" currentScene={currentScene} />}
         {currentScene === 1 && <Scene2 key="s2" currentScene={currentScene} />}
         {currentScene === 2 && <Scene3 key="s3" currentScene={currentScene} />}
-        {currentScene === 3 && <Scene4 key="s4" currentScene={currentScene} />}
-        {currentScene === 4 && <Scene5 key="s5" currentScene={currentScene} />}
+        {currentScene === 3 && <Scene4 key="s4" />}
       </AnimatePresence>
     </div>
   );

@@ -2,157 +2,176 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useVideoPlayer } from '@/lib/video';
 import { sceneTransitions } from '@/lib/video/animations';
-import { TextSelect, ShieldAlert, ScanSearch, Lock } from 'lucide-react';
+import { Home } from 'lucide-react';
 
-const ACCENT = '#ec4899'; // Pink
+const BG = '#111827';
+const CARD = '#1f2937';
+const BORDER = '#374151';
+const PRIMARY = '#6366f1';
+const RED = '#ef4444';
+const MUTED = '#9ca3af';
+const TEXT = '#f3f4f6';
+const PINK = '#ec4899';
 
-function Scene1({ currentScene }: { currentScene: number }) {
+function Scene1({ }: { currentScene: number }) {
+  const [phase, setPhase] = useState(0);
+  useEffect(() => {
+    const t = [setTimeout(() => setPhase(1), 500), setTimeout(() => setPhase(2), 1600)];
+    return () => t.forEach(clearTimeout);
+  }, []);
+  const presets = [
+    { emoji: '📰', label: 'Doomscroll bait', desc: 'Outrage headlines, viral controversy', words: ['breaking', 'shocking', 'must see'] },
+    { emoji: '🎭', label: 'Social-media drama', desc: 'Celebrity feuds, trending arguments', words: ['cancelled', 'feud', 'expose'] },
+    { emoji: '📱', label: 'Shorts/Reels bait', desc: 'Short-form-video rabbit holes', words: ['short', 'reel', 'viral'] },
+    { emoji: '🛒', label: 'Impulse-buy traps', desc: 'Sale-pressure words', words: ['flash sale', 'limited time', 'buy now'] },
+    { emoji: '🎰', label: 'Gambling triggers', desc: 'Betting lines, casino lure', words: ['bet', 'odds', 'jackpot'] },
+    { emoji: '🚫', label: 'NSFW content', desc: 'Adult-content terms', words: ['nsfw', 'adult'] },
+  ];
   return (
-    <motion.div className="absolute inset-0 flex flex-col items-center justify-center z-10" {...sceneTransitions.scaleFade}>
-      <TextSelect size={80} className="text-white/30 mb-8" strokeWidth={1} />
-      <h1 className="text-5xl font-display font-bold tracking-tight mb-4 text-center max-w-3xl">
-        Sometimes an app is fine... <br/>
-        <span className="text-white/50">until it's not.</span>
-      </h1>
+    <motion.div className="absolute inset-0 flex flex-col items-center justify-center gap-8 z-10" {...sceneTransitions.scaleFade}>
+      <div className="text-center flex flex-col gap-3">
+        <p style={{ color: MUTED, fontSize: 12, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase' }}>Side Menu → Keyword Blocker</p>
+        <h1 className="text-5xl font-black text-white">Block by on-screen text.</h1>
+        <p className="text-xl" style={{ color: MUTED }}>Any word spotted → sent straight to home screen.</p>
+      </div>
+      <AnimatePresence mode="popLayout">
+        {phase >= 1 && (
+          <motion.div key="presets" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, width: 700 }}>
+            {presets.map((p, i) => (
+              <motion.div key={p.label} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.1 }}
+                style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: '14px 16px' }}>
+                <p style={{ fontSize: 22, marginBottom: 6 }}>{p.emoji}</p>
+                <p style={{ color: TEXT, fontSize: 14, fontWeight: 700, marginBottom: 3 }}>{p.label}</p>
+                <p style={{ color: MUTED, fontSize: 11, marginBottom: 8 }}>{p.desc}</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {p.words.map(w => (
+                    <span key={w} style={{ background: `${PINK}18`, color: PINK, fontSize: 10, padding: '2px 8px', borderRadius: 999, fontWeight: 600 }}>{w}</span>
+                  ))}
+                </div>
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence mode="popLayout">
+        {phase >= 2 && (
+          <motion.p key="cta" initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ color: PRIMARY, fontSize: 18 }}>
+            One tap to add a preset. Add your own words too.
+          </motion.p>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
 
-function Scene2({ currentScene }: { currentScene: number }) {
+function Scene2({ }: { currentScene: number }) {
   const [phase, setPhase] = useState(0);
+  const [detectedWord, setDetectedWord] = useState<string | null>(null);
+  const [redirected, setRedirected] = useState(false);
   useEffect(() => {
-    const timers = [
-      setTimeout(() => setPhase(1), 1000),
-      setTimeout(() => setPhase(2), 2500),
+    const t = [
+      setTimeout(() => setPhase(1), 400),
+      setTimeout(() => setDetectedWord('breaking'), 1400),
+      setTimeout(() => setRedirected(true), 2400),
     ];
-    return () => timers.forEach(clearTimeout);
+    return () => t.forEach(clearTimeout);
   }, []);
-
+  const words = ['breaking', 'shocking', 'must see', 'cancelled', 'viral', 'flash sale', 'bet', 'reel'];
   return (
-    <motion.div className="absolute inset-0 flex flex-col items-center justify-center z-10" {...sceneTransitions.perspectiveFlip}>
-      <ScanSearch size={64} className="text-pink-500 mb-12" />
-      
-      <div className="glass-panel p-8 rounded-3xl max-w-2xl w-full text-2xl font-mono leading-relaxed">
-        <p>I just started reading about </p>
-        <div className="flex items-center gap-2 mt-2">
-          <span>the latest </span>
-          <span className="relative inline-block">
-            <span className="relative z-10 text-white">#drama</span>
-            {phase >= 1 && (
-              <motion.span className="absolute inset-0 bg-red-500 rounded"
-                initial={{ scaleX: 0, originX: 0 }}
-                animate={{ scaleX: 1 }}
-                transition={{ duration: 0.3 }} />
-            )}
-          </span>
-          <span> on Twitter.</span>
+    <motion.div className="absolute inset-0 flex flex-col items-center justify-center gap-8 z-10" {...sceneTransitions.scaleFade}>
+      <h2 className="text-5xl font-black text-white text-center">The moment a blocked word<br /><span style={{ color: PINK }}>appears on screen…</span></h2>
+      <div style={{ display: 'flex', gap: 32, alignItems: 'center' }}>
+        <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: '20px 24px', width: 300 }}>
+          <p style={{ color: MUTED, fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 12 }}>Active keyword list</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {words.map(w => (
+              <motion.span key={w}
+                animate={detectedWord === w ? { scale: [1, 1.3, 1], background: [`${PINK}18`, `${RED}44`, `${RED}22`] } : {}}
+                style={{ background: `${PINK}18`, color: w === detectedWord ? RED : PINK, fontSize: 12, fontWeight: 600, padding: '4px 10px', borderRadius: 999, display: 'inline-block' }}>
+                {w}
+              </motion.span>
+            ))}
+          </div>
         </div>
-      </div>
-      
-      {phase >= 2 && (
-        <motion.div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
-          initial={{ scale: 0, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: "spring", bounce: 0.6 }}>
-          <div className="bg-red-500 text-white px-8 py-4 rounded-2xl font-bold text-3xl shadow-2xl flex items-center gap-4">
-            <ShieldAlert /> KEYWORD DETECTED
-          </div>
-        </motion.div>
-      )}
-    </motion.div>
-  );
-}
 
-function Scene3({ currentScene }: { currentScene: number }) {
-  return (
-    <motion.div className="absolute inset-0 flex flex-col items-center justify-center z-10" {...sceneTransitions.wipe}>
-      <h2 className="text-5xl font-display font-bold mb-16">Trigger Instant Blocks</h2>
-      
-      <div className="flex gap-12">
-        <motion.div className="flex flex-col items-center gap-4"
-          initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3 }}>
-          <div className="w-24 h-24 rounded-2xl bg-white/10 flex items-center justify-center text-pink-400 font-mono text-xl">
-            "reels"
-          </div>
-        </motion.div>
-        <motion.div className="flex flex-col items-center justify-center"
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}>
-          <div className="w-16 h-2 bg-pink-500 rounded-full" />
-        </motion.div>
-        <motion.div className="flex flex-col items-center gap-4"
-          initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 1.2 }}>
-          <div className="w-24 h-24 rounded-2xl bg-red-500/20 border border-red-500 flex items-center justify-center text-red-500">
-            <Lock size={40} />
-          </div>
-        </motion.div>
-      </div>
-    </motion.div>
-  );
-}
+        <div style={{ fontSize: 32 }}>→</div>
 
-function Scene4({ currentScene }: { currentScene: number }) {
-  const [phase, setPhase] = useState(0);
-  useEffect(() => {
-    const timers = [
-      setTimeout(() => setPhase(1), 500),
-    ];
-    return () => timers.forEach(clearTimeout);
-  }, []);
-
-  return (
-    <motion.div className="absolute inset-0 flex flex-col items-center justify-center z-10" {...sceneTransitions.clipCircle}>
-      <h2 className="text-5xl font-display font-bold mb-12">Add Your Own Triggers</h2>
-      
-      <div className="glass-panel p-8 rounded-3xl w-full max-w-md">
-        <div className="flex flex-col gap-4">
-          {['tiktok', 'shorts', 'news', 'gossip', 'doomscroll'].map((word, i) => (
-            <motion.div key={word} className="bg-white/5 px-6 py-4 rounded-xl flex justify-between items-center"
-              initial={{ opacity: 0, x: -20 }}
-              animate={phase >= 1 ? { opacity: 1, x: 0 } : {}}
-              transition={{ delay: i * 0.1 }}>
-              <span className="font-mono text-pink-400">{word}</span>
-              <div className="w-3 h-3 rounded-full bg-red-500" />
+        <AnimatePresence mode="popLayout">
+          {detectedWord && !redirected && (
+            <motion.div key="detected" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+              style={{ background: `${RED}18`, border: `1.5px solid ${RED}55`, borderRadius: 14, padding: '20px 24px', textAlign: 'center', width: 220 }}>
+              <p style={{ fontSize: 36, marginBottom: 8 }}>👁️</p>
+              <p style={{ color: RED, fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Word detected</p>
+              <p style={{ color: '#fff', fontSize: 22, fontWeight: 800 }}>"{detectedWord}"</p>
+              <p style={{ color: MUTED, fontSize: 12, marginTop: 4 }}>Sending to home screen…</p>
             </motion.div>
-          ))}
-        </div>
+          )}
+          {redirected && (
+            <motion.div key="home" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+              style={{ background: `${PRIMARY}18`, border: `1.5px solid ${PRIMARY}55`, borderRadius: 14, padding: '20px 28px', textAlign: 'center', width: 220 }}>
+              <Home size={40} color={PRIMARY} style={{ margin: '0 auto 12px' }} />
+              <p style={{ color: PRIMARY, fontSize: 14, fontWeight: 700 }}>Redirected to</p>
+              <p style={{ color: TEXT, fontSize: 22, fontWeight: 800 }}>Home Screen</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
+      <p style={{ color: MUTED, fontSize: 16 }}>Works inside any app. No app-specific setup needed.</p>
     </motion.div>
   );
 }
 
-function Scene5({ currentScene }: { currentScene: number }) {
+function Scene3() {
+  const [phase, setPhase] = useState(0);
+  useEffect(() => {
+    const t = [setTimeout(() => setPhase(1), 400), setTimeout(() => setPhase(2), 1200)];
+    return () => t.forEach(clearTimeout);
+  }, []);
   return (
-    <motion.div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-[#08080f]" {...sceneTransitions.scaleFade}>
-      <motion.div className="w-24 h-24 rounded-3xl bg-pink-500 flex items-center justify-center mb-6 shadow-[0_0_60px_rgba(236,72,153,0.4)]"
-        animate={{ scale: [1, 1.05, 1] }} transition={{ duration: 4, repeat: Infinity }}>
-        <ShieldAlert size={48} className="text-white" />
-      </motion.div>
-      <h1 className="text-4xl font-display font-bold tracking-widest text-white mb-2 uppercase">FocusFlow</h1>
-      <p className="text-pink-300 font-mono">Discipline Operating System</p>
+    <motion.div className="absolute inset-0 flex flex-col items-center justify-center gap-8 z-10" {...sceneTransitions.scaleFade}>
+      <h1 className="text-6xl font-black text-white text-center leading-tight">Block the content.<br /><span style={{ color: PINK }}>Not the whole app.</span></h1>
+      <div style={{ display: 'flex', gap: 20 }}>
+        {[
+          { title: 'Adding words', detail: 'No password required', color: GREEN },
+          { title: 'Removing words', detail: 'Defense password required', color: RED },
+          { title: 'Custom words', detail: 'Add anything you want blocked', color: PRIMARY },
+        ].map((item, i) => (
+          <AnimatePresence mode="popLayout" key={item.title}>
+            {phase >= 1 && (
+              <motion.div key={item.title} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.15 }}
+                style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: '22px 24px', width: 210, textAlign: 'center' }}>
+                <p style={{ color: TEXT, fontSize: 16, fontWeight: 700, marginBottom: 6 }}>{item.title}</p>
+                <p style={{ color: item.color, fontSize: 13, fontWeight: 600 }}>{item.detail}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        ))}
+      </div>
+      <AnimatePresence mode="popLayout">
+        {phase >= 2 && (
+          <motion.p key="note" initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ color: MUTED, fontSize: 16 }}>
+            Pairs with Accessibility Service — real-time text scanning.
+          </motion.p>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
 
-const SCENE_DURATIONS = { open: 4000, trigger: 5500, mechanism: 5000, list: 5000, close: 4500 };
+const GREEN = '#10b981';
 
-export default function VideoTemplate() {
-  const { currentScene } = useVideoPlayer({ durations: SCENE_DURATIONS });
-
+export default function KeywordBlocker() {
+  const { currentScene } = useVideoPlayer(3, 7500);
   return (
-    <div className="relative w-full h-screen overflow-hidden bg-[#08080f] text-white">
-      <div className="absolute inset-0">
-        <div className="noise-overlay opacity-[0.05]" />
-        <motion.div className="absolute bottom-0 left-[20%] w-[50vw] h-[50vw] opacity-10 bg-pink-600 blur-[100px] rounded-full"
-          animate={{ scale: [1, 1.2, 1] }}
-          transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }} />
-      </div>
-
+    <div className="w-full h-screen relative overflow-hidden" style={{ background: BG, fontFamily: 'Inter, system-ui, sans-serif' }}>
+      <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 50% 40%, #1a0a1a 0%, transparent 60%)' }} />
       <AnimatePresence mode="popLayout">
         {currentScene === 0 && <Scene1 key="s1" currentScene={currentScene} />}
         {currentScene === 1 && <Scene2 key="s2" currentScene={currentScene} />}
-        {currentScene === 2 && <Scene3 key="s3" currentScene={currentScene} />}
-        {currentScene === 3 && <Scene4 key="s4" currentScene={currentScene} />}
-        {currentScene === 4 && <Scene5 key="s5" currentScene={currentScene} />}
+        {currentScene === 2 && <Scene3 key="s3" />}
       </AnimatePresence>
     </div>
   );

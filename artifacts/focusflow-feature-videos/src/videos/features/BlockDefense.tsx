@@ -2,162 +2,210 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useVideoPlayer } from '@/lib/video';
 import { sceneTransitions } from '@/lib/video/animations';
-import { Shield, Smartphone, Trash2, Power, Terminal, LockKeyhole } from 'lucide-react';
+import { Lock, ShieldCheck, Trash2, Key, Zap } from 'lucide-react';
 
-const ACCENT = '#f97316'; // Orange
+const BG = '#111827';
+const CARD = '#1f2937';
+const BORDER = '#374151';
+const PRIMARY = '#6366f1';
+const RED = '#ef4444';
+const GREEN = '#10b981';
+const AMBER = '#f59e0b';
+const ORANGE = '#f97316';
+const MUTED = '#9ca3af';
+const TEXT = '#f3f4f6';
 
-function Scene1({ currentScene }: { currentScene: number }) {
+function Toggle({ on, color = GREEN }: { on: boolean; color?: string }) {
   return (
-    <motion.div className="absolute inset-0 flex flex-col items-center justify-center z-10" {...sceneTransitions.scaleFade}>
-      <Shield size={80} className="text-white/30 mb-8" strokeWidth={1} />
-      <h1 className="text-6xl font-display font-bold tracking-tight mb-4 text-center">
-        Clever users try to <br/><span style={{ color: ACCENT }}>Bypass Blockers.</span>
-      </h1>
-      <p className="text-2xl text-white/50 text-center">We planned for that.</p>
+    <motion.div animate={{ background: on ? color : BORDER }} transition={{ duration: 0.35 }}
+      style={{ width: 42, height: 24, borderRadius: 12, position: 'relative', flexShrink: 0 }}>
+      <motion.div animate={{ left: on ? 20 : 2 }} transition={{ duration: 0.35 }}
+        style={{ position: 'absolute', top: 2, width: 20, height: 20, borderRadius: 10, background: '#fff' }} />
     </motion.div>
   );
 }
 
-function Scene2({ currentScene }: { currentScene: number }) {
+function Scene1({ }: { currentScene: number }) {
   const [phase, setPhase] = useState(0);
   useEffect(() => {
-    const timers = [
-      setTimeout(() => setPhase(1), 500),
-      setTimeout(() => setPhase(2), 2000),
-      setTimeout(() => setPhase(3), 3500),
-    ];
-    return () => timers.forEach(clearTimeout);
+    const t = [setTimeout(() => setPhase(1), 400), setTimeout(() => setPhase(2), 1200)];
+    return () => t.forEach(clearTimeout);
   }, []);
-
+  const layers = [
+    { icon: Lock, label: 'System Protection', desc: 'Power menu · Settings lockdown', color: PRIMARY },
+    { icon: Zap, label: 'Aversion Deterrents', desc: 'Dimmer · Vibration · Alert sound', color: ORANGE },
+    { icon: ShieldCheck, label: 'PIN Protection', desc: 'Focus Session password · Defense password', color: GREEN },
+    { icon: Trash2, label: 'Nuclear Mode', desc: 'Permanently uninstall addictive apps', color: RED },
+  ];
   return (
-    <motion.div className="absolute inset-0 flex flex-col items-center justify-center z-10" {...sceneTransitions.perspectiveFlip}>
-      <h2 className="text-5xl font-display font-bold mb-16">The Bypass Attempts</h2>
-      
-      <div className="flex gap-12">
-        <motion.div className="glass-panel p-8 rounded-2xl flex flex-col items-center w-64"
-          initial={{ opacity: 0, y: 50 }} animate={phase >= 1 ? { opacity: 1, y: 0 } : {}} transition={{ type: 'spring' }}>
-          <Trash2 size={48} className="text-red-500 mb-4" />
-          <h3 className="text-xl font-bold">Uninstall</h3>
-        </motion.div>
-        
-        <motion.div className="glass-panel p-8 rounded-2xl flex flex-col items-center w-64"
-          initial={{ opacity: 0, y: 50 }} animate={phase >= 2 ? { opacity: 1, y: 0 } : {}} transition={{ type: 'spring' }}>
-          <Power size={48} className="text-yellow-500 mb-4" />
-          <h3 className="text-xl font-bold">Power Menu</h3>
-        </motion.div>
-        
-        <motion.div className="glass-panel p-8 rounded-2xl flex flex-col items-center w-64"
-          initial={{ opacity: 0, y: 50 }} animate={phase >= 3 ? { opacity: 1, y: 0 } : {}} transition={{ type: 'spring' }}>
-          <Terminal size={48} className="text-orange-500 mb-4" />
-          <h3 className="text-xl font-bold">ADB/Developer</h3>
-        </motion.div>
+    <motion.div className="absolute inset-0 flex flex-col items-center justify-center gap-8 z-10" {...sceneTransitions.scaleFade}>
+      <div className="text-center flex flex-col gap-3">
+        <p style={{ color: MUTED, fontSize: 12, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase' }}>Block Defense · Side Menu → Block Enforcement</p>
+        <h1 className="text-5xl font-black text-white leading-tight">The layers that make blocks<br /><span style={{ color: PRIMARY }}>impossible to bypass.</span></h1>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: 560 }}>
+        {layers.map((layer, i) => {
+          const Icon = layer.icon;
+          return (
+            <AnimatePresence mode="popLayout" key={layer.label}>
+              {phase >= 1 && (
+                <motion.div key={layer.label} initial={{ opacity: 0, x: -24 }} animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.14 }}
+                  style={{ background: CARD, border: `1px solid ${layer.color}33`, borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 8, background: `${layer.color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Icon size={18} color={layer.color} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ color: TEXT, fontSize: 14, fontWeight: 700 }}>{layer.label}</p>
+                    <p style={{ color: MUTED, fontSize: 12 }}>{layer.desc}</p>
+                  </div>
+                  <span style={{ color: BORDER }}>›</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          );
+        })}
       </div>
     </motion.div>
   );
 }
 
-function Scene3({ currentScene }: { currentScene: number }) {
+function Scene2({ }: { currentScene: number }) {
+  const [toggles, setToggles] = useState([false, false, false, false]);
+  useEffect(() => {
+    [0, 1, 2, 3].forEach(i => setTimeout(() => setToggles(t => { const n = [...t]; n[i] = true; return n; }), 400 + i * 500));
+  }, []);
+  const items = [
+    { label: 'System Protection', desc: 'Power menu, Settings lockdown', color: PRIMARY },
+    { label: 'YouTube Shorts Block', desc: 'Intercepts the Shorts player', color: RED },
+    { label: 'Instagram Reels Block', desc: 'Intercepts the Reels viewer', color: '#e1306c' },
+    { label: 'Block Install Actions', desc: 'Play Store / packageinstaller dialogs', color: AMBER },
+  ];
+  return (
+    <motion.div className="absolute inset-0 flex flex-col items-center justify-center gap-8 z-10" {...sceneTransitions.scaleFade}>
+      <div className="text-center flex flex-col gap-2">
+        <h2 className="text-5xl font-black text-white">System Protection</h2>
+        <p style={{ color: MUTED, fontSize: 18 }}>Lock down every escape hatch.</p>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: 560 }}>
+        {items.map((item, i) => (
+          <div key={item.label} style={{ background: CARD, border: `1px solid ${toggles[i] ? `${item.color}44` : BORDER}`, borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, transition: 'border-color 0.3s' }}>
+            <div style={{ flex: 1 }}>
+              <p style={{ color: TEXT, fontSize: 14, fontWeight: 700 }}>{item.label}</p>
+              <p style={{ color: MUTED, fontSize: 12 }}>{item.desc}</p>
+            </div>
+            <Toggle on={toggles[i]} color={item.color} />
+          </div>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
+function Scene3({ }: { currentScene: number }) {
   const [phase, setPhase] = useState(0);
   useEffect(() => {
-    const timers = [
-      setTimeout(() => setPhase(1), 1000),
-    ];
-    return () => timers.forEach(clearTimeout);
+    const t = [setTimeout(() => setPhase(1), 400), setTimeout(() => setPhase(2), 1400), setTimeout(() => setPhase(3), 2400)];
+    return () => t.forEach(clearTimeout);
   }, []);
-
+  const deterrents = [
+    { label: 'Dimmer', desc: 'Near-black overlay on screen the instant you open a blocked app', icon: '🌑', color: PRIMARY },
+    { label: 'Vibration', desc: 'Repeated vibration pulse while the blocked app is open', icon: '📳', color: AMBER },
+    { label: 'Alert Sound', desc: 'Alert tone fires the moment the blocked app opens', icon: '🔔', color: RED },
+  ];
   return (
-    <motion.div className="absolute inset-0 flex flex-col items-center justify-center z-10" {...sceneTransitions.wipe}>
-      <div className="absolute inset-0 bg-orange-900/20" />
-      
-      <h2 className="text-6xl font-display font-bold mb-16 relative z-10 text-center">
-        FocusFlow <span className="text-orange-500">Blocks</span> <br/> All Of These.
-      </h2>
-      
-      <div className="relative z-10 flex items-center justify-center">
-        <motion.div className="w-48 h-48 rounded-full border-[12px] border-orange-500 flex items-center justify-center bg-[#111]"
-          initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", bounce: 0.5 }}>
-          <Shield size={64} className="text-orange-500" />
-        </motion.div>
-        
-        {phase >= 1 && (
-          <>
-            <motion.div className="absolute left-[-150px] top-[20px] bg-red-500/20 text-red-500 px-6 py-2 rounded-full font-bold"
-              initial={{ x: -100, opacity: 0 }} animate={{ x: 0, opacity: 1 }}>Uninstall Blocked</motion.div>
-            <motion.div className="absolute right-[-150px] top-[20px] bg-yellow-500/20 text-yellow-500 px-6 py-2 rounded-full font-bold"
-              initial={{ x: 100, opacity: 0 }} animate={{ x: 0, opacity: 1 }}>Reboot Blocked</motion.div>
-            <motion.div className="absolute bottom-[-80px] bg-orange-500/20 text-orange-500 px-6 py-2 rounded-full font-bold"
-              initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>ADB Blocked</motion.div>
-          </>
+    <motion.div className="absolute inset-0 flex flex-col items-center justify-center gap-8 z-10" {...sceneTransitions.scaleFade}>
+      <div className="text-center flex flex-col gap-2">
+        <h2 className="text-5xl font-black text-white">Aversion Deterrents</h2>
+        <p style={{ color: MUTED, fontSize: 18 }}>Make distraction apps physically unpleasant to open.</p>
+      </div>
+      <div style={{ display: 'flex', gap: 20 }}>
+        {deterrents.map((d, i) => (
+          <AnimatePresence mode="popLayout" key={d.label}>
+            {phase >= 1 && (
+              <motion.div key={d.label} initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.18 }}
+                style={{ background: CARD, border: `1px solid ${d.color}44`, borderRadius: 18, padding: '28px 24px', width: 200, textAlign: 'center' }}>
+                <p style={{ fontSize: 40, marginBottom: 12 }}>{d.icon}</p>
+                <p style={{ color: TEXT, fontSize: 18, fontWeight: 700, marginBottom: 8 }}>{d.label}</p>
+                <p style={{ color: MUTED, fontSize: 13, lineHeight: 1.5 }}>{d.desc}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        ))}
+      </div>
+      <AnimatePresence mode="popLayout">
+        {phase >= 3 && (
+          <motion.p key="note" initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ color: MUTED, fontSize: 16 }}>
+            Applied the instant the blocked app opens — before you even see it.
+          </motion.p>
         )}
-      </div>
+      </AnimatePresence>
     </motion.div>
   );
 }
 
-function Scene4({ currentScene }: { currentScene: number }) {
+function Scene4() {
+  const [phase, setPhase] = useState(0);
+  useEffect(() => {
+    const t = [setTimeout(() => setPhase(1), 400), setTimeout(() => setPhase(2), 1400), setTimeout(() => setPhase(3), 2400)];
+    return () => t.forEach(clearTimeout);
+  }, []);
   return (
-    <motion.div className="absolute inset-0 flex items-center justify-center z-10" {...sceneTransitions.clipCircle}>
-      <div className="flex gap-16 items-center w-full max-w-5xl px-12">
-        <div className="flex-1">
-          <LockKeyhole size={80} className="text-orange-500 mb-8" />
-          <h2 className="text-6xl font-display font-black tracking-tighter text-white mb-6 leading-tight">
-            Your Willpower, <br/>Locked In.
-          </h2>
-          <p className="text-2xl text-white/50">Protected by Random PIN generation. No turning back.</p>
-        </div>
-        
-        <motion.div className="w-80 glass-panel rounded-[3rem] p-8 border-t border-white/20"
-          initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 1 }}>
-          <div className="text-center mb-8">
-            <h3 className="text-lg font-bold">Enter PIN to Unlock</h3>
-          </div>
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            {[1,2,3,4,5,6,7,8,9].map(n => (
-              <div key={n} className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center text-xl font-mono">{n}</div>
-            ))}
-            <div className="col-start-2 w-16 h-16 rounded-full bg-white/5 flex items-center justify-center text-xl font-mono">0</div>
-          </div>
-          <div className="h-12 bg-orange-500/20 rounded-full flex items-center justify-center text-orange-400 font-bold border border-orange-500/50">
-            RANDOM PIN ACTIVE
-          </div>
-        </motion.div>
+    <motion.div className="absolute inset-0 flex flex-col items-center justify-center gap-8 z-10" {...sceneTransitions.scaleFade}>
+      <div className="text-center flex flex-col gap-2">
+        <h2 className="text-5xl font-black text-white">PIN Protection</h2>
+        <p style={{ color: MUTED, fontSize: 18 }}>Two separate passwords. Two separate locks.</p>
       </div>
+      <div style={{ display: 'flex', gap: 20 }}>
+        {[
+          { icon: Lock, title: 'Focus Session Password', desc: 'Gates ending any active focus session. Set once per session start.', color: PRIMARY },
+          { icon: Key, title: 'Defense Password', desc: 'Gates disabling any protection toggle (System Guard, VPN, etc).', color: GREEN },
+        ].map((p, i) => {
+          const Icon = p.icon;
+          return (
+            <AnimatePresence mode="popLayout" key={p.title}>
+              {phase >= 1 && (
+                <motion.div key={p.title} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.2 }}
+                  style={{ background: CARD, border: `1.5px solid ${p.color}44`, borderRadius: 18, padding: '28px 28px', width: 280, textAlign: 'center' }}>
+                  <div style={{ width: 56, height: 56, borderRadius: 28, background: `${p.color}18`, border: `1.5px solid ${p.color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+                    <Icon size={26} color={p.color} />
+                  </div>
+                  <p style={{ color: TEXT, fontSize: 16, fontWeight: 700, marginBottom: 8 }}>{p.title}</p>
+                  <p style={{ color: MUTED, fontSize: 13, lineHeight: 1.5 }}>{p.desc}</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          );
+        })}
+      </div>
+      <AnimatePresence mode="popLayout">
+        {phase >= 2 && (
+          <motion.div key="nuclear" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+            style={{ background: `${RED}12`, border: `1.5px solid ${RED}44`, borderRadius: 16, padding: '16px 32px', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Trash2 size={22} color={RED} />
+            <div>
+              <p style={{ color: RED, fontSize: 15, fontWeight: 700 }}>Nuclear Mode</p>
+              <p style={{ color: MUTED, fontSize: 13 }}>Permanently uninstall addictive apps via the system dialog.</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
 
-function Scene5({ currentScene }: { currentScene: number }) {
+export default function BlockDefense() {
+  const { currentScene } = useVideoPlayer(4, 7500);
   return (
-    <motion.div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-[#08080f]" {...sceneTransitions.scaleFade}>
-      <motion.div className="w-24 h-24 rounded-3xl bg-orange-500 flex items-center justify-center mb-6 shadow-[0_0_60px_rgba(249,115,22,0.4)]"
-        animate={{ scale: [1, 1.05, 1] }} transition={{ duration: 4, repeat: Infinity }}>
-        <Shield size={48} className="text-black" />
-      </motion.div>
-      <h1 className="text-4xl font-display font-bold tracking-widest text-white mb-2 uppercase">FocusFlow</h1>
-      <p className="text-orange-300 font-mono">Discipline Operating System</p>
-    </motion.div>
-  );
-}
-
-const SCENE_DURATIONS = { open: 4500, attempts: 5500, blocked: 5500, pin: 5000, close: 4500 };
-
-export default function VideoTemplate() {
-  const { currentScene } = useVideoPlayer({ durations: SCENE_DURATIONS });
-
-  return (
-    <div className="relative w-full h-screen overflow-hidden bg-[#08080f] text-white">
-      <div className="absolute inset-0">
-        <div className="noise-overlay" />
-        <motion.div className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] opacity-10 bg-orange-600 blur-[120px] rounded-full"
-          animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }} />
-      </div>
-
+    <div className="w-full h-screen relative overflow-hidden" style={{ background: BG, fontFamily: 'Inter, system-ui, sans-serif' }}>
+      <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 50% 40%, #1a0a05 0%, transparent 60%)' }} />
       <AnimatePresence mode="popLayout">
         {currentScene === 0 && <Scene1 key="s1" currentScene={currentScene} />}
         {currentScene === 1 && <Scene2 key="s2" currentScene={currentScene} />}
         {currentScene === 2 && <Scene3 key="s3" currentScene={currentScene} />}
-        {currentScene === 3 && <Scene4 key="s4" currentScene={currentScene} />}
-        {currentScene === 4 && <Scene5 key="s5" currentScene={currentScene} />}
+        {currentScene === 3 && <Scene4 key="s4" />}
       </AnimatePresence>
     </div>
   );
