@@ -17,6 +17,8 @@ import { useApp } from '@/context/AppContext';
 import type { DailyAllowanceEntry, GreyoutWindow } from '@/data/types';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
 import { useTheme } from '@/hooks/useTheme';
+import Constants from 'expo-constants';
+import { dbDeleteAllTasks } from '@/data/database';
 import { cancelAllReminders, requestPermissions } from '@/services/notificationService';
 import { exportBackup, pickAndImportBackup } from '@/services/backupService';
 import { mergeIntoBlockPreset } from '@/services/blockListImport';
@@ -121,7 +123,8 @@ function SettingsScreen() {
     if (backupBusy) return;
     setBackupBusy(true);
     try {
-      const result = await exportBackup(settings, 'v1.0.3');
+      const appVersion = Constants.expoConfig?.version ?? '0.0.0';
+      const result = await exportBackup(settings, appVersion);
       if (!result.ok) {
         Alert.alert('Export failed', result.error ?? 'Could not create backup file.');
       }
@@ -186,9 +189,7 @@ function SettingsScreen() {
         style: 'destructive',
         onPress: async () => {
           await cancelAllReminders();
-          for (const task of state.tasks) {
-            await deleteTask(task.id);
-          }
+          await dbDeleteAllTasks();
           await refreshTasks();
           Alert.alert('Done', 'All tasks cleared.');
         },

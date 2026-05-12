@@ -45,15 +45,7 @@ function ScheduleScreen() {
 
   const handleCompleteTask = useCallback(
     async (taskId: string) => {
-      Alert.alert('Complete Task', 'Mark this task as done?', [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Complete',
-          onPress: async () => {
-            await completeTask(taskId);
-          },
-        },
-      ]);
+      await completeTask(taskId);
     },
     [completeTask],
   );
@@ -84,7 +76,7 @@ function ScheduleScreen() {
         <View>
           <Text style={[styles.dateText, { color: theme.text }]}>{dayjs().format('dddd, MMMM D')}</Text>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            {completedCount}/{totalCount} tasks done
+            {totalCount === 0 ? 'No tasks today' : `${completedCount}/${totalCount} tasks done`}
           </Text>
         </View>
       </View>

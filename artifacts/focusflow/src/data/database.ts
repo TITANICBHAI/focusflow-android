@@ -723,7 +723,18 @@ export async function dbPruneOldData(daysToKeep = 90): Promise<void> {
       `DELETE FROM daily_completions WHERE date < ?`,
       [cutoffDate],
     );
+    await database.runAsync(
+      `DELETE FROM tasks WHERE status IN ('completed', 'skipped') AND end_time < ?`,
+      [cutoffIso],
+    );
   });
+}
+
+/** Deletes every task row in one shot. Used by "Clear All Tasks" in Settings. */
+export async function dbDeleteAllTasks(): Promise<void> {
+  return runWithDb('dbDeleteAllTasks', (database) =>
+    database.runAsync('DELETE FROM tasks').then(() => undefined),
+  );
 }
 
 /** Best consecutive-day streak ever recorded (50% completion threshold). */

@@ -116,7 +116,7 @@ function reducer(state: AppState, action: AppAction): AppState {
 const defaultSettings: AppSettings = {
   darkMode: Appearance.getColorScheme() === 'dark',
   defaultDuration: 60,
-  defaultReminderOffsets: [-10, -5, 0],
+  defaultReminderOffsets: [-10],
   focusModeEnabled: true,
   allowedInFocus: [], // [] = all apps allowed (no blocking) — sentinel value
   allowedAppPresets: [],
@@ -130,7 +130,7 @@ const defaultSettings: AppSettings = {
   standaloneBlockPackages: [],
   standaloneBlockUntil: null,
   alwaysOnPackages: [],
-  autoCopyToAlwaysOn: false,
+  autoCopyToAlwaysOn: true,
   dailyAllowanceEntries: [],
   blockedWords: [],
   aversionDimmerEnabled: false,
@@ -144,7 +144,8 @@ const defaultSettings: AppSettings = {
   blockInstagramReelsEnabled: false,
   vpnBlockEnabled: false,
   standaloneVpnPackages: [],
-  keepFocusActiveUntilTaskEnd: false,
+  keepFocusActiveUntilTaskEnd: true,
+  vpnSelfHealEnabled: true,
   launcherEnabled: false,
   launcherHiddenPackages: [],
   launcherPinnedPackages: [],

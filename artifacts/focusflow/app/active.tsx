@@ -17,7 +17,7 @@
  *   8. Quick actions                — start standalone, edit schedules, etc.
  */
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -28,7 +28,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import dayjs from 'dayjs';
 
 import { useApp } from '@/context/AppContext';
@@ -93,34 +93,37 @@ export default function ActiveScreen() {
     distractionsBlocked: number;
   } | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const [rows, focusMinutes, distractions] = await Promise.all([
-          dbGetRecentDayCompletions(1),
-          dbGetTodayFocusMinutes(),
-          dbGetTodayOverrideCount(),
-        ]);
-        const todayKey = dayjs().format('YYYY-MM-DD');
-        const today = rows.find((r) => r.date === todayKey);
-        const todayTasks = state.tasks.filter(
-          (t) => dayjs(t.startTime).format('YYYY-MM-DD') === todayKey,
-        );
-        if (mounted) {
-          setTodayStats({
-            completed: today?.completed ?? 0,
-            total: today?.total ?? todayTasks.length,
-            focusMinutes,
-            distractionsBlocked: distractions,
-          });
+  useFocusEffect(
+    useCallback(() => {
+      let mounted = true;
+      (async () => {
+        try {
+          const [rows, focusMinutes, distractions] = await Promise.all([
+            dbGetRecentDayCompletions(1),
+            dbGetTodayFocusMinutes(),
+            dbGetTodayOverrideCount(),
+          ]);
+          const todayKey = dayjs().format('YYYY-MM-DD');
+          const today = rows.find((r) => r.date === todayKey);
+          const todayTasks = state.tasks.filter(
+            (t) => dayjs(t.startTime).format('YYYY-MM-DD') === todayKey,
+          );
+          if (mounted) {
+            setTodayStats({
+              completed: today?.completed ?? 0,
+              total: today?.total ?? todayTasks.length,
+              focusMinutes,
+              distractionsBlocked: distractions,
+            });
+          }
+        } catch {
+          if (mounted) setTodayStats({ completed: 0, total: 0, focusMinutes: 0, distractionsBlocked: 0 });
         }
-      } catch {
-        if (mounted) setTodayStats({ completed: 0, total: 0, focusMinutes: 0, distractionsBlocked: 0 });
-      }
-    })();
-    return () => { mounted = false; };
-  }, [state.tasks]);
+      })();
+      return () => { mounted = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+  );
 
   // ── Pin helpers ───────────────────────────────────────────────────────────
   const withDefensePin = (action: () => void) => {
