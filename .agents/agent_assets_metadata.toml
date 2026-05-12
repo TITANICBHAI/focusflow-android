@@ -138,6 +138,18 @@ uri = "file://artifacts/focusflow-accessibility-demo/public/images/tech-bg.png"
 type = "image"
 title = "dark technological data flow background"
 
+[[generated]]
+id = "75rRJzlr8sxBbk6BdqSXa"
+uri = "file://artifacts/focusflow-feature-videos/public/images/bg-tech.png"
+type = "image"
+title = "dark abstract tech texture"
+
+[[generated]]
+id = "nQT38yXhuxQOLAGD0cZhx"
+uri = "file://artifacts/focusflow-feature-videos/public/images/bg-focus.png"
+type = "image"
+title = "abstract calm focus nature"
+
 [[outputs]]
 id = "tgalAfT1-750LJk0Yh4R6"
 uri = "file://artifacts/focusflow/store-assets/STORE_LISTING.md"

@@ -42,6 +42,10 @@ args = "Serve Docs Website"
 task = "workflow.run"
 args = "Start FocusFlow Accessibility Demo"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start FocusFlow Feature Videos"
+
 [[workflows.workflow]]
 name = "Push to GitHub"
 author = "agent"
@@ -112,6 +116,18 @@ waitForPort = 3003
 [workflows.workflow.metadata]
 outputType = "console"
 
+[[workflows.workflow]]
+name = "Start FocusFlow Feature Videos"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=6000 BASE_PATH=/ pnpm --filter @workspace/focusflow-feature-videos run dev"
+waitForPort = 6000
+
 [agent]
 stack = "BEST_EFFORT_FALLBACK"
 expertMode = true
@@ -151,6 +167,10 @@ externalPort = 3000
 [[ports]]
 localPort = 3003
 externalPort = 3003
+
+[[ports]]
+localPort = 6000
+externalPort = 6000
 
 [nix]
 channel = "stable-25_05"
