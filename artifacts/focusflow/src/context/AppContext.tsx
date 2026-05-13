@@ -116,7 +116,7 @@ function reducer(state: AppState, action: AppAction): AppState {
 const defaultSettings: AppSettings = {
   darkMode: Appearance.getColorScheme() === 'dark',
   defaultDuration: 60,
-  defaultReminderOffsets: [-10],
+  defaultReminderOffsets: [-10, -5, 0],
   focusModeEnabled: true,
   allowedInFocus: [], // [] = all apps allowed (no blocking) — sentinel value
   allowedAppPresets: [],
@@ -768,16 +768,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     const untilMs = new Date(standaloneBlockUntil).getTime();
     if (untilMs <= Date.now()) {
-      // Timer expired: end the timed session but RETAIN the package list so
-      // always-on enforcement keeps blocking those apps 24/7. The user
-      // explicitly wipes the list via the "Clear list" action on the Focus tab
-      // / Standalone Block modal, never automatically.
+      // Timer expired: clear the timed session. If autoCopyToAlwaysOn was on,
+      // remove the previously-copied packages from alwaysOnPackages so they
+      // don't keep blocking indefinitely after the timer ends. This mirrors the
+      // cleanup done in setStandaloneBlock / setStandaloneBlockAndAllowance
+      // (Bug 3 fix) so the expiry path is consistent with the manual clear path.
       try {
         await SharedPrefsModule.setStandaloneBlock(false, packages, 0);
       } catch (e) {
         void logger.warn('AppContext', `expired standalone block clear failed: ${String(e)}`);
       }
-      const cleared = { ...settings, standaloneBlockUntil: null };
+      let updatedAlwaysOn = settings.alwaysOnPackages ?? [];
+      if ((settings.autoCopyToAlwaysOn ?? true) && packages.length > 0) {
+        const toRemove = new Set(packages);
+        updatedAlwaysOn = updatedAlwaysOn.filter((p) => !toRemove.has(p));
+      }
+      const cleared = { ...settings, standaloneBlockUntil: null, alwaysOnPackages: updatedAlwaysOn };
       await dbSaveSettings(cleared);
       dispatch({ type: 'SET_SETTINGS', payload: cleared });
     } else {

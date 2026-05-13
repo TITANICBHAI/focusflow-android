@@ -242,6 +242,14 @@ async function initSchema(db: SQLite.SQLiteDatabase): Promise<void> {
   } catch {
     // Column already exists — ignore.
   }
+
+  // Indexes: speed up the three most-common query patterns.
+  // CREATE INDEX IF NOT EXISTS is a no-op when the index already exists.
+  await db.execAsync(`
+    CREATE INDEX IF NOT EXISTS idx_tasks_start_time ON tasks(start_time);
+    CREATE INDEX IF NOT EXISTS idx_tasks_status     ON tasks(status);
+    CREATE INDEX IF NOT EXISTS idx_tasks_status_end ON tasks(status, end_time);
+  `);
 }
 
 // ─── Tasks ────────────────────────────────────────────────────────────────────
@@ -610,6 +618,16 @@ function localDateString(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+/**
+ * Parses a YYYY-MM-DD string as a **local** midnight Date, not UTC midnight.
+ * Using `new Date('YYYY-MM-DD')` parses as UTC and shifts the day by the
+ * user's UTC offset, breaking streak math in any UTC-negative timezone.
+ */
+function parseLocalDate(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
 export async function dbGetStreak(): Promise<number> {
   return runWithDbOr('dbGetStreak', 0, async (database) => {
     const rows = await database.getAllAsync<{ date: string; completed: number; total: number }>(
@@ -620,7 +638,7 @@ export async function dbGetStreak(): Promise<number> {
     checkDate.setHours(0, 0, 0, 0);
 
     for (const row of rows) {
-      const rowDate = new Date(row.date);
+      const rowDate = parseLocalDate(row.date); // local midnight, not UTC
       const diffDays = Math.round((checkDate.getTime() - rowDate.getTime()) / 86400000);
       if (diffDays > 1) break; // gap in streak
       // Count day as "active" if at least 50% completion
@@ -711,6 +729,7 @@ export async function dbGetAllTimeFocusSessions(): Promise<number> {
  */
 export async function dbPruneOldData(daysToKeep = 90): Promise<void> {
   return runWithDbOr('dbPruneOldData', undefined, async (database) => {
+    // Focus sessions and daily completion rows are compact — keep 90 days.
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - daysToKeep);
     const cutoffIso  = cutoff.toISOString();
@@ -723,9 +742,13 @@ export async function dbPruneOldData(daysToKeep = 90): Promise<void> {
       `DELETE FROM daily_completions WHERE date < ?`,
       [cutoffDate],
     );
+    // Tasks are kept for a full year so the "All Time" task log stays meaningful.
+    // Each row is small (~500 bytes), so 365 days of tasks is well under 10 MB.
+    const taskCutoff = new Date();
+    taskCutoff.setDate(taskCutoff.getDate() - 365);
     await database.runAsync(
       `DELETE FROM tasks WHERE status IN ('completed', 'skipped') AND end_time < ?`,
-      [cutoffIso],
+      [taskCutoff.toISOString()],
     );
   });
 }
@@ -747,7 +770,7 @@ export async function dbGetBestStreak(): Promise<number> {
     let current = 0;
     let prevDate: Date | null = null;
     for (const r of rows) {
-      const d = new Date(r.date);
+      const d = parseLocalDate(r.date); // local midnight, not UTC
       const isGood = r.total > 0 && r.completed / r.total >= 0.5;
       if (!isGood) { best = Math.max(best, current); current = 0; prevDate = null; continue; }
       if (!prevDate) { current = 1; }
