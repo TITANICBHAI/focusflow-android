@@ -1201,6 +1201,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const tasks = stateRef.current.tasks;
       const task = tasks.find((t) => t.id === taskId);
       if (!task) return;
+      // Guard: if the task is already completed, do nothing. This prevents
+      // double-completion when "keepFocusActiveUntilTaskEnd" is on — the focus
+      // ring keeps running after the first complete tap, so the button stays
+      // visible and a second tap would re-trigger the logic on an already-done task.
+      if (task.status === 'completed') return;
       try {
         const updated = updateTaskStatus(task, 'completed');
         await dbUpdateTask(updated);
@@ -1554,11 +1559,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const setStandaloneBlock = useCallback(async (packages: string[], untilMs: number | null, pinHash: string | null = null) => {
     const untilIso = untilMs ? new Date(untilMs).toISOString() : null;
-    // Auto-copy to always-on list if the toggle is on and packages are being added
     let alwaysOnPackages = state.settings.alwaysOnPackages ?? [];
-    if ((state.settings.autoCopyToAlwaysOn ?? false) && packages.length > 0) {
+    const autoCopy = state.settings.autoCopyToAlwaysOn ?? false;
+    if (autoCopy && packages.length > 0) {
+      // Auto-copy: merge incoming packages into the always-on list
       const merged = new Set([...alwaysOnPackages, ...packages]);
       alwaysOnPackages = Array.from(merged);
+    } else if (autoCopy && packages.length === 0) {
+      // Block is being cleared — remove the previously auto-copied packages so
+      // a 30-minute block doesn't silently become a permanent 24/7 block.
+      const prevStandalone = state.settings.standaloneBlockPackages ?? [];
+      alwaysOnPackages = alwaysOnPackages.filter((p) => !prevStandalone.includes(p));
     }
     const newSettings: AppSettings = {
       ...state.settings,
@@ -1600,11 +1611,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     pinHash: string | null = null,
   ) => {
     const untilIso = untilMs ? new Date(untilMs).toISOString() : null;
-    // Auto-copy to always-on list if the toggle is on and packages are being added
     let alwaysOnPackages = state.settings.alwaysOnPackages ?? [];
-    if ((state.settings.autoCopyToAlwaysOn ?? false) && packages.length > 0) {
+    const autoCopy = state.settings.autoCopyToAlwaysOn ?? false;
+    if (autoCopy && packages.length > 0) {
+      // Auto-copy: merge incoming packages into the always-on list
       const merged = new Set([...alwaysOnPackages, ...packages]);
       alwaysOnPackages = Array.from(merged);
+    } else if (autoCopy && packages.length === 0) {
+      // Block is being cleared — remove previously auto-copied packages so a
+      // timed block doesn't silently become a permanent 24/7 always-on block.
+      const prevStandalone = state.settings.standaloneBlockPackages ?? [];
+      alwaysOnPackages = alwaysOnPackages.filter((p) => !prevStandalone.includes(p));
     }
     // Preserve existing vpnPackages if not explicitly passed
     const resolvedVpnPackages = vpnPackages ?? state.settings.standaloneVpnPackages ?? [];

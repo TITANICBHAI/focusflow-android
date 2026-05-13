@@ -86,25 +86,32 @@ export async function startFocusMode(
 }
 
 export async function stopFocusMode(pinHash: string | null = null): Promise<void> {
-  if (!focusActive || !currentTask) return;
+  // Always clear native state unconditionally so a cold-start zombie session
+  // (focusActive=false in JS but focus_active=true in SharedPreferences from a
+  // previous run) is always cleaned up regardless of the JS-side flag.
+  const hadActiveSession = focusActive && currentTask !== null;
 
   focusActive = false;
   const task = currentTask;
   currentTask = null;
   onFocusViolation = null;
 
-  await dbEndFocusSession(task.id);
-  await dismissPersistentNotification();
-
-  await ForegroundServiceModule.stopService(pinHash);
-  await SharedPrefsModule.setFocusActive(false, pinHash);
-  await SharedPrefsModule.setAllowedPackages([]);
-  // Clear the widget's active-task snapshot. The AppContext tick will re-populate
-  // it on the next pass if there's still a time-active task running.
-  await SharedPrefsModule.clearActiveTask();
-
   appStateSubscription?.remove();
   appStateSubscription = null;
+
+  // Always clear Kotlin-side state so the AccessibilityService stops blocking
+  // even if the JS module was freshly initialised (cold-start recovery).
+  await ForegroundServiceModule.stopService(pinHash).catch(() => {});
+  await SharedPrefsModule.setFocusActive(false, pinHash).catch(() => {});
+  await SharedPrefsModule.setAllowedPackages([]).catch(() => {});
+  await SharedPrefsModule.clearActiveTask().catch(() => {});
+
+  // Only hit the DB if we had a real session — avoids a spurious DB write on
+  // cold-start cleanup where there is no matching open session row.
+  if (hadActiveSession && task) {
+    await dbEndFocusSession(task.id);
+    await dismissPersistentNotification();
+  }
 }
 
 export function isFocusActive(): boolean {
