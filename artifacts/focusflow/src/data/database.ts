@@ -7,6 +7,15 @@ let db: SQLite.SQLiteDatabase | null = null;
 const PRIMARY_DB_NAME = 'focusday.db';
 const RECOVERY_DB_NAME = 'focusday_recovery.db';
 
+/**
+ * Single-flight guard: if a getDb() call is already in progress, all
+ * concurrent callers await the same promise instead of each racing to
+ * open their own copy of the database. Without this, multiple app
+ * components initialising simultaneously all see db===null and launch
+ * parallel open attempts that all fail and cascade into DB_UNRECOVERABLE.
+ */
+let _openingPromise: Promise<SQLite.SQLiteDatabase | null> | null = null;
+
 const DEFAULT_SETTINGS: AppSettings = {
   darkMode: Appearance.getColorScheme() === 'dark',
   defaultDuration: 60,
@@ -167,37 +176,60 @@ function fullErr(e: unknown): string {
 export async function getDb(): Promise<SQLite.SQLiteDatabase | null> {
   if (db) return db;
 
-  try {
-    db = await openAndInit(PRIMARY_DB_NAME);
-    return db;
-  } catch (firstErr) {
-    console.error('[database] open/init failed (attempt 1):', firstErr);
-    void logger.warn('database', `open/init attempt 1 failed: ${fullErr(firstErr)}`);
-    resetDb();
-    await new Promise((r) => setTimeout(r, 300));
+  // Single-flight: if an open is already in progress, join it instead of
+  // racing a parallel open that would also fail and log DB_UNRECOVERABLE.
+  if (_openingPromise) return _openingPromise;
+
+  _openingPromise = (async () => {
     try {
       db = await openAndInit(PRIMARY_DB_NAME);
       return db;
-    } catch (secondErr) {
-      console.error('[database] open/init failed (attempt 2 — trying recovery DB):', secondErr);
-      void logger.error('database', `open/init attempt 2 failed: ${fullErr(secondErr)} — switching to recovery DB`);
+    } catch (firstErr) {
+      console.error('[database] open/init failed (attempt 1):', firstErr);
+      void logger.warn('database', `open/init attempt 1 failed: ${fullErr(firstErr)}`);
+      resetDb();
+      await new Promise((r) => setTimeout(r, 300));
       try {
-        db = await openAndInit(RECOVERY_DB_NAME);
-        void logger.error('database', '[DB_CORRUPTION_RECOVERY] opened recovery DB — primary may be corrupted');
+        db = await openAndInit(PRIMARY_DB_NAME);
         return db;
-      } catch (recoveryErr) {
-        console.error('[database] recovery DB also failed — giving up:', recoveryErr);
-        void logger.error('database', `[DB_UNRECOVERABLE] recovery DB failed: ${fullErr(recoveryErr)}`);
-        return null;
+      } catch (secondErr) {
+        console.error('[database] open/init failed (attempt 2 — trying recovery DB):', secondErr);
+        void logger.error('database', `open/init attempt 2 failed: ${fullErr(secondErr)} — switching to recovery DB`);
+        try {
+          db = await openAndInit(RECOVERY_DB_NAME);
+          void logger.error('database', '[DB_CORRUPTION_RECOVERY] opened recovery DB — primary may be corrupted');
+          return db;
+        } catch (recoveryErr) {
+          console.error('[database] recovery DB also failed — giving up:', recoveryErr);
+          void logger.error('database', `[DB_UNRECOVERABLE] recovery DB failed: ${fullErr(recoveryErr)}`);
+          return null;
+        }
       }
+    } finally {
+      _openingPromise = null;
     }
-  }
+  })();
+
+  return _openingPromise;
 }
 
 async function initSchema(db: SQLite.SQLiteDatabase): Promise<void> {
-  await db.execAsync(`
-    PRAGMA journal_mode = WAL;
+  // ── WAL mode ────────────────────────────────────────────────────────────────
+  // Best-effort: some Android filesystems (certain OEM /data partitions) reject
+  // WAL mode and throw NullPointerException inside execAsync. If it fails we
+  // fall back to the default DELETE journal mode — the DB is still fully usable.
+  try {
+    await db.runAsync('PRAGMA journal_mode = WAL');
+  } catch {
+    // WAL not supported on this filesystem — continue with DELETE mode.
+  }
 
+  // ── Core tables ─────────────────────────────────────────────────────────────
+  // One runAsync per statement: expo-sqlite v14 throws NullPointerException
+  // when multiple SQL statements are batched into a single execAsync call on
+  // Android. Splitting into individual calls avoids the NPE entirely.
+
+  await db.runAsync(`
     CREATE TABLE IF NOT EXISTS tasks (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
@@ -213,13 +245,17 @@ async function initSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       focus_mode INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
-    );
+    )
+  `);
 
+  await db.runAsync(`
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
-    );
+    )
+  `);
 
+  await db.runAsync(`
     CREATE TABLE IF NOT EXISTS focus_sessions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       task_id TEXT NOT NULL,
@@ -227,38 +263,40 @@ async function initSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       ended_at TEXT,
       is_active INTEGER NOT NULL DEFAULT 1,
       allowed_packages TEXT NOT NULL DEFAULT '[]'
-    );
+    )
+  `);
 
+  await db.runAsync(`
     CREATE TABLE IF NOT EXISTS focus_overrides (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       task_id TEXT NOT NULL,
       app_name TEXT NOT NULL,
       overridden_at TEXT NOT NULL,
       reason TEXT
-    );
+    )
+  `);
 
+  await db.runAsync(`
     CREATE TABLE IF NOT EXISTS daily_completions (
       date TEXT PRIMARY KEY,
       completed INTEGER NOT NULL DEFAULT 0,
       total INTEGER NOT NULL DEFAULT 0
-    );
+    )
   `);
 
-  // Migration: add focus_allowed_packages column to tasks.
+  // ── Migration: add focus_allowed_packages column ─────────────────────────
   // ALTER TABLE ADD COLUMN is idempotent via try/catch — safe to run every time.
   try {
-    await db.execAsync(`ALTER TABLE tasks ADD COLUMN focus_allowed_packages TEXT;`);
+    await db.runAsync('ALTER TABLE tasks ADD COLUMN focus_allowed_packages TEXT');
   } catch {
     // Column already exists — ignore.
   }
 
-  // Indexes: speed up the three most-common query patterns.
+  // ── Indexes ──────────────────────────────────────────────────────────────
   // CREATE INDEX IF NOT EXISTS is a no-op when the index already exists.
-  await db.execAsync(`
-    CREATE INDEX IF NOT EXISTS idx_tasks_start_time ON tasks(start_time);
-    CREATE INDEX IF NOT EXISTS idx_tasks_status     ON tasks(status);
-    CREATE INDEX IF NOT EXISTS idx_tasks_status_end ON tasks(status, end_time);
-  `);
+  await db.runAsync('CREATE INDEX IF NOT EXISTS idx_tasks_start_time ON tasks(start_time)');
+  await db.runAsync('CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)');
+  await db.runAsync('CREATE INDEX IF NOT EXISTS idx_tasks_status_end ON tasks(status, end_time)');
 }
 
 // ─── Tasks ────────────────────────────────────────────────────────────────────
