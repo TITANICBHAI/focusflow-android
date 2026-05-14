@@ -318,6 +318,13 @@ export default function OnboardingScreen() {
     try {
       await updateSettings({ ...state.settings, pinProtectionEnabled: pinProtectionChoice });
     } catch { /* non-blocking — preference is saved on best-effort */ }
+    // Write background service consent flag so BootReceiver knows the user
+    // has completed onboarding and explicitly authorised background operation.
+    // Huawei AppGallery rule 2.19: foreground services must not start without
+    // user authorisation. This flag gates the idle auto-start on reboot.
+    try {
+      await SharedPrefsModule.putString('user_consented_background_service', 'true');
+    } catch { /* non-fatal */ }
     router.replace('/user-profile');
   };
 

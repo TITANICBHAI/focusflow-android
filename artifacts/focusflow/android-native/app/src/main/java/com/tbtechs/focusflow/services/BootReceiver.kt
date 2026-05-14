@@ -91,6 +91,12 @@ class BootReceiver : BroadcastReceiver() {
             if (focusActive) {
                 prefs.edit().putBoolean("focus_active", false).apply()
             }
+            // Huawei AppGallery rule 2.19: only auto-start the idle foreground
+            // service if the user has completed onboarding and explicitly
+            // authorised background operation. The flag is written by the JS
+            // onboarding screen on first-run completion via SharedPrefsModule.
+            val consented = prefs.getString("user_consented_background_service", null) == "true"
+            if (!consented) return
             val idleIntent = Intent(context, ForegroundTaskService::class.java).apply {
                 this.action = ForegroundTaskService.ACTION_SET_IDLE
             }
