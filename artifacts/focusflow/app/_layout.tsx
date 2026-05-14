@@ -37,6 +37,7 @@ import { BlockedAppOverlay } from '@/components/BlockedAppOverlay';
 import { AchievementCelebrationModal } from '@/components/AchievementCelebrationModal';
 import { VpnPermissionLostBanner } from '@/components/VpnPermissionLostBanner';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { ErrorAlertBanner } from '@/components/ErrorAlertBanner';
 import { logger } from '@/services/startupLogger';
 
 // ─── Deferred notification action store ──────────────────────────────────────
@@ -402,6 +403,7 @@ export default function RootLayout() {
             <BlockedAppOverlay />
             <AchievementCelebrationHost />
             <VpnPermissionHost />
+            <ErrorAlertBanner />
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen name="privacy-policy" options={{ headerShown: false, presentation: 'fullScreenModal' }} />

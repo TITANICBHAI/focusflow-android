@@ -537,7 +537,7 @@ export async function dbLogFocusOverride(taskId: string, appName: string, reason
       [taskId, appName, new Date().toISOString(), reason ?? null],
     ).then(() => undefined));
   } catch (e) {
-    console.error('[database] dbLogFocusOverride failed:', e);
+    void logger.error('database', `dbLogFocusOverride failed: ${String(e)}`);
   }
 }
 
@@ -565,7 +565,7 @@ export async function dbRecordDayCompletion(completed: number, total: number): P
       ).then(() => undefined);
     });
   } catch (e) {
-    console.error('[database] dbRecordDayCompletion failed:', e);
+    void logger.error('database', `dbRecordDayCompletion failed: ${String(e)}`);
   }
 }
 
@@ -605,7 +605,7 @@ export async function dbBackfillDayCompletions(daysBack: number = 30): Promise<v
       });
     });
   } catch (e) {
-    console.error('[database] dbBackfillDayCompletions failed:', e);
+    void logger.error('database', `dbBackfillDayCompletions failed: ${String(e)}`);
   }
 }
 

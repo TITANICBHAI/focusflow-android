@@ -126,25 +126,55 @@ function rotate(): void {
   }
 }
 
+// ─── Error subscriber system ─────────────────────────────────────────────────
+// Any part of the app can call subscribeToErrors() to be notified the moment
+// a logger.error() call fires — even in release builds. The DiagnosticsModal
+// auto-open mechanism is built on top of this.
+
+export type ErrorListener = (entry: LogEntry) => void;
+
+const errorListeners = new Set<ErrorListener>();
+
+/**
+ * Register a callback that fires immediately whenever an ERROR entry is logged.
+ * Works in both __DEV__ and release builds.
+ * Returns an unsubscribe function.
+ */
+export function subscribeToErrors(fn: ErrorListener): () => void {
+  errorListeners.add(fn);
+  return () => { errorListeners.delete(fn); };
+}
+
 export async function log(level: LogLevel, tag: string, message: string): Promise<void> {
-  if (!__DEV__) return;
-  await ensureLoaded();
   const entry: LogEntry = {
     ts: new Date().toISOString(),
     level,
     tag,
     message,
   };
+
+  // Always fire error listeners and always write ERROR to the console so
+  // adb logcat captures it regardless of build type (__DEV__ or release).
+  if (level === 'ERROR') {
+    console.error(`[ERROR][${tag}]`, message);
+    for (const fn of errorListeners) {
+      try { fn(entry); } catch { /* listener errors must never crash the logger */ }
+    }
+  }
+
+  // Persistence and non-error console output only in dev / debuggable builds.
+  if (!__DEV__) return;
+  await ensureLoaded();
   memoryLog.push(entry);
   rotate();
   queuePersist();
 
   probeDebuggable();
-  if (cachedDebuggable || level === 'ERROR') {
+  if (cachedDebuggable) {
     const prefix = `[${level}][${tag}]`;
-    if (level === 'ERROR') console.error(prefix, message);
-    else if (level === 'WARN') console.warn(prefix, message);
-    else console.log(prefix, message);
+    if (level === 'WARN') console.warn(prefix, message);
+    else if (level === 'INFO') console.log(prefix, message);
+    // ERROR already logged unconditionally above — skip duplicate.
   }
 }
 
