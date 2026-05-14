@@ -7,34 +7,19 @@ declare global {
   }
 }
 
-export interface SceneDurations { [key: string]: number; }
-export interface UseVideoPlayerOptions { durations: SceneDurations; onVideoEnd?: () => void; loop?: boolean; }
-export interface UseVideoPlayerReturn { currentScene: number; totalScenes: number; currentSceneKey: string; hasEnded: boolean; }
-
-export function useVideoPlayer(options: UseVideoPlayerOptions): UseVideoPlayerReturn {
-  const { durations, onVideoEnd, loop = true } = options;
-  const sceneKeys = useRef(Object.keys(durations)).current;
-  const totalScenes = sceneKeys.length;
-  const durationsArray = useRef(Object.values(durations)).current;
+export function useVideoPlayer(totalScenes: number, durationPerScene: number): { currentScene: number } {
   const [currentScene, setCurrentScene] = useState(0);
-  const [hasEnded, setHasEnded] = useState(false);
 
   useEffect(() => { window.startRecording?.(); }, []);
 
   useEffect(() => {
-    if (hasEnded && !loop) return;
     const timer = setTimeout(() => {
-      if (currentScene >= totalScenes - 1) {
-        if (!hasEnded) { window.stopRecording?.(); setHasEnded(true); onVideoEnd?.(); }
-        if (loop) setCurrentScene(0);
-      } else {
-        setCurrentScene(prev => prev + 1);
-      }
-    }, durationsArray[currentScene]);
+      setCurrentScene(prev => (prev + 1) % totalScenes);
+    }, durationPerScene);
     return () => clearTimeout(timer);
-  }, [currentScene, totalScenes, durationsArray, hasEnded, loop, onVideoEnd]);
+  }, [currentScene, totalScenes, durationPerScene]);
 
-  return { currentScene, totalScenes, currentSceneKey: sceneKeys[currentScene], hasEnded };
+  return { currentScene };
 }
 
 export function useSceneTimer(events: Array<{ time: number; callback: () => void }>) {

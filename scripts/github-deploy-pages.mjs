@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync } from 'fs';
 import { join, relative } from 'path';
+import { execSync } from 'child_process';
 
 const TOKEN =
   process.env.GITHUB_PERSONAL_ACCESS_TOKEN ||
@@ -8,49 +9,10 @@ const TOKEN =
   process.env.PAT;
 const OWNER = 'TITANICBHAI';
 const REPO = 'FocusFlow';
-const BRANCH = 'main';
-// Push only the focusflow-pc Electron app source directory
-const BASE = '/home/runner/workspace/FocusFlow-pc/focusflow-pc';
+const BRANCH = 'gh-pages';
+const DIST_DIR = '/home/runner/workspace/artifacts/focusflow-feature-videos/dist/public';
 const CONCURRENCY = 4;
 const MAX_RETRIES = 6;
-
-const EXCLUDE_PATTERNS = [
-  /node_modules/,
-  /\/android\//,
-  /\.cache\//,
-  /\.local\//,
-  /\.expo/,
-  /\/dist\//,
-  /\/out\//,
-  /\/tmp\//,
-  /\/out-tsc\//,
-  /\.git\//,
-  /\.keystore$/,
-  /\.jks$/,
-  /credentials\.json$/,
-  /\.DS_Store$/,
-  /Thumbs\.db$/,
-  /\.tsbuildinfo$/,
-  /tbtechs-release\.keystore/,
-];
-
-function shouldExclude(filePath) {
-  const rel = relative(BASE, filePath);
-  return EXCLUDE_PATTERNS.some(p => p.test(rel) || p.test(filePath));
-}
-
-function collectFiles(dir, files = []) {
-  let entries;
-  try { entries = readdirSync(dir, { withFileTypes: true }); }
-  catch { return files; }
-  for (const entry of entries) {
-    const fullPath = join(dir, entry.name);
-    if (shouldExclude(fullPath)) continue;
-    if (entry.isDirectory()) collectFiles(fullPath, files);
-    else files.push(fullPath);
-  }
-  return files;
-}
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -60,7 +22,7 @@ async function ghFetch(path, method = 'GET', body = null) {
     headers: {
       Authorization: `token ${TOKEN}`,
       'Content-Type': 'application/json',
-      'User-Agent': 'focusflow-pc-push-bot',
+      'User-Agent': 'focusflow-pages-deploy-bot',
       Accept: 'application/vnd.github+json',
     },
   };
@@ -74,7 +36,6 @@ async function ghFetch(path, method = 'GET', body = null) {
     const isRateLimited =
       resp.status === 429 ||
       (resp.status === 403 && /rate limit|abuse|secondary/i.test(txt));
-
     const isServerError = resp.status === 502 || resp.status === 503 || resp.status === 504;
 
     if ((isRateLimited || isServerError) && attempt < MAX_RETRIES) {
@@ -86,9 +47,22 @@ async function ghFetch(path, method = 'GET', body = null) {
       await sleep(backoffMs);
       continue;
     }
-    throw new Error(`GitHub ${method} ${path} → ${resp.status}: ${txt.slice(0, 200)}`);
+    if (resp.status === 404) return null;
+    throw new Error(`GitHub ${method} ${path} → ${resp.status}: ${txt.slice(0, 300)}`);
   }
   throw new Error(`GitHub ${method} ${path} → exhausted retries`);
+}
+
+function collectFiles(dir, files = []) {
+  let entries;
+  try { entries = readdirSync(dir, { withFileTypes: true }); }
+  catch { return files; }
+  for (const entry of entries) {
+    const fullPath = join(dir, entry.name);
+    if (entry.isDirectory()) collectFiles(fullPath, files);
+    else files.push(fullPath);
+  }
+  return files;
 }
 
 async function createBlob(content, encoding) {
@@ -102,17 +76,47 @@ async function processInBatches(items, concurrency, fn) {
     const batch = items.slice(i, i + concurrency);
     const batchResults = await Promise.all(batch.map(fn));
     results.push(...batchResults);
-    if (i % 50 === 0) console.log(`  Processed ${Math.min(i + concurrency, items.length)}/${items.length}`);
+    if (i % 20 === 0) console.log(`  Processed ${Math.min(i + concurrency, items.length)}/${items.length}`);
   }
   return results;
 }
 
-function getPcVersion() {
+async function ensureGhPagesBranch() {
+  const ref = await ghFetch(`/repos/${OWNER}/${REPO}/git/ref/heads/${BRANCH}`);
+  if (ref) {
+    console.log(`Branch '${BRANCH}' exists.`);
+    return ref.object.sha;
+  }
+  console.log(`Branch '${BRANCH}' not found — creating orphan branch...`);
+  const mainRef = await ghFetch(`/repos/${OWNER}/${REPO}/git/ref/heads/main`);
+  if (!mainRef) throw new Error('Cannot find main branch to base gh-pages on.');
+  const emptyTree = await ghFetch(`/repos/${OWNER}/${REPO}/git/trees`, 'POST', { tree: [] });
+  const orphanCommit = await ghFetch(`/repos/${OWNER}/${REPO}/git/commits`, 'POST', {
+    message: 'chore: initialise gh-pages branch',
+    tree: emptyTree.sha,
+    parents: [],
+  });
+  await ghFetch(`/repos/${OWNER}/${REPO}/git/refs`, 'POST', {
+    ref: `refs/heads/${BRANCH}`,
+    sha: orphanCommit.sha,
+  });
+  console.log(`Created orphan branch '${BRANCH}'.`);
+  return orphanCommit.sha;
+}
+
+async function enablePages() {
+  console.log('Enabling GitHub Pages on gh-pages branch...');
   try {
-    const pkgJson = JSON.parse(readFileSync(`${BASE}/package.json`, 'utf-8'));
-    return pkgJson?.version ?? 'unknown';
-  } catch {
-    return 'unknown';
+    await ghFetch(`/repos/${OWNER}/${REPO}/pages`, 'POST', {
+      source: { branch: BRANCH, path: '/' },
+    });
+    console.log('GitHub Pages enabled.');
+  } catch (e) {
+    if (/already enabled|409|422/.test(e.message)) {
+      console.log('GitHub Pages already enabled — skipping.');
+    } else {
+      console.warn('Could not enable Pages via API (may need to do it manually):', e.message.slice(0, 100));
+    }
   }
 }
 
@@ -121,17 +125,30 @@ async function run() {
     throw new Error('Missing GitHub token secret. Add GITHUB_PERSONAL_ACCESS_TOKEN, GITHUB_PAT, GH_PAT, or PAT in Secrets.');
   }
 
-  const pcVersion = getPcVersion();
-  console.log(`Pushing FocusFlow-pc → https://github.com/${OWNER}/${REPO}`);
-  console.log(`Source:  ${BASE}`);
-  console.log(`Version: v${pcVersion}\n`);
+  console.log('Building feature videos for GitHub Pages...');
+  execSync(
+    'pnpm --filter @workspace/focusflow-feature-videos run build',
+    {
+      cwd: '/home/runner/workspace',
+      stdio: 'inherit',
+      env: {
+        ...process.env,
+        BASE_PATH: '/focusflow-native/',
+        NODE_ENV: 'production',
+      },
+    }
+  );
+  console.log('Build complete.\n');
 
-  console.log('Collecting files...');
-  const allFiles = collectFiles(BASE);
+  const latestSha = await ensureGhPagesBranch();
+  await enablePages();
+
+  console.log('Collecting built files...');
+  const allFiles = collectFiles(DIST_DIR);
   console.log(`Found ${allFiles.length} files`);
 
   const fileMetas = allFiles.map(fp => {
-    const rel = relative(BASE, fp);
+    const rel = relative(DIST_DIR, fp);
     let content, encoding;
     try {
       const buf = readFileSync(fp);
@@ -142,8 +159,7 @@ async function run() {
     return { path: rel, content, encoding };
   }).filter(Boolean);
 
-  console.log(`\nCreating ${fileMetas.length} blobs in parallel (batch size ${CONCURRENCY})...`);
-
+  console.log(`\nUploading ${fileMetas.length} blobs...`);
   const treeItems = [];
   const failures = [];
   await processInBatches(fileMetas, CONCURRENCY, async (meta) => {
@@ -151,27 +167,19 @@ async function run() {
       const sha = await createBlob(meta.content, meta.encoding);
       treeItems.push({ path: meta.path, mode: '100644', type: 'blob', sha });
     } catch (e) {
-      console.warn(`  SKIP: ${meta.path} — ${e.message.slice(0, 200)}`);
-      failures.push({ path: meta.path, message: e.message });
+      console.warn(`  SKIP: ${meta.path} — ${e.message.slice(0, 100)}`);
+      failures.push(meta.path);
     }
   });
 
   if (failures.length > 0) {
-    console.error(`\n${failures.length} file(s) failed to upload after retries — aborting:`);
-    for (const f of failures.slice(0, 20)) console.error(`  - ${f.path}`);
-    if (failures.length > 20) console.error(`  ... and ${failures.length - 20} more`);
+    console.error(`\n${failures.length} file(s) failed — aborting.`);
     process.exit(1);
   }
-
-  console.log(`\nGetting current branch ref...`);
-  const refData = await ghFetch(`/repos/${OWNER}/${REPO}/git/ref/heads/${BRANCH}`);
-  const latestSha = refData.object.sha;
-  console.log('Base commit:', latestSha);
 
   const baseCommit = await ghFetch(`/repos/${OWNER}/${REPO}/git/commits/${latestSha}`);
   let currentTreeSha = baseCommit.tree.sha;
   const TREE_CHUNK = 100;
-  console.log(`Layering ${treeItems.length} entries in chunks of ${TREE_CHUNK}...`);
   for (let i = 0; i < treeItems.length; i += TREE_CHUNK) {
     const chunk = treeItems.slice(i, i + TREE_CHUNK);
     const layered = await ghFetch(`/repos/${OWNER}/${REPO}/git/trees`, 'POST', {
@@ -181,24 +189,23 @@ async function run() {
     currentTreeSha = layered.sha;
     console.log(`  Layered ${Math.min(i + TREE_CHUNK, treeItems.length)}/${treeItems.length}`);
   }
-  const newTree = { sha: currentTreeSha };
 
-  console.log('Committing...');
+  console.log('Committing to gh-pages...');
   const newCommit = await ghFetch(`/repos/${OWNER}/${REPO}/git/commits`, 'POST', {
-    message: `chore: sync FocusFlow-pc workspace — v${pcVersion} — ${new Date().toISOString()}`,
-    tree: newTree.sha,
+    message: `deploy: feature videos — ${new Date().toISOString()}`,
+    tree: currentTreeSha,
     parents: [latestSha],
   });
 
-  console.log('Updating branch ref...');
+  console.log('Updating gh-pages ref...');
   await ghFetch(`/repos/${OWNER}/${REPO}/git/refs/heads/${BRANCH}`, 'PATCH', {
     sha: newCommit.sha,
-    force: false,
+    force: true,
   });
 
-  console.log('\n✓ Success!');
-  console.log(`Repo: https://github.com/${OWNER}/${REPO}`);
-  console.log(`Commit: ${newCommit.sha.slice(0, 7)}`);
+  console.log('\nSuccess!');
+  console.log(`Pages URL: https://${OWNER.toLowerCase()}.github.io/${REPO}/`);
+  console.log(`Commit:    ${newCommit.sha.slice(0, 7)}`);
 }
 
 run().catch(err => { console.error('FATAL:', err.message); process.exit(1); });
