@@ -50,7 +50,7 @@ function probeDebuggable(): void {
   }
 }
 
-export type LogLevel = 'INFO' | 'WARN' | 'ERROR';
+export type LogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
 
 export interface LogEntry {
   ts: string;
@@ -153,8 +153,7 @@ export async function log(level: LogLevel, tag: string, message: string): Promis
     message,
   };
 
-  // Always fire error listeners and always write ERROR to the console so
-  // adb logcat captures it regardless of build type (__DEV__ or release).
+  // ERROR always fires listeners and hits adb logcat regardless of build type.
   if (level === 'ERROR') {
     console.error(`[ERROR][${tag}]`, message);
     for (const fn of errorListeners) {
@@ -162,33 +161,46 @@ export async function log(level: LogLevel, tag: string, message: string): Promis
     }
   }
 
-  if (!__DEV__) {
-    // Release build: store ERROR entries in memory so DiagnosticsModal can
-    // display them when the user taps "View Logs" from the error banner.
-    // No AsyncStorage / file persistence in release (that is dev-only).
-    if (level === 'ERROR') {
+  // `debuggable` is true for both the Metro bundler (__DEV__) AND for a
+  // debug-signed APK with prebundled JS (cachedDebuggable, set via the native
+  // SharedPrefs.isDebuggable() probe called eagerly at module init below).
+  const debuggable = __DEV__ || cachedDebuggable;
+
+  if (!debuggable) {
+    // Production release: store WARN + ERROR in memory so DiagnosticsModal
+    // can surface them; no disk / AsyncStorage persistence in this mode.
+    if (level === 'ERROR' || level === 'WARN') {
       memoryLog.push(entry);
       rotate();
     }
     return;
   }
 
-  // Dev / debuggable build: full behaviour — load history, push, persist, console.
+  // DEBUG entries: memory + console only — not persisted to disk (too noisy
+  // for the rotating log file, but visible in the Diagnostics modal during a
+  // live debug session).
+  if (level === 'DEBUG') {
+    console.log(`[DEBUG][${tag}]`, message);
+    memoryLog.push(entry);
+    rotate();
+    return;
+  }
+
+  // Debuggable build (Metro or debug APK): full behaviour — restore history
+  // from AsyncStorage, push, persist to AsyncStorage + log file, then console.
   await ensureLoaded();
   memoryLog.push(entry);
   rotate();
   queuePersist();
 
-  probeDebuggable();
-  if (cachedDebuggable) {
-    const prefix = `[${level}][${tag}]`;
-    if (level === 'WARN') console.warn(prefix, message);
-    else if (level === 'INFO') console.log(prefix, message);
-    // ERROR already logged unconditionally above — skip duplicate.
-  }
+  const prefix = `[${level}][${tag}]`;
+  if (level === 'WARN') console.warn(prefix, message);
+  else if (level === 'INFO') console.log(prefix, message);
+  // ERROR already logged unconditionally above — skip duplicate.
 }
 
 export const logger = {
+  debug: (tag: string, message: string) => log('DEBUG', tag, message),
   info: (tag: string, message: string) => log('INFO', tag, message),
   warn: (tag: string, message: string) => log('WARN', tag, message),
   error: (tag: string, message: string) => log('ERROR', tag, message),
@@ -236,7 +248,7 @@ let _isNewProcess = true;
  * this session's entries.
  */
 export async function logBootMarker(): Promise<string> {
-  if (!__DEV__) return '';
+  if (!(__DEV__ || cachedDebuggable)) return '';
   await ensureLoaded();
 
   const isFirstCallInProcess = _isNewProcess;
@@ -263,14 +275,13 @@ export async function logBootMarker(): Promise<string> {
  * `logBootMarker` hasn't run yet.
  */
 export function getBootSessionId(): string | null {
-  if (!__DEV__) return null;
+  if (!(__DEV__ || cachedDebuggable)) return null;
   return bootSessionId;
 }
 
 /** Return last N entries from the in-memory log (most recent last). */
 export async function getRecentLogs(n = 100): Promise<LogEntry[]> {
-  if (!__DEV__) {
-    // Release: only in-memory ERROR entries are stored (no AsyncStorage persistence).
+  if (!(__DEV__ || cachedDebuggable)) {
     return memoryLog.slice(-n);
   }
   await ensureLoaded();
@@ -279,7 +290,7 @@ export async function getRecentLogs(n = 100): Promise<LogEntry[]> {
 
 /** Return all log entries from the in-memory log. */
 export async function getAllLogs(): Promise<LogEntry[]> {
-  if (!__DEV__) {
+  if (!(__DEV__ || cachedDebuggable)) {
     return [...memoryLog];
   }
   await ensureLoaded();
@@ -288,7 +299,7 @@ export async function getAllLogs(): Promise<LogEntry[]> {
 
 /** Clear all logs from memory, AsyncStorage, and the log file. */
 export function clearLogs(): Promise<void> {
-  if (!__DEV__) {
+  if (!(__DEV__ || cachedDebuggable)) {
     memoryLog = [];
     return Promise.resolve();
   }
@@ -315,12 +326,13 @@ export function clearLogs(): Promise<void> {
 
 /** Format all logs as a plain-text string suitable for sharing. */
 export async function formatLogsForShare(): Promise<string> {
-  if (!__DEV__) {
-    const header = `FocusFlow Diagnostic Errors — ${new Date().toISOString()}\n${'─'.repeat(60)}\n`;
+  const debuggable = __DEV__ || cachedDebuggable;
+  if (!debuggable) {
+    const header = `FocusFlow Diagnostic Log — ${new Date().toISOString()}\n${'─'.repeat(60)}\n`;
     const body = memoryLog
       .map((e) => `${e.ts} [${e.level}] [${e.tag}] ${e.message}`)
       .join('\n');
-    return header + (body || '(no errors recorded this session)');
+    return header + (body || '(no WARN/ERROR entries recorded this session)');
   }
   await ensureLoaded();
   const header = `FocusFlow Startup Log — ${new Date().toISOString()}\n${'─'.repeat(60)}\n`;
@@ -332,6 +344,14 @@ export async function formatLogsForShare(): Promise<string> {
 
 /** Returns the path to the persistent log file (for sharing via expo-sharing). */
 export function getLogFilePath(): string | null {
-  if (!__DEV__) return null;
+  if (!(__DEV__ || cachedDebuggable)) return null;
   return logFilePath();
 }
+
+// ─── Module init ─────────────────────────────────────────────────────────────
+// Probe the native "isDebuggable" flag eagerly so that by the time the first
+// DB or service log entry fires, cachedDebuggable is already set for debug
+// APKs (where __DEV__ is false but ApplicationInfo.FLAG_DEBUGGABLE is true).
+// This ensures debug APK builds get full logging behaviour from the very first
+// log entry, not just after the first probeDebuggable() callback resolves.
+void probeDebuggable();

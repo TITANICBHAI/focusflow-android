@@ -1,5 +1,5 @@
 import * as SQLite from 'expo-sqlite';
-import { Appearance } from 'react-native';
+import { Appearance, Platform } from 'react-native';
 import type { Task, AppSettings, FocusSession, DailyAllowanceEntry } from './types';
 import { logger } from '@/services/startupLogger';
 
@@ -15,6 +15,19 @@ const RECOVERY_DB_NAME = 'focusday_recovery.db';
  * parallel open attempts that all fail and cascade into DB_UNRECOVERABLE.
  */
 let _openingPromise: Promise<SQLite.SQLiteDatabase | null> | null = null;
+
+/**
+ * Latched after all three open attempts (primary × 2 + recovery) have failed.
+ * Once true, getDb() returns null immediately instead of re-entering the
+ * 3-attempt cycle — preventing the cascade of repeated DB_UNRECOVERABLE
+ * log events caused by background tasks and React components each starting
+ * their own retry cycle after the first unrecoverable failure.
+ *
+ * resetDb() clears this flag so that the dead-handle recovery path in
+ * runWithDb() can still attempt a fresh open after a previously-working
+ * handle is invalidated by the OS.
+ */
+let _dbUnrecoverable = false;
 
 const DEFAULT_SETTINGS: AppSettings = {
   darkMode: Appearance.getColorScheme() === 'dark',
@@ -66,12 +79,21 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 /**
+ * Counts getDb() IIFEs currently in flight (i.e. actively trying to open the
+ * database). Logged alongside every open failure so we can distinguish a
+ * solo-caller NPE from a thundering-herd scenario where multiple background
+ * tasks all race getDb() at the same time.
+ */
+let _openInFlight = 0;
+
+/**
  * Reset the DB singleton — call after a recoverable open error so the next
  * getDb() call re-opens the database instead of retrying on a null reference.
  * (fixes NEW-018)
  */
 export function resetDb(): void {
   db = null;
+  _dbUnrecoverable = false;
 }
 
 async function openAndInit(name: string = PRIMARY_DB_NAME): Promise<SQLite.SQLiteDatabase> {
@@ -174,6 +196,11 @@ function fullErr(e: unknown): string {
 }
 
 export async function getDb(): Promise<SQLite.SQLiteDatabase | null> {
+  // Fast-fail after all three open attempts have been exhausted. Prevents
+  // background tasks and React components from each kicking off a fresh
+  // 3-attempt cycle and flooding the logs with repeated DB_UNRECOVERABLE
+  // events. resetDb() clears this flag so dead-handle recovery still works.
+  if (_dbUnrecoverable) return null;
   if (db) return db;
 
   // Single-flight: if an open is already in progress, join it instead of
@@ -181,36 +208,94 @@ export async function getDb(): Promise<SQLite.SQLiteDatabase | null> {
   if (_openingPromise) return _openingPromise;
 
   _openingPromise = (async () => {
+    _openInFlight++;
+    const t0 = Date.now();
+    void logger.debug('database', `getDb: opening (in-flight: ${_openInFlight}, API: ${Platform.Version})`);
     try {
       db = await openAndInit(PRIMARY_DB_NAME);
+      void logger.debug('database', `getDb: primary opened OK in ${Date.now() - t0}ms`);
       return db;
     } catch (firstErr) {
+      const ms1 = Date.now() - t0;
       console.error('[database] open/init failed (attempt 1):', firstErr);
-      void logger.warn('database', `open/init attempt 1 failed: ${fullErr(firstErr)}`);
+      void logger.warn('database', `open/init attempt 1 failed (${ms1}ms, in-flight: ${_openInFlight}, API: ${Platform.Version}): ${fullErr(firstErr)}`);
       resetDb();
       await new Promise((r) => setTimeout(r, 300));
       try {
         db = await openAndInit(PRIMARY_DB_NAME);
+        void logger.debug('database', `getDb: primary opened OK on attempt 2 in ${Date.now() - t0}ms total`);
         return db;
       } catch (secondErr) {
+        const ms2 = Date.now() - t0;
         console.error('[database] open/init failed (attempt 2 — trying recovery DB):', secondErr);
-        void logger.error('database', `open/init attempt 2 failed: ${fullErr(secondErr)} — switching to recovery DB`);
+        void logger.error('database', `open/init attempt 2 failed (${ms2}ms, in-flight: ${_openInFlight}, API: ${Platform.Version}): ${fullErr(secondErr)} — switching to recovery DB`);
         try {
           db = await openAndInit(RECOVERY_DB_NAME);
-          void logger.error('database', '[DB_CORRUPTION_RECOVERY] opened recovery DB — primary may be corrupted');
+          void logger.error('database', `[DB_CORRUPTION_RECOVERY] opened recovery DB in ${Date.now() - t0}ms total — primary may be corrupted`);
           return db;
         } catch (recoveryErr) {
+          const ms3 = Date.now() - t0;
           console.error('[database] recovery DB also failed — giving up:', recoveryErr);
-          void logger.error('database', `[DB_UNRECOVERABLE] recovery DB failed: ${fullErr(recoveryErr)}`);
+          void logger.error('database', `[DB_UNRECOVERABLE] recovery DB failed (${ms3}ms total, in-flight: ${_openInFlight}, API: ${Platform.Version}): ${fullErr(recoveryErr)}`);
+          // Latch the flag so every subsequent getDb() call fast-fails with null
+          // instead of restarting the 3-attempt cycle. This stops the cascade of
+          // repeated DB_UNRECOVERABLE events caused by background tasks and React
+          // components each triggering their own retry cycle after this point.
+          _dbUnrecoverable = true;
           return null;
         }
       }
     } finally {
+      _openInFlight--;
       _openingPromise = null;
     }
   })();
 
   return _openingPromise;
+}
+
+// ─── Session device fingerprint ───────────────────────────────────────────────
+
+/**
+ * One-shot [DB_DIAG] log entry written at the very start of each session.
+ * Captures the Android API level, OS version string, device manufacturer/model,
+ * and the SQLite version string reported by the open database so every log
+ * share has a permanent device fingerprint at the top — making it trivial to
+ * correlate failures across different devices.
+ *
+ * Safe to call multiple times — only fires on the first call per process.
+ */
+let _diagLogged = false;
+
+export async function logDbDiagnostics(): Promise<void> {
+  if (_diagLogged) return;
+  _diagLogged = true;
+  try {
+    const constants = Platform.constants as Record<string, unknown>;
+    const api        = Platform.Version;
+    const release    = String(constants.Release    ?? constants.release    ?? '?');
+    const mfr        = String(constants.Manufacturer ?? constants.manufacturer ?? '?');
+    const model      = String(constants.Model      ?? constants.model      ?? '?');
+
+    let sqliteVer = '?';
+    try {
+      const handle = await getDb();
+      if (handle) {
+        const row = await handle.getFirstAsync<{ v: string }>('SELECT sqlite_version() AS v');
+        if (row?.v) sqliteVer = row.v;
+      }
+    } catch {
+      // Non-fatal — leave sqliteVer as '?'
+    }
+
+    void logger.info(
+      'database',
+      `[DB_DIAG] API=${api} Android=${release} ${mfr} ${model} SQLite=${sqliteVer}`,
+    );
+  } catch (e) {
+    // Diagnostics must never crash the caller.
+    void logger.warn('database', `[DB_DIAG] collection failed: ${String(e)}`);
+  }
 }
 
 async function initSchema(db: SQLite.SQLiteDatabase): Promise<void> {

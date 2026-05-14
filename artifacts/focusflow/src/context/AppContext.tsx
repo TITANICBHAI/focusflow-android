@@ -26,6 +26,7 @@ import {
   dbCheckpointWal,
   dbPruneOldData,
   resetDb,
+  logDbDiagnostics,
 } from '@/data/database';
 import {
   getTodayTasks,
@@ -396,6 +397,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       void logger.info('AppContext', 'Loading settings from DB (timeout=8000ms)');
       const rawSettings = await withTimeout(dbGetSettings(), 8000, defaultSettings);
       void logger.info('AppContext', 'Settings loaded from DB');
+      // Fire-and-forget: writes one [DB_DIAG] INFO line per session with
+      // API level, Android version, manufacturer, model, and SQLite version.
+      // Never blocks init and never throws.
+      void logDbDiagnostics();
 
       // If the DB returned privacyAccepted=false or onboardingComplete=false
       // (e.g. because it fell back to the recovery DB after OEM memory
