@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Gallery from './pages/Gallery';
+import { startCapture, parseDurationMs, type RecordingState } from './lib/video/recorder';
 
 export interface VideoMeta {
   id: string;
@@ -18,7 +19,7 @@ export const ALL_VIDEOS: VideoMeta[] = [
   { id: 'keyword-blocker',   title: 'Keyword Blocker',      category: 'feature', duration: '~30s', description: 'Block any app the moment a distracting keyword appears.', accent: '#ec4899' },
   { id: 'network-blocking',  title: 'Network Blocking',     category: 'feature', duration: '~30s', description: 'Cut off the internet at the VPN level. No bypass possible.', accent: '#ef4444' },
   { id: 'stats-analytics',   title: 'Stats & Analytics',    category: 'feature', duration: '~30s', description: 'Track streaks, focus minutes, and weekly productivity scores.', accent: '#10b981' },
-  { id: 'overlay-appearance','title': 'Overlay Appearance',  category: 'feature', duration: '~25s', description: 'Custom themes, quotes, and wallpapers on the block screen.', accent: '#8b5cf6' },
+  { id: 'overlay-appearance', title: 'Overlay Appearance',  category: 'feature', duration: '~25s', description: 'Custom themes, quotes, and wallpapers on the block screen.', accent: '#8b5cf6' },
   { id: 'block-defense',     title: 'Block Defense',        category: 'feature', duration: '~25s', description: 'Prevents uninstall, power menu, and system bypass attempts.', accent: '#f97316' },
   { id: 'combo-focus-day',   title: 'Your Focus Day',       category: 'combo',   duration: '~45s', description: 'Focus Session + App Blocking + Stats working together.', accent: '#6366f1' },
   { id: 'combo-max-lock',    title: 'Maximum Lock Mode',    category: 'combo',   duration: '~40s', description: 'Network Blocking + Keyword Blocker + Block Defense stacked.', accent: '#ef4444' },
@@ -62,6 +63,10 @@ export default function App() {
   const hash = useHashRoute();
   const [VideoComponent, setVideoComponent] = useState<React.ComponentType | null>(null);
   const [loading, setLoading] = useState(false);
+  const [recState, setRecState] = useState<RecordingState>('idle');
+  const [elapsed, setElapsed] = useState(0);
+  const stopRef = useRef<(() => void) | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!hash) { setVideoComponent(null); return; }
@@ -70,6 +75,37 @@ export default function App() {
   }, [hash]);
 
   const meta = ALL_VIDEOS.find(v => v.id === hash);
+
+  const startRec = useCallback(async () => {
+    if (!meta || recState !== 'idle') return;
+    setElapsed(0);
+    const durationMs = parseDurationMs(meta.duration);
+    const stop = await startCapture(setRecState, () => {}, meta.title, durationMs);
+    stopRef.current = stop;
+  }, [meta, recState]);
+
+  const stopRec = useCallback(() => {
+    stopRef.current?.();
+    stopRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    if (recState === 'recording') {
+      setElapsed(0);
+      timerRef.current = setInterval(() => setElapsed(s => s + 1), 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [recState]);
+
+  useEffect(() => {
+    window.startRecording = startRec;
+    window.stopRecording = stopRec;
+    return () => { window.startRecording = undefined; window.stopRecording = undefined; };
+  }, [startRec, stopRec]);
+
+  const isDesktop = !navigator.userAgent.match(/Android|iPhone|iPad|iPod/i);
 
   if (!hash) return <Gallery />;
 
@@ -93,16 +129,51 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Back button overlay */}
+      {/* Back button — top left */}
       {!loading && VideoComponent && (
         <motion.button
           className="absolute top-6 left-6 z-[100] flex items-center gap-2 px-4 py-2 glass-panel rounded-xl text-white/70 hover:text-white text-sm font-medium transition-colors"
           initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.5 }}
-          onClick={() => { window.location.hash = ''; }}>
+          onClick={() => { stopRec(); window.location.hash = ''; }}>
           ← Gallery
         </motion.button>
       )}
 
+      {/* Record button — top right */}
+      {!loading && VideoComponent && (
+        <motion.div className="absolute top-6 right-6 z-[100] flex items-center gap-2"
+          initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.5 }}>
+
+          {isDesktop ? (
+            recState === 'idle' ? (
+              <button
+                onClick={startRec}
+                className="flex items-center gap-2 px-4 py-2 glass-panel rounded-xl text-white/70 hover:text-white text-sm font-medium transition-colors border border-white/10 hover:border-red-500/60">
+                <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
+                Record
+              </button>
+            ) : recState === 'recording' ? (
+              <button
+                onClick={stopRec}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold transition-colors border border-red-500/80 bg-red-500/20 hover:bg-red-500/30">
+                <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                {Math.floor(elapsed / 60).toString().padStart(2,'0')}:{(elapsed % 60).toString().padStart(2,'0')} · Stop
+              </button>
+            ) : (
+              <div className="flex items-center gap-2 px-4 py-2 glass-panel rounded-xl text-white/50 text-sm">
+                <span className="w-2.5 h-2.5 rounded-full bg-white/30 animate-pulse" />
+                Saving…
+              </div>
+            )
+          ) : (
+            <div className="px-3 py-2 glass-panel rounded-xl text-white/40 text-xs text-center leading-snug">
+              Use your phone's<br />screen recorder
+            </div>
+          )}
+        </motion.div>
+      )}
+
+      {/* Meta label — bottom right */}
       {meta && !loading && (
         <motion.div className="absolute bottom-6 right-6 z-[100] glass-panel px-4 py-2 rounded-xl text-xs text-white/40 font-mono"
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
