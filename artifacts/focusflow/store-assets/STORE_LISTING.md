@@ -7,7 +7,7 @@
 
 | Field | Value |
 |---|---|
-| **App Title** | FocusFlow — App Blocker & Focus Timer |
+| **App Title** | FocusFlow: App Blocker & Tasks |
 | **Package Name** | com.tbtechs.focusflow |
 | **Version** | 1.0.3 |
 | **Version Code** | 4 |
@@ -433,7 +433,7 @@ Thank you for your time.
 
 | Field | Fill With |
 |---|---|
-| **Application Title** | FocusFlow — App Blocker & Focus Timer |
+| **Application Title** | FocusFlow: App Blocker & Tasks |
 | **Privacy Policy URL** | https://titanicbhai.github.io/FocusFlow/privacy-policy |
 | **Support Email** | support@tbtechs.dev |
 | **Website** | https://titanicbhai.github.io/FocusFlow |
