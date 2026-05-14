@@ -27,6 +27,7 @@ import {
   dbPruneOldData,
   resetDb,
   logDbDiagnostics,
+  probeDbHealth,
 } from '@/data/database';
 import {
   getTodayTasks,
@@ -313,18 +314,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // is the same strategy used by other React Native apps with long-lived SQLite.
   const appStatePrev = useRef(RNAppState.currentState);
   useEffect(() => {
-    const handleResume = (nextState: AppStateStatus) => {
-      if (
+    const handleResume = async (nextState: AppStateStatus) => {
+      const isResuming =
         (appStatePrev.current === 'background' || appStatePrev.current === 'inactive') &&
-        nextState === 'active'
-      ) {
-        void logger.info('AppContext', '[FOREGROUND_RESUME] resetting DB handle and refreshing tasks');
-        resetDb();
-        void refreshTasks().catch((e) => {
-          void logger.warn('AppContext', `foreground resume refreshTasks failed: ${String(e)}`);
-        });
-      }
+        nextState === 'active';
+      // Update prev-state immediately so re-entrant events see the right value.
       appStatePrev.current = nextState;
+
+      if (!isResuming) return;
+
+      // Health-probe the existing DB handle before deciding whether to reset it.
+      //
+      // The old strategy (unconditional resetDb() on every resume) created an
+      // unnecessary open/close cycle on every app switch — even when the handle
+      // was perfectly healthy. On Samsung One UI (and other aggressive OEMs) each
+      // extra connection cycle is another opportunity for the OS to trim the
+      // native C++ NativeDatabase object, which is the direct cause of the
+      // "NativeDatabase.prepareAsync → NullPointerException at construct (native)"
+      // error seen in the field on API 31 (Android 12, SM-M315F).
+      //
+      // New strategy:
+      //   1. Run SELECT 1 on the current handle (~1ms, no I/O).
+      //   2. If it passes the handle is alive — skip reset, go straight to refresh.
+      //   3. If it fails (dead handle) — reset now, runWithDb will reopen on the
+      //      next DB call and use the JSI-NPE fast-path if needed.
+      const alive = await probeDbHealth();
+      if (alive) {
+        void logger.debug('AppContext', '[FOREGROUND_RESUME] DB handle healthy — refreshing without reset');
+      } else {
+        void logger.info('AppContext', '[FOREGROUND_RESUME] DB handle dead — resetting before refresh');
+        resetDb();
+      }
+
+      void refreshTasks().catch((e) => {
+        void logger.warn('AppContext', `foreground resume refreshTasks failed: ${String(e)}`);
+      });
     };
     const sub = RNAppState.addEventListener('change', handleResume);
     return () => sub.remove();

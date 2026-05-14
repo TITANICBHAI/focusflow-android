@@ -132,6 +132,27 @@ function isDeadHandleError(e: unknown): boolean {
   );
 }
 
+/**
+ * Detects a JSI-layer constructor NPE: the expo-sqlite native module caches a
+ * C++ NativeDatabase object per filename. When Android (especially Samsung One
+ * UI) trims that native object, calling openDatabaseAsync() with the SAME
+ * filename tries to re-use the dead cached pointer and fails instantly at the
+ * JSI constructor level — "at construct (native) at apply (native)".
+ *
+ * Retrying with the same filename hits the same dead cached state and always
+ * fails (confirmed by both attempts failing in ~35ms with identical stacks).
+ * Retrying with a DIFFERENT filename works because it creates a fresh C++
+ * object. We use this to skip the futile same-name retry and go straight to
+ * the recovery DB, saving ~365ms of wasted recovery time.
+ */
+function isJsiConstructorNpe(e: unknown): boolean {
+  const m = fullErr(e);
+  return (
+    m.includes('construct (native)') ||
+    (m.includes('NullPointerException') && m.includes('apply (native)'))
+  );
+}
+
 function shortErr(e: unknown): string {
   return String((e as { message?: string } | null | undefined)?.message ?? e).slice(0, 160);
 }
@@ -220,6 +241,32 @@ export async function getDb(): Promise<SQLite.SQLiteDatabase | null> {
       console.error('[database] open/init failed (attempt 1):', firstErr);
       void logger.warn('database', `open/init attempt 1 failed (${ms1}ms, in-flight: ${_openInFlight}, API: ${Platform.Version}): ${fullErr(firstErr)}`);
       resetDb();
+
+      // ── JSI constructor NPE fast-path ────────────────────────────────────────
+      // When Android (Samsung One UI in particular) trims the C++ NativeDatabase
+      // object that expo-sqlite caches per filename, any attempt to reopen the
+      // SAME filename hits the dead cached pointer again and fails in ~35ms with
+      // an identical NPE ("at construct (native)"). The 300ms wait + retry is
+      // therefore completely futile for this error class.
+      //
+      // A DIFFERENT filename always works because it creates a fresh C++ object.
+      // So we skip straight to the recovery DB, saving ~365ms of downtime.
+      if (isJsiConstructorNpe(firstErr)) {
+        void logger.warn('database', `open/init: JSI constructor NPE detected — skipping same-name retry, opening recovery DB immediately (saves ~${300 + ms1}ms)`);
+        try {
+          db = await openAndInit(RECOVERY_DB_NAME);
+          void logger.error('database', `[DB_CORRUPTION_RECOVERY] opened recovery DB in ${Date.now() - t0}ms total (JSI fast-path)`);
+          return db;
+        } catch (recoveryErr) {
+          const ms3 = Date.now() - t0;
+          console.error('[database] recovery DB also failed (JSI fast-path) — giving up:', recoveryErr);
+          void logger.error('database', `[DB_UNRECOVERABLE] recovery DB failed (${ms3}ms total, JSI fast-path, in-flight: ${_openInFlight}, API: ${Platform.Version}): ${fullErr(recoveryErr)}`);
+          _dbUnrecoverable = true;
+          return null;
+        }
+      }
+
+      // ── Standard retry (non-JSI errors: schema migration, file locks, etc.) ──
       await new Promise((r) => setTimeout(r, 300));
       try {
         db = await openAndInit(PRIMARY_DB_NAME);
@@ -252,6 +299,27 @@ export async function getDb(): Promise<SQLite.SQLiteDatabase | null> {
   })();
 
   return _openingPromise;
+}
+
+// ─── DB health probe ─────────────────────────────────────────────────────────
+
+/**
+ * Runs a lightweight `SELECT 1` against the current DB handle to verify it is
+ * still alive. Returns `true` if healthy, `false` if dead or not yet open.
+ *
+ * Use this in FOREGROUND_RESUME before deciding whether to call `resetDb()`.
+ * On most resumes the handle is fine — skipping an unnecessary reset avoids
+ * the open/close cycle that gives Samsung One UI another opportunity to trim
+ * the native C++ NativeDatabase object (the root cause of the JSI NPE).
+ */
+export async function probeDbHealth(): Promise<boolean> {
+  if (!db) return false;
+  try {
+    await db.getFirstAsync('SELECT 1');
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // ─── Session device fingerprint ───────────────────────────────────────────────
