@@ -10,6 +10,7 @@ import {
   Image,
   ActivityIndicator,
   Platform,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -218,6 +219,7 @@ export function DailyAllowanceModal({
       onClose();
     } catch (e) {
       console.error('[DailyAllowanceModal] save failed', e);
+      Alert.alert('Error', 'Failed to save allowance settings. Please try again.');
     } finally {
       setSaving(false);
     }

@@ -148,6 +148,7 @@ export function BlockedWordsModal({
       onClose();
     } catch (e) {
       console.error('[BlockedWordsModal] save failed', e);
+      Alert.alert('Error', 'Failed to save keyword list. Please try again.');
     } finally {
       setSaving(false);
     }

@@ -129,7 +129,11 @@ export default function BlockDefenseScreen() {
   }, [params.tab]);
 
   const update = async (partial: Partial<typeof settings>) => {
-    await updateSettings({ ...settings, ...partial });
+    try {
+      await updateSettings({ ...settings, ...partial });
+    } catch {
+      Alert.alert('Error', 'Failed to save this setting. Please try again.');
+    }
   };
 
   const pendingActionAfterDefenseSetup = useRef<(() => void) | null>(null);

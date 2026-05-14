@@ -784,7 +784,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         updatedAlwaysOn = updatedAlwaysOn.filter((p) => !toRemove.has(p));
       }
       const cleared = { ...settings, standaloneBlockUntil: null, alwaysOnPackages: updatedAlwaysOn };
-      await dbSaveSettings(cleared);
+      try { await dbSaveSettings(cleared); } catch (e) { void logger.warn('AppContext', `_syncStandaloneBlock expiry clear: dbSaveSettings non-fatal: ${String(e)}`); }
       dispatch({ type: 'SET_SETTINGS', payload: cleared });
     } else {
       try {
@@ -1524,7 +1524,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...state.settings,
       dailyAllowanceEntries: entries,
     };
-    await dbSaveSettings(newSettings);
+    try { await dbSaveSettings(newSettings); } catch (e) { void logger.warn('AppContext', `setDailyAllowanceEntries: dbSaveSettings non-fatal: ${String(e)}`); }
     dispatch({ type: 'SET_SETTINGS', payload: newSettings });
     await SharedPrefsModule.setDailyAllowanceConfig(entries);
     // Enable always-on enforcement whenever allowance entries are configured.
@@ -1543,7 +1543,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...state.settings,
       blockedWords: words,
     };
-    await dbSaveSettings(newSettings);
+    try { await dbSaveSettings(newSettings); } catch (e) { void logger.warn('AppContext', `setBlockedWords: dbSaveSettings non-fatal: ${String(e)}`); }
     dispatch({ type: 'SET_SETTINGS', payload: newSettings });
     await SharedPrefsModule.setBlockedWords(words);
   }, [state.settings]);
@@ -1553,7 +1553,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...state.settings,
       recurringBlockSchedules: schedules,
     };
-    await dbSaveSettings(newSettings);
+    try { await dbSaveSettings(newSettings); } catch (e) { void logger.warn('AppContext', `setRecurringBlockSchedules: dbSaveSettings non-fatal: ${String(e)}`); }
     dispatch({ type: 'SET_SETTINGS', payload: newSettings });
     // Sync combined greyout windows (user windows + recurring schedule windows)
     const combined = _recurringSchedulesToGreyoutWindows(newSettings);
@@ -1583,7 +1583,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       standaloneBlockUntil: untilIso,
       alwaysOnPackages,
     };
-    await dbSaveSettings(newSettings);
+    try { await dbSaveSettings(newSettings); } catch (e) { void logger.warn('AppContext', `setStandaloneBlock: dbSaveSettings non-fatal: ${String(e)}`); }
     dispatch({ type: 'SET_SETTINGS', payload: newSettings });
     const active = packages.length > 0 && untilMs !== null && untilMs > Date.now();
     await SharedPrefsModule.setStandaloneBlock(active, packages, untilMs ?? 0, pinHash);
@@ -1639,7 +1639,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       alwaysOnPackages,
       standaloneVpnPackages: resolvedVpnPackages,
     };
-    await dbSaveSettings(newSettings);
+    try { await dbSaveSettings(newSettings); } catch (e) { void logger.warn('AppContext', `setStandaloneBlockAndAllowance: dbSaveSettings non-fatal: ${String(e)}`); }
     dispatch({ type: 'SET_SETTINGS', payload: newSettings });
     const active = packages.length > 0 && untilMs !== null && untilMs > Date.now();
     await SharedPrefsModule.setStandaloneBlock(active, packages, untilMs ?? 0, pinHash);

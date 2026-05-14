@@ -507,6 +507,7 @@ export function StandaloneBlockModal({
       onClose();
     } catch (e) {
       console.error('[StandaloneBlockModal] Failed to save', e);
+      Alert.alert('Error', 'Failed to apply the block. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -534,6 +535,7 @@ export function StandaloneBlockModal({
               onClose();
             } catch (e) {
               console.error('[StandaloneBlockModal] Failed to clear', e);
+              Alert.alert('Error', 'Failed to clear the block. Please try again.');
             }
           },
         },
@@ -548,6 +550,7 @@ export function StandaloneBlockModal({
       onClose();
     } catch (e) {
       console.error('[StandaloneBlockModal] Failed to clear after PIN verify', e);
+      Alert.alert('Error', 'Failed to clear the block. Please try again.');
     }
   };
 
