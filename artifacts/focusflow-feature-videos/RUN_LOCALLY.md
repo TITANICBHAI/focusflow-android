@@ -1,46 +1,71 @@
 # Running FocusFlow Feature Videos Locally
 
+## Exact versions used
+
+| Tool | Version |
+|------|---------|
+| Node.js | **v20.20.0** |
+| pnpm | **10.26.1** |
+
 ## Prerequisites
 
-- [Node.js 18+](https://nodejs.org/) — download and install the LTS version
-- [pnpm](https://pnpm.io/) — install after Node.js by running:
-  ```
-  npm install -g pnpm
-  ```
+**1. Install Node.js v20.20.0**
+Download from https://nodejs.org/en/download — pick **v20.20.0** (or any v20 LTS).
+On Windows, run the `.msi` installer and follow the prompts. Restart your terminal after.
+
+Verify it worked:
+```
+node --version
+```
+Expected output: `v20.20.0`
+
+**2. Install pnpm 10.26.1**
+```
+npm install -g pnpm@10.26.1
+```
+
+Verify:
+```
+pnpm --version
+```
+Expected output: `10.26.1`
 
 ## Steps
 
-**1. Clone the repo**
+**3. Clone the repo**
 ```
 git clone https://github.com/TITANICBHAI/FocusFlow.git
 cd FocusFlow
 ```
 
-**2. Install dependencies**
+**4. Install all dependencies**
 ```
 pnpm install
 ```
+This installs packages for the entire monorepo. Takes about a minute the first time.
 
-**3. Start the feature videos app**
+**5. Start the feature videos app**
 ```
 pnpm --filter @workspace/focusflow-feature-videos run dev
 ```
 
-**4. Open in browser**
+**6. Open in browser**
 ```
 http://localhost:6000
 ```
 
-That's it. The app hot-reloads on save so any edits you make show up instantly.
+The app hot-reloads on save — any edits you make show up instantly.
 
-## Building for production (optional)
+## Building a static version (optional)
 
-If you want a static build you can open directly from a file or upload anywhere:
+If you want a self-contained build you can open from a file or host anywhere:
 ```
 pnpm --filter @workspace/focusflow-feature-videos run build
 ```
 Output goes to `artifacts/focusflow-feature-videos/dist/public/`.
-Open `dist/public/index.html` in any browser or serve it with:
+
+Serve it locally with:
 ```
-npx serve dist/public
+npx serve artifacts/focusflow-feature-videos/dist/public
 ```
+Then open http://localhost:3000
