@@ -155,6 +155,15 @@ async function runWithDbOr<T>(opName: string, fallback: T, op: DbOp<T>): Promise
  *      Logs [DB_CORRUPTION_RECOVERY] to the startup logger.
  *      If even this fails, return null.
  */
+/** Extracts the most useful error string including cause chain and stack snippet. */
+function fullErr(e: unknown): string {
+  const err = e as { message?: string; cause?: unknown; stack?: string } | null | undefined;
+  const msg = String(err?.message ?? e).slice(0, 200);
+  const cause = err?.cause ? ` | cause: ${String((err.cause as { message?: string })?.message ?? err.cause).slice(0, 120)}` : '';
+  const stack = err?.stack ? ` | stack: ${err.stack.split('\n').slice(1, 4).join(' ').trim()}` : '';
+  return msg + cause + stack;
+}
+
 export async function getDb(): Promise<SQLite.SQLiteDatabase | null> {
   if (db) return db;
 
@@ -163,7 +172,7 @@ export async function getDb(): Promise<SQLite.SQLiteDatabase | null> {
     return db;
   } catch (firstErr) {
     console.error('[database] open/init failed (attempt 1):', firstErr);
-    void logger.warn('database', `open/init attempt 1 failed: ${String(firstErr)}`);
+    void logger.warn('database', `open/init attempt 1 failed: ${fullErr(firstErr)}`);
     resetDb();
     await new Promise((r) => setTimeout(r, 300));
     try {
@@ -171,14 +180,14 @@ export async function getDb(): Promise<SQLite.SQLiteDatabase | null> {
       return db;
     } catch (secondErr) {
       console.error('[database] open/init failed (attempt 2 — trying recovery DB):', secondErr);
-      void logger.error('database', `open/init attempt 2 failed: ${String(secondErr)} — switching to recovery DB`);
+      void logger.error('database', `open/init attempt 2 failed: ${fullErr(secondErr)} — switching to recovery DB`);
       try {
         db = await openAndInit(RECOVERY_DB_NAME);
         void logger.error('database', '[DB_CORRUPTION_RECOVERY] opened recovery DB — primary may be corrupted');
         return db;
       } catch (recoveryErr) {
         console.error('[database] recovery DB also failed — giving up:', recoveryErr);
-        void logger.error('database', `[DB_UNRECOVERABLE] recovery DB failed: ${String(recoveryErr)}`);
+        void logger.error('database', `[DB_UNRECOVERABLE] recovery DB failed: ${fullErr(recoveryErr)}`);
         return null;
       }
     }

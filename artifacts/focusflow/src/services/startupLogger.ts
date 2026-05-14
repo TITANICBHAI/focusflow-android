@@ -162,8 +162,18 @@ export async function log(level: LogLevel, tag: string, message: string): Promis
     }
   }
 
-  // Persistence and non-error console output only in dev / debuggable builds.
-  if (!__DEV__) return;
+  if (!__DEV__) {
+    // Release build: store ERROR entries in memory so DiagnosticsModal can
+    // display them when the user taps "View Logs" from the error banner.
+    // No AsyncStorage / file persistence in release (that is dev-only).
+    if (level === 'ERROR') {
+      memoryLog.push(entry);
+      rotate();
+    }
+    return;
+  }
+
+  // Dev / debuggable build: full behaviour — load history, push, persist, console.
   await ensureLoaded();
   memoryLog.push(entry);
   rotate();
@@ -259,21 +269,29 @@ export function getBootSessionId(): string | null {
 
 /** Return last N entries from the in-memory log (most recent last). */
 export async function getRecentLogs(n = 100): Promise<LogEntry[]> {
-  if (!__DEV__) return [];
+  if (!__DEV__) {
+    // Release: only in-memory ERROR entries are stored (no AsyncStorage persistence).
+    return memoryLog.slice(-n);
+  }
   await ensureLoaded();
   return memoryLog.slice(-n);
 }
 
 /** Return all log entries from the in-memory log. */
 export async function getAllLogs(): Promise<LogEntry[]> {
-  if (!__DEV__) return [];
+  if (!__DEV__) {
+    return [...memoryLog];
+  }
   await ensureLoaded();
   return [...memoryLog];
 }
 
 /** Clear all logs from memory, AsyncStorage, and the log file. */
 export function clearLogs(): Promise<void> {
-  if (!__DEV__) return Promise.resolve();
+  if (!__DEV__) {
+    memoryLog = [];
+    return Promise.resolve();
+  }
   persistChain = persistChain
     .then(async () => {
       memoryLog = [];
@@ -297,7 +315,13 @@ export function clearLogs(): Promise<void> {
 
 /** Format all logs as a plain-text string suitable for sharing. */
 export async function formatLogsForShare(): Promise<string> {
-  if (!__DEV__) return '';
+  if (!__DEV__) {
+    const header = `FocusFlow Diagnostic Errors — ${new Date().toISOString()}\n${'─'.repeat(60)}\n`;
+    const body = memoryLog
+      .map((e) => `${e.ts} [${e.level}] [${e.tag}] ${e.message}`)
+      .join('\n');
+    return header + (body || '(no errors recorded this session)');
+  }
   await ensureLoaded();
   const header = `FocusFlow Startup Log — ${new Date().toISOString()}\n${'─'.repeat(60)}\n`;
   const body = memoryLog
