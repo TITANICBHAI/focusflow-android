@@ -133,7 +133,7 @@ async function run() {
       stdio: 'inherit',
       env: {
         ...process.env,
-        BASE_PATH: '/focusflow-native/',
+        BASE_PATH: '/FocusFlow/',
         NODE_ENV: 'production',
       },
     }
@@ -177,17 +177,16 @@ async function run() {
     process.exit(1);
   }
 
-  const baseCommit = await ghFetch(`/repos/${OWNER}/${REPO}/git/commits/${latestSha}`);
-  let currentTreeSha = baseCommit.tree.sha;
+  // Build a completely fresh tree (no base_tree) so old docs files are wiped out entirely.
+  let currentTreeSha = undefined;
   const TREE_CHUNK = 100;
   for (let i = 0; i < treeItems.length; i += TREE_CHUNK) {
     const chunk = treeItems.slice(i, i + TREE_CHUNK);
-    const layered = await ghFetch(`/repos/${OWNER}/${REPO}/git/trees`, 'POST', {
-      base_tree: currentTreeSha,
-      tree: chunk,
-    });
+    const body = { tree: chunk };
+    if (currentTreeSha) body.base_tree = currentTreeSha;
+    const layered = await ghFetch(`/repos/${OWNER}/${REPO}/git/trees`, 'POST', body);
     currentTreeSha = layered.sha;
-    console.log(`  Layered ${Math.min(i + TREE_CHUNK, treeItems.length)}/${treeItems.length}`);
+    console.log(`  Built ${Math.min(i + TREE_CHUNK, treeItems.length)}/${treeItems.length}`);
   }
 
   console.log('Committing to gh-pages...');

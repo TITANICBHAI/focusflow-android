@@ -1,16 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 
-declare global {
-  interface Window {
-    startRecording?: () => Promise<void>;
-    stopRecording?: () => void;
-  }
-}
-
 export function useVideoPlayer(totalScenes: number, durationPerScene: number): { currentScene: number } {
   const [currentScene, setCurrentScene] = useState(0);
-
-  useEffect(() => { window.startRecording?.(); }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -37,3 +28,7 @@ export function useSceneTimer(events: Array<{ time: number; callback: () => void
     return () => timers.forEach(clearTimeout);
   }, [scheduleKey]);
 }
+
+export type SceneDurations = number;
+export type UseVideoPlayerOptions = { totalScenes: number; durationPerScene: number };
+export type UseVideoPlayerReturn = { currentScene: number };
