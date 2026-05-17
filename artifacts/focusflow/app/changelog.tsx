@@ -62,6 +62,24 @@ const CHANGELOG: Entry[] = [
     ],
   },
   {
+    version: '1.0.4',
+    date: 'May 2026',
+    sections: [
+      {
+        heading: 'Bug Fixes — Settings & Security',
+        icon: 'bug-outline',
+        items: [
+          'Fixed autoCopyToAlwaysOn default in the expiry path — the ?? true fallback was silently auto-enrolling packages into Always-On for users who never enabled the feature; changed to ?? false to match the intended off-by-default behaviour',
+          'Fixed PIN protection toggle bypass — the "Require password to disable protections" switch could be turned off without entering the defense PIN, defeating all guards; disabling it now requires passing the defense PIN challenge first',
+          'Fixed updateSettings not rolling back on database failure — the UI was optimistically updated and then left in an unsaved state if SQLite threw; the dispatch is now rolled back to the previous settings on any DB error',
+          'Removed redundant double-write in handleSaveAllowedApps — the Allowed-in-Focus save path was calling setAllowedPackages a second time after updateSettings already did it, creating a race condition that could briefly overwrite the freshly saved list',
+          'Fixed time picker day-overflow in Standalone Block setup — picking a time earlier than the current time of day now auto-advances the date to tomorrow instead of silently creating an already-expired block',
+          'Fixed keyword list not syncing on backup restore — _syncBlockedWords was missing from the updateSettings Promise.all; bulk settings updates (including backup restores) now push the full blocked-word list to SharedPrefs so the AccessibilityService enforces it immediately',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.0.3',
     date: 'May 2026',
     sections: [
