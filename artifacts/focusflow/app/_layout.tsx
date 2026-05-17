@@ -17,6 +17,8 @@ import '@/polyfills';
 // ─── 1. Register all background tasks with the OS ────────────────────────────
 import '@/tasks/backgroundTasks';
 
+import '@/i18n';
+
 import React, { useEffect, useRef } from 'react';
 import { Stack, router, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';

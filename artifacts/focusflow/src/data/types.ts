@@ -255,6 +255,12 @@ export interface AppSettings {
   userProfile?: UserProfile;
 
   /**
+   * User-selected UI language. When null/undefined, the device locale is used.
+   * Stored as an i18n language code: 'en' | 'zh' | 'fr' | 'de' | 'ja' | 'ko' | 'es'
+   */
+  language?: string;
+
+  /**
    * Beginner mode hides advanced surfaces (Custom Node Rules, Recurring
    * Schedules, Aversion Deterrents, Custom Wallpaper). Default true so new
    * users land in the friendlier UI.

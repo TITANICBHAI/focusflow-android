@@ -64,6 +64,7 @@ import { AversionsModule } from '@/native-modules/AversionsModule';
 import { GreyoutModule } from '@/native-modules/GreyoutModule';
 import { NetworkBlockModule } from '@/native-modules/NetworkBlockModule';
 import { logBootMarker, logger } from '@/services/startupLogger';
+import { initI18n } from '@/i18n';
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -460,6 +461,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       if (restoredFromSp) {
         try { await dbSaveSettings(settings); } catch { /* non-fatal — primary path is the in-memory state */ }
+      }
+
+      // Apply stored language preference before rendering
+      try {
+        initI18n(settings.language ?? null);
+        void logger.info('AppContext', `i18n initialized with language: ${settings.language ?? 'device-default'}`);
+      } catch (e) {
+        void logger.warn('AppContext', `i18n init failed: ${String(e)}`);
       }
 
       void logger.info('AppContext', 'Dispatching SET_SETTINGS + SET_DB_READY');

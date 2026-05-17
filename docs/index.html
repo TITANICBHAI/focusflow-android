@@ -11,6 +11,17 @@
   <meta name="author" content="TBTechs" />
   <meta name="robots" content="index, follow" />
   <link rel="canonical" href="https://focusflowapp.pages.dev/" />
+
+  <!-- hreflang for multi-language SEO -->
+  <link rel="alternate" hreflang="en"        href="https://focusflowapp.pages.dev/" />
+  <link rel="alternate" hreflang="zh"        href="https://focusflowapp.pages.dev/zh/" />
+  <link rel="alternate" hreflang="de"        href="https://focusflowapp.pages.dev/de/" />
+  <link rel="alternate" hreflang="fr"        href="https://focusflowapp.pages.dev/fr/" />
+  <link rel="alternate" hreflang="ja"        href="https://focusflowapp.pages.dev/ja/" />
+  <link rel="alternate" hreflang="ko"        href="https://focusflowapp.pages.dev/ko/" />
+  <link rel="alternate" hreflang="es"        href="https://focusflowapp.pages.dev/es/" />
+  <link rel="alternate" hreflang="x-default" href="https://focusflowapp.pages.dev/" />
+
   <meta name="google-site-verification" content="sou-98cZYPWFJmbwxJgJptO-ZaIPNJqz2ven_iS4NjI" />
   <meta name="msvalidate.01" content="FC2887EF2F94BFFE090CAB25A456AE86" />
 
@@ -563,7 +574,15 @@
       <a href="faq/">FAQ</a>
       <a href="blog/">Blog</a>
       <a class="nav-cta" href="https://github.com/TITANICBHAI/FocusFlow/releases"><span class="en">Download APK</span><span class="zh">下载 APK</span></a>
-      <button id="lang-toggle">中文</button>
+      <select class="lang-select" onchange="localStorage.setItem('ff-lang-chosen','1');if(this.value!=='#')location.href=this.value">
+        <option value="#" selected>🌐 EN</option>
+        <option value="/zh/">🇨🇳 中文</option>
+        <option value="/de/">🇩🇪 DE</option>
+        <option value="/fr/">🇫🇷 FR</option>
+        <option value="/ja/">🇯🇵 日本語</option>
+        <option value="/ko/">🇰🇷 한국어</option>
+        <option value="/es/">🇪🇸 ES</option>
+      </select>
     </div>
   </nav>
 

@@ -13,6 +13,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import dayjs from 'dayjs';
+import { useTranslation } from 'react-i18next';
 import { useApp } from '@/context/AppContext';
 import type { DailyAllowanceEntry, GreyoutWindow } from '@/data/types';
 import { COLORS, FONT, RADIUS, SPACING } from '@/styles/theme';
@@ -33,8 +34,10 @@ import { GreyoutScheduleModal } from '@/components/GreyoutScheduleModal';
 import { OverlayAppearanceModal } from '@/components/OverlayAppearanceModal';
 import DiagnosticsModal from '@/components/DiagnosticsModal';
 import { ImportFromOtherAppModal } from '@/components/ImportFromOtherAppModal';
+import { LanguagePickerModal } from '@/components/LanguagePickerModal';
 import { withScreenErrorBoundary } from '@/components/withScreenErrorBoundary';
 import { SharedPrefsModule } from '@/native-modules/SharedPrefsModule';
+import { SUPPORTED_LANGUAGES } from '@/i18n';
 
 const DURATION_OPTIONS = [30, 45, 60, 90, 120];
 
@@ -43,6 +46,7 @@ function SettingsScreen() {
   const { state, updateSettings, setStandaloneBlockAndAllowance, setDailyAllowanceEntries, setBlockedWords, refreshTasks, deleteTask, addTask } = useApp();
   const { settings } = state;
   const { theme } = useTheme();
+  const { t, i18n } = useTranslation();
   const [appsModalVisible, setAppsModalVisible] = useState(false);
   const [blockModalVisible, setBlockModalVisible] = useState(false);
   const [dailyModalVisible, setDailyModalVisible] = useState(false);
@@ -53,18 +57,23 @@ function SettingsScreen() {
   const [importOtherAppVisible, setImportOtherAppVisible] = useState(false);
   const [defPinVisible, setDefPinVisible] = useState(false);
   const [pinSetupVisible, setPinSetupVisible] = useState(false);
+  const [languagePickerVisible, setLanguagePickerVisible] = useState(false);
   const pendingDefAction = useRef<(() => void) | null>(null);
   // Diagnostics section is development-only — hidden entirely in release builds.
   const showDiagnostics = __DEV__;
+
+  // Current language display label
+  const currentLangCode = i18n.language ?? 'en';
+  const currentLang = SUPPORTED_LANGUAGES.find((l) => currentLangCode.startsWith(l.code));
 
   if (!state.isDbReady) {
     return (
       <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
         <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
-          <Text style={[styles.title, { color: theme.text }]}>Settings</Text>
+          <Text style={[styles.title, { color: theme.text }]}>{t('settings.title')}</Text>
         </View>
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading…</Text>
+          <Text style={styles.loadingText}>{t('settings.loading')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -108,10 +117,10 @@ function SettingsScreen() {
   const handleRequestNotifications = async () => {
     const granted = await requestPermissions();
     Alert.alert(
-      granted ? 'Notifications Enabled' : 'Permission Denied',
+      granted ? t('settings.notifications2.granted') : t('settings.notifications2.denied'),
       granted
-        ? 'You will now receive task reminders.'
-        : 'Please enable notifications in your device Settings.',
+        ? t('settings.notifications2.grantedMsg')
+        : t('settings.notifications2.deniedMsg'),
     );
   };
 
@@ -135,16 +144,16 @@ function SettingsScreen() {
 
   const handleImportBackup = () => {
     Alert.alert(
-      'Restore from backup',
-      'Pick how to merge the backup into this device:',
+      t('settings.backup.restoreTitle'),
+      t('settings.backup.restoreMsg'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('settings.cancel'), style: 'cancel' },
         {
-          text: 'Add tasks',
+          text: t('settings.backup.addTasks'),
           onPress: async () => runImport(false),
         },
         {
-          text: 'Replace everything',
+          text: t('settings.backup.replaceEverything'),
           style: 'destructive',
           onPress: async () => runImport(true),
         },
@@ -182,16 +191,16 @@ function SettingsScreen() {
   };
 
   const handleClearAllTasks = () => {
-    Alert.alert('Clear All Tasks', 'This will delete ALL tasks. Are you sure?', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('settings.danger.clearAllTitle'), t('settings.danger.clearAllMsg'), [
+      { text: t('settings.cancel'), style: 'cancel' },
       {
-        text: 'Clear All',
+        text: t('settings.danger.clearAll'),
         style: 'destructive',
         onPress: async () => {
           await cancelAllReminders();
           await dbDeleteAllTasks();
           await refreshTasks();
-          Alert.alert('Done', 'All tasks cleared.');
+          Alert.alert(t('settings.danger.done'), t('settings.danger.allTasksCleared'));
         },
       },
     ]);
@@ -234,23 +243,23 @@ function SettingsScreen() {
                 action();
               } else {
                 Alert.alert(
-                  'No Defense Password Set',
-                  "PIN Protection is on but you haven't set a defense password yet. Set one now so your changes are protected.",
+                  t('settings.pin.noPinSet'),
+                  t('settings.pin.noPinSetMsg'),
                   [
                     {
-                      text: 'Set Password Now',
+                      text: t('settings.pin.setNow'),
                       onPress: () => {
                         pendingDefAction.current = action;
                         setPinSetupVisible(true);
                       },
                     },
                     {
-                      text: 'Not Now',
+                      text: t('settings.pin.notNow'),
                       style: 'cancel',
                       onPress: () => action(),
                     },
                     {
-                      text: "Don't Ask Again",
+                      text: t('settings.pin.dontAskAgain'),
                       style: 'destructive',
                       onPress: () => {
                         void SharedPrefsModule.putString('pin_setup_prompt_dismissed', 'true');
@@ -272,7 +281,7 @@ function SettingsScreen() {
 
   const handleSystemGuardToggle = (enabled: boolean) => {
     if (!enabled && blockProtectionActive) {
-      Alert.alert('Protection is active', 'System controls protection cannot be turned off while Focus Mode or an app block is active.');
+      Alert.alert(t('settings.system.protectionActive'), t('settings.system.cannotDisableWhileActive'));
       return;
     }
     if (!enabled) {
@@ -284,7 +293,7 @@ function SettingsScreen() {
 
   const handleBlockYoutubeShortsToggle = (enabled: boolean) => {
     if (!enabled && blockProtectionActive) {
-      Alert.alert('Protection is active', 'YouTube Shorts protection cannot be turned off while Focus Mode or an app block is active.');
+      Alert.alert(t('settings.system.protectionActive'), t('settings.system.ytCannotDisable'));
       return;
     }
     if (!enabled) {
@@ -296,7 +305,7 @@ function SettingsScreen() {
 
   const handleBlockInstagramReelsToggle = (enabled: boolean) => {
     if (!enabled && blockProtectionActive) {
-      Alert.alert('Protection is active', 'Instagram Reels protection cannot be turned off while Focus Mode or an app block is active.');
+      Alert.alert(t('settings.system.protectionActive'), t('settings.system.igCannotDisable'));
       return;
     }
     if (!enabled) {
@@ -309,34 +318,44 @@ function SettingsScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
-        <Text style={[styles.title, { color: theme.text }]}>Settings</Text>
+        <Text style={[styles.title, { color: theme.text }]}>{t('settings.title')}</Text>
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingBottom: 60 + insets.bottom + 20 }]}>
 
+        {/* ── Language ── */}
+        <Section title={t('settings.sections.language')}>
+          <SettingButton
+            icon="language-outline"
+            label={t('settings.language.selectLanguage')}
+            description={currentLang ? `${currentLang.nativeLabel} — ${currentLang.label}` : t('settings.language.autoDetected')}
+            onPress={() => setLanguagePickerVisible(true)}
+          />
+        </Section>
+
         {/* ── Profile ── */}
-        <Section title="Profile">
+        <Section title={t('settings.sections.profile')}>
           <SettingButton
             icon="person-circle-outline"
-            label={settings.userProfile?.name ? `${settings.userProfile.name}` : 'Set up your profile'}
+            label={settings.userProfile?.name ? `${settings.userProfile.name}` : t('settings.profile.setupPrompt')}
             description={
               settings.userProfile
                 ? [
                     settings.userProfile.occupation,
-                    settings.userProfile.dailyGoalHours ? `${settings.userProfile.dailyGoalHours}h daily goal` : null,
-                    settings.userProfile.wakeUpTime ? `Wakes at ${settings.userProfile.wakeUpTime}` : null,
+                    settings.userProfile.dailyGoalHours ? t('settings.profile.dailyGoal', { hours: settings.userProfile.dailyGoalHours }) : null,
+                    settings.userProfile.wakeUpTime ? t('settings.profile.wakesAt', { time: settings.userProfile.wakeUpTime }) : null,
                   ]
                     .filter(Boolean)
-                    .join(' · ') || 'Tap to personalise your experience'
-                : 'Name, occupation, daily goal and more'
+                    .join(' · ') || t('settings.profile.tapToPersonalise')
+                : t('settings.profile.nameOccupationGoal')
             }
             onPress={() => router.push('/user-profile')}
           />
         </Section>
 
         {/* ── Notifications ── */}
-        <Section title="Notifications">
-          <SettingRow label="Enable Reminders" description="Get alerts before & during tasks">
+        <Section title={t('settings.sections.notifications')}>
+          <SettingRow label={t('settings.notifications.enableReminders')} description={t('settings.notifications.enableRemindersDesc')}>
             <Switch
               value={settings.notificationsEnabled}
               onValueChange={(v) => update({ notificationsEnabled: v })}
@@ -346,14 +365,14 @@ function SettingsScreen() {
           </SettingRow>
           <SettingButton
             icon="notifications-outline"
-            label="Request Notification Permission"
+            label={t('settings.notifications.requestPermission')}
             onPress={handleRequestNotifications}
           />
         </Section>
 
         {/* ── Scheduling ── */}
-        <Section title="Scheduling">
-          <SettingRow label="Default Task Duration">
+        <Section title={t('settings.sections.scheduling')}>
+          <SettingRow label={t('settings.scheduling.defaultTaskDuration')}>
             <Text style={styles.valueText}>{formatDuration(settings.defaultDuration)}</Text>
           </SettingRow>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: SPACING.xs }}>
@@ -374,8 +393,8 @@ function SettingsScreen() {
         </Section>
 
         {/* ── Focus Mode ── */}
-        <Section title="Focus Mode">
-          <SettingRow label="Auto-enable Focus Mode" description="Activate when a focus task starts">
+        <Section title={t('settings.sections.focusMode')}>
+          <SettingRow label={t('settings.focusMode.autoEnable')} description={t('settings.focusMode.autoEnableDesc')}>
             <Switch
               value={settings.focusModeEnabled}
               onValueChange={(v) => update({ focusModeEnabled: v })}
@@ -385,15 +404,19 @@ function SettingsScreen() {
           </SettingRow>
           <SettingButton
             icon="apps-outline"
-            label="Manage Allowed Apps"
-            description={settings.allowedInFocus.length === 0 ? 'All apps will be blocked during Focus Mode' : `${settings.allowedInFocus.length} app${settings.allowedInFocus.length !== 1 ? 's' : ''} allowed during Focus Mode`}
+            label={t('settings.focusMode.manageAllowedApps')}
+            description={
+              settings.allowedInFocus.length === 0
+                ? t('settings.focusMode.allAppsBlocked')
+                : t('settings.focusMode.appsAllowed', { count: settings.allowedInFocus.length })
+            }
             onPress={() => setAppsModalVisible(true)}
           />
         </Section>
 
         {/* ── Aversion Deterrents ── */}
-        <Section title="Aversion Deterrents">
-          <SettingRow label="Screen Dimmer" description="Near-black overlay appears while a blocked app is open">
+        <Section title={t('settings.sections.aversionDeterrents')}>
+          <SettingRow label={t('settings.aversion.screenDimmer')} description={t('settings.aversion.screenDimmerDesc')}>
             <Switch
               value={settings.aversionDimmerEnabled}
               onValueChange={(v) => update({ aversionDimmerEnabled: v })}
@@ -401,7 +424,7 @@ function SettingsScreen() {
               thumbColor={settings.aversionDimmerEnabled ? COLORS.primary : COLORS.muted}
             />
           </SettingRow>
-          <SettingRow label="Vibration Harassment" description="Repeated pulse vibration while blocked app is in foreground">
+          <SettingRow label={t('settings.aversion.vibrationHarassment')} description={t('settings.aversion.vibrationHarassmentDesc')}>
             <Switch
               value={settings.aversionVibrateEnabled}
               onValueChange={(v) => update({ aversionVibrateEnabled: v })}
@@ -409,7 +432,7 @@ function SettingsScreen() {
               thumbColor={settings.aversionVibrateEnabled ? COLORS.primary : COLORS.muted}
             />
           </SettingRow>
-          <SettingRow label="Sound Alert" description="Startling sound plays the moment a blocked app launches">
+          <SettingRow label={t('settings.aversion.soundAlert')} description={t('settings.aversion.soundAlertDesc')}>
             <Switch
               value={settings.aversionSoundEnabled}
               onValueChange={(v) => update({ aversionSoundEnabled: v })}
@@ -420,49 +443,46 @@ function SettingsScreen() {
         </Section>
 
         {/* ── Daily App Allowance ── */}
-        <Section title="Daily App Allowance">
+        <Section title={t('settings.sections.dailyAppAllowance')}>
           <SettingButton
             icon="sunny-outline"
-            label="Manage Daily Allowance Apps"
+            label={t('settings.dailyAllowance.manageApps')}
             description={
               (settings.dailyAllowanceEntries ?? []).length === 0
-                ? 'No apps configured — set count, time budget, or interval per app'
-                : `${(settings.dailyAllowanceEntries ?? []).length} app${(settings.dailyAllowanceEntries ?? []).length !== 1 ? 's' : ''} with daily allowance — tap to configure modes`
+                ? t('settings.dailyAllowance.noApps')
+                : t('settings.dailyAllowance.appsConfigured', { count: (settings.dailyAllowanceEntries ?? []).length })
             }
             onPress={() => setDailyModalVisible(true)}
           />
         </Section>
 
         {/* ── Word Blocking ── */}
-        <Section title="Word Blocking">
+        <Section title={t('settings.sections.wordBlocking')}>
           <SettingButton
             icon="text-outline"
-            label="Manage Blocked Keywords"
+            label={t('settings.wordBlocking.manageKeywords')}
             description={
               (settings.blockedWords ?? []).length === 0
-                ? 'No keywords set — blocked in URLs, searches & on-screen text'
-                : `${(settings.blockedWords ?? []).length} keyword${(settings.blockedWords ?? []).length !== 1 ? 's' : ''} — blocked in URLs, searches & on-screen text`
+                ? t('settings.wordBlocking.noKeywords')
+                : t('settings.wordBlocking.keywords', { count: (settings.blockedWords ?? []).length })
             }
             onPress={() => setWordsModalVisible(true)}
           />
         </Section>
 
-        <Section title="PIN Protection">
+        <Section title={t('settings.sections.pinProtection')}>
           <SettingRow
-            label="Require password to disable protections"
+            label={t('settings.pin.requirePassword')}
             description={
               (settings.pinProtectionEnabled ?? false)
-                ? 'On — turning off any protection toggle requires your Defense Password'
-                : 'Off — protection toggles can be changed freely without a password'
+                ? t('settings.pin.pinOn')
+                : t('settings.pin.pinOff')
             }
           >
             <Switch
               value={settings.pinProtectionEnabled ?? false}
               onValueChange={(v) => {
                 if (!v) {
-                  // Security fix: disabling PIN protection must also require a
-                  // defense PIN if one is set — otherwise any user who picks up
-                  // the phone can tap this toggle to bypass all protections.
                   withDefensePin(() => {
                     void update({ pinProtectionEnabled: false });
                     void SharedPrefsModule.putString('pin_setup_prompt_dismissed', '');
@@ -477,19 +497,19 @@ function SettingsScreen() {
           </SettingRow>
           <SettingButton
             icon="shield-half-outline"
-            label="Manage PIN Passwords"
-            description="Set or change your focus session and defense passwords"
+            label={t('settings.pin.managePins')}
+            description={t('settings.pin.managePinsDesc')}
             onPress={() => router.push('/block-defense')}
           />
         </Section>
 
-        <Section title="System Protection">
+        <Section title={t('settings.sections.systemProtection')}>
           <SettingRow
-            label="Protect system controls"
+            label={t('settings.system.protectSystemControls')}
             description={
               blockProtectionActive
-                ? 'Locked on until Focus Mode or the active app block ends'
-                : 'Blocks power menu, notification shade, Emergency mode, and sensitive Settings pages during active blocks'
+                ? t('settings.system.protectSystemControlsLocked')
+                : t('settings.system.protectSystemControlsDesc')
             }
           >
             <Switch
@@ -502,11 +522,11 @@ function SettingsScreen() {
           </SettingRow>
 
           <SettingRow
-            label="Block YouTube Shorts"
+            label={t('settings.system.blockYoutubeShorts')}
             description={
               blockProtectionActive && (settings.blockYoutubeShortsEnabled ?? false)
-                ? 'Locked on until Focus Mode or the active app block ends'
-                : 'Redirects to home whenever the YouTube Shorts player opens (regular YouTube stays usable)'
+                ? t('settings.system.blockYoutubeShortsLocked')
+                : t('settings.system.blockYoutubeShortsDesc')
             }
           >
             <Switch
@@ -519,11 +539,11 @@ function SettingsScreen() {
           </SettingRow>
 
           <SettingRow
-            label="Block Instagram Reels"
+            label={t('settings.system.blockInstagramReels')}
             description={
               blockProtectionActive && (settings.blockInstagramReelsEnabled ?? false)
-                ? 'Locked on until Focus Mode or the active app block ends'
-                : 'Redirects to home whenever the Instagram Reels viewer opens (the rest of Instagram stays usable)'
+                ? t('settings.system.blockInstagramReelsLocked')
+                : t('settings.system.blockInstagramReelsDesc')
             }
           >
             <Switch
@@ -537,7 +557,7 @@ function SettingsScreen() {
         </Section>
 
         {/* ── Block Schedules ── */}
-        <Section title="Block Schedules">
+        <Section title={t('settings.sections.blockSchedules')}>
           <SettingButton
             icon="time-outline"
             label="Manage Time-Window Blocks"
@@ -551,15 +571,15 @@ function SettingsScreen() {
         </Section>
 
         {/* ── Standalone Block ── */}
-        <Section title="Standalone Block">
+        <Section title={t('settings.sections.standaloneBlock')}>
           {standaloneActive ? (
             <View style={styles.blockActiveCard}>
               <View style={styles.blockActiveRow}>
                 <View style={styles.blockDot} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.blockActiveTitle}>Block active</Text>
+                  <Text style={styles.blockActiveTitle}>{t('settings.standalone.blockActive')}</Text>
                   <Text style={styles.blockActiveDesc}>
-                    {(settings.standaloneBlockPackages ?? []).length} app{(settings.standaloneBlockPackages ?? []).length !== 1 ? 's' : ''} blocked until {blockUntilLabel}
+                    {t('settings.standalone.appsBlockedUntil', { count: (settings.standaloneBlockPackages ?? []).length, time: blockUntilLabel })}
                   </Text>
                 </View>
               </View>
@@ -567,41 +587,41 @@ function SettingsScreen() {
           ) : (
             <View style={styles.blockInactiveCard}>
               <Ionicons name="shield-outline" size={18} color={theme.muted} />
-              <Text style={[styles.blockInactiveText, { color: theme.muted }]}>No scheduled block active</Text>
+              <Text style={[styles.blockInactiveText, { color: theme.muted }]}>{t('settings.standalone.noBlockActive')}</Text>
             </View>
           )}
           <SettingButton
             icon={standaloneActive ? 'lock-closed-outline' : 'ban-outline'}
-            label={standaloneActive ? 'Add More Apps to Block' : 'Set Standalone Block'}
-            description={standaloneActive ? 'Block is locked — you can add apps but not remove any until it expires' : 'Block specific apps until a date and time — regardless of tasks. Apps stay retained for always-on enforcement after the timer ends.'}
+            label={standaloneActive ? t('settings.standalone.addMoreApps') : t('settings.standalone.setStandaloneBlock')}
+            description={standaloneActive ? t('settings.standalone.addMoreAppsDesc') : t('settings.standalone.setStandaloneBlockDesc')}
             onPress={() => setBlockModalVisible(true)}
           />
         </Section>
 
         {/* ── Block Overlay ── */}
-        <Section title="Block Overlay">
+        <Section title={t('settings.sections.blockOverlay')}>
           <SettingButton
             icon="phone-portrait-outline"
-            label="Overlay Appearance"
+            label={t('settings.overlay.overlayAppearance')}
             description={
               (settings.overlayQuotes ?? []).length > 0 || (settings.overlayWallpaper ?? '')
                 ? [
-                    (settings.overlayWallpaper ?? '') ? 'Custom background set' : null,
+                    (settings.overlayWallpaper ?? '') ? t('settings.overlay.customBackground') : null,
                     (settings.overlayQuotes ?? []).length > 0
-                      ? `${(settings.overlayQuotes ?? []).length} custom quote${(settings.overlayQuotes ?? []).length !== 1 ? 's' : ''}`
+                      ? t('settings.overlay.customQuotes', { count: (settings.overlayQuotes ?? []).length })
                       : null,
                   ]
                     .filter(Boolean)
                     .join(' · ')
-                : 'Customise background image and quotes shown on the block screen'
+                : t('settings.overlay.customiseDesc')
             }
             onPress={() => setOverlayAppearanceVisible(true)}
           />
         </Section>
 
         {/* ── Pomodoro ── */}
-        <Section title="Pomodoro Mode">
-          <SettingRow label="Enable Pomodoro" description="Auto-cycle work and break sessions">
+        <Section title={t('settings.sections.pomodoro')}>
+          <SettingRow label={t('settings.pomodoro.enable')} description={t('settings.pomodoro.enableDesc')}>
             <Switch
               value={settings.pomodoroEnabled}
               onValueChange={(v) => update({ pomodoroEnabled: v })}
@@ -611,10 +631,10 @@ function SettingsScreen() {
           </SettingRow>
           {settings.pomodoroEnabled && (
             <>
-              <SettingRow label="Work Duration">
+              <SettingRow label={t('settings.pomodoro.workDuration')}>
                 <Text style={styles.valueText}>{settings.pomodoroDuration}m</Text>
               </SettingRow>
-              <SettingRow label="Break Duration">
+              <SettingRow label={t('settings.pomodoro.breakDuration')}>
                 <Text style={styles.valueText}>{settings.pomodoroBreak}m</Text>
               </SettingRow>
             </>
@@ -622,94 +642,89 @@ function SettingsScreen() {
         </Section>
 
         {/* ── Backup & Data ── */}
-        {/* Sits above Permissions so users see the safety net BEFORE they
-            grant any device-level access. Export builds a portable JSON of
-            settings + tasks; Import restores it (Android only). */}
-        <Section title="Backup & Data">
+        <Section title={t('settings.sections.backupData')}>
           <SettingButton
             icon="cloud-upload-outline"
-            label={backupBusy ? 'Working…' : 'Export Backup'}
-            description="Save a .focusflow file — share to Drive, Files, or email"
+            label={backupBusy ? t('settings.backup.exportWorking') : t('settings.backup.exportBackup')}
+            description={t('settings.backup.exportDesc')}
             onPress={handleExportBackup}
           />
           <SettingButton
             icon="cloud-download-outline"
-            label="Import Backup"
-            description="Restore from a .focusflow backup file"
+            label={t('settings.backup.importBackup')}
+            description={t('settings.backup.importDesc')}
             onPress={handleImportBackup}
           />
           <SettingButton
             icon="swap-horizontal-outline"
-            label="Import from Another App"
-            description="AppBlock, StayFree, ActionDash, Digital Wellbeing, or any plain-text list"
+            label={t('settings.backup.importFromApp')}
+            description={t('settings.backup.importFromAppDesc')}
             onPress={() => setImportOtherAppVisible(true)}
           />
         </Section>
 
         {/* ── Permissions ── */}
-        <Section title="Permissions">
+        <Section title={t('settings.sections.permissions')}>
           <SettingButton
             icon="shield-checkmark-outline"
-            label="Manage Permissions"
-            description="Accessibility, Usage Access, Battery, Notifications"
+            label={t('settings.permissions.managePermissions')}
+            description={t('settings.permissions.managePermissionsDesc')}
             onPress={() => router.push('/permissions' as never)}
           />
         </Section>
 
         {/* ── Diagnostics (debug builds only) ── */}
         {showDiagnostics && (
-          <Section title="Diagnostics">
+          <Section title={t('settings.sections.diagnostics')}>
             <SettingButton
               icon="terminal-outline"
-              label="View Startup Logs"
-              description="Timestamped log of startup steps, warnings, and errors"
+              label={t('settings.diagnostics.viewStartupLogs')}
+              description={t('settings.diagnostics.viewStartupLogsDesc')}
               onPress={() => setDiagnosticsVisible(true)}
             />
           </Section>
         )}
 
         {/* ── Danger Zone ── */}
-        <Section title="Data">
+        <Section title={t('settings.sections.data')}>
           <SettingButton
             icon="trash-outline"
-            label="Clear All Tasks"
-            description="Permanently delete all scheduled tasks"
+            label={t('settings.danger.clearAllTasks')}
+            description={t('settings.danger.clearAllTasksDesc')}
             danger
             onPress={handleClearAllTasks}
           />
         </Section>
 
-        <Section title="About">
+        <Section title={t('settings.sections.about')}>
           <SettingButton
             icon="bar-chart-outline"
-            label="Stats"
-            description="Yesterday's digest, focus time, completed tasks, blocked apps, streak"
+            label={t('settings.about.stats')}
+            description={t('settings.about.statsDesc')}
             onPress={() => router.push('/(tabs)/stats')}
           />
           <SettingButton
             icon="rocket-outline"
-            label="What's New"
-            description="Changelog — features, fixes, and improvements"
+            label={t('settings.about.whatsNew')}
+            description={t('settings.about.whatsNewDesc')}
             onPress={() => router.push('/changelog')}
           />
-          {/* Privacy + Terms are now a single combined screen — the
-              privacy-policy screen renders both as tabs. */}
           <SettingButton
             icon="shield-checkmark-outline"
-            label="Privacy & Terms"
-            description="How FocusFlow handles your data and the rules of use"
+            label={t('settings.about.privacyTerms')}
+            description={t('settings.about.privacyTermsDesc')}
             onPress={() => router.push('/privacy-policy')}
           />
           <SettingButton
             icon="desktop-outline"
-            label="FocusFlow for Windows"
-            description="Also available as a native Windows desktop app — focusflowpc.pages.dev"
+            label={t('settings.about.focusflowWindows')}
+            description={t('settings.about.focusflowWindowsDesc')}
             onPress={() => Linking.openURL('https://focusflowpc.pages.dev/')}
           />
           <SettingButton
             icon="mail-outline"
-            label="Contact Support"
-            description="Email us at tbtechsdev@gmail.com"
+            label={t('settings.about.contactSupport')}
+            description={t('settings.about.contactSupportDesc')}
             onPress={() =>
               Linking.openURL(
                 'mailto:tbtechsdev@gmail.com?subject=FocusFlow%20Support'
@@ -723,6 +738,11 @@ function SettingsScreen() {
           <Text style={[styles.footerText, { color: theme.muted }]}>All data stored locally on device</Text>
         </View>
       </ScrollView>
+
+      <LanguagePickerModal
+        visible={languagePickerVisible}
+        onClose={() => setLanguagePickerVisible(false)}
+      />
 
       <AllowedAppsModal
         visible={appsModalVisible}
