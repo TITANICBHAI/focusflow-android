@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Alert,
   RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -154,11 +155,17 @@ function ScheduleScreen() {
         contentContainerStyle={[styles.listContent, { paddingBottom: 60 + insets.bottom + 80 }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Ionicons name="calendar-outline" size={48} color={theme.border} />
-            <Text style={[styles.emptyText, { color: theme.muted }]}>No tasks scheduled for today</Text>
-            <Text style={[styles.emptySubtext, { color: theme.border }]}>Tap + to add your first task</Text>
-          </View>
+          state.isLoading ? (
+            <View style={styles.emptyState}>
+              <ActivityIndicator size="large" color={COLORS.primary} />
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <Ionicons name="calendar-outline" size={48} color={theme.border} />
+              <Text style={[styles.emptyText, { color: theme.muted }]}>No tasks scheduled for today</Text>
+              <Text style={[styles.emptySubtext, { color: theme.border }]}>Tap + to add your first task</Text>
+            </View>
+          )
         }
         removeClippedSubviews
         initialNumToRender={10}

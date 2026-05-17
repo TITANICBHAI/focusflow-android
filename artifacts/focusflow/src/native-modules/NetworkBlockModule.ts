@@ -91,4 +91,41 @@ export const NetworkBlockModule = {
     if (!has('setVpnSelfHealEnabled')) return;
     return NetworkBlock.setVpnSelfHealEnabled(enabled);
   },
+
+  /**
+   * Returns the full network-block settings as a JSON string.
+   * Keys: enabled, vpn, wifi, mobile, global, restore, packages.
+   */
+  async getNetworkBlockSettings(): Promise<string> {
+    if (!has('getNetworkBlockSettings')) return '{}';
+    return NetworkBlock.getNetworkBlockSettings();
+  },
+
+  /**
+   * Persists network-block settings from a partial JSON object string.
+   * Only keys present in the object are updated; missing keys are left unchanged.
+   * Accepted keys: enabled, vpn, wifi, mobile, global, restore, packages.
+   */
+  async setNetworkBlockSettings(json: string): Promise<void> {
+    if (!has('setNetworkBlockSettings')) return;
+    return NetworkBlock.setNetworkBlockSettings(json);
+  },
+
+  /**
+   * Directly disables Wi-Fi (belt-and-suspenders when VPN is active).
+   * No-op on Android 10+ where apps cannot toggle Wi-Fi programmatically.
+   */
+  async tryDisableWifi(): Promise<void> {
+    if (!has('tryDisableWifi')) return;
+    return NetworkBlock.tryDisableWifi();
+  },
+
+  /**
+   * Re-enables Wi-Fi after a block session ends.
+   * Only acts if FocusFlow was the last one to disable it.
+   */
+  async tryRestoreWifi(): Promise<void> {
+    if (!has('tryRestoreWifi')) return;
+    return NetworkBlock.tryRestoreWifi();
+  },
 };

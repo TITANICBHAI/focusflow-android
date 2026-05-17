@@ -87,6 +87,15 @@ const CHANGELOG: Entry[] = [
           'Uninstall button now shows a clear "native module unavailable" error on Expo Go builds instead of silently doing nothing',
         ],
       },
+      {
+        heading: 'Full Feature Audit Fixes',
+        icon: 'checkmark-done-outline',
+        items: [
+          'NetworkBlockModule: added 4 missing JS bridge methods — getNetworkBlockSettings, setNetworkBlockSettings, tryDisableWifi, tryRestoreWifi — now fully accessible from the JS layer to match the complete Kotlin API',
+          'Stats screen: DB error banner now has a retry button (refresh icon) that re-fetches the last 30 days of history instead of showing a permanent dead-end error message',
+          'Today/Schedule screen: initial app load now shows a spinner instead of "No tasks scheduled for today" while the task database is being read on first launch',
+        ],
+      },
     ],
   },
   {

@@ -414,6 +414,26 @@ function StatsScreen() {
           <Text style={[styles.dbErrorText, { color: COLORS.orange }]}>
             History unavailable — could not read task database. Today's data is unaffected.
           </Text>
+          <TouchableOpacity
+            onPress={() => {
+              setHistoricalError(false);
+              void (async () => {
+                try {
+                  const end = new Date();
+                  const start = new Date();
+                  start.setDate(start.getDate() - 30);
+                  const rows = await dbGetTasksInDateRange(start.toISOString(), end.toISOString());
+                  setHistoricalTasks(rows);
+                } catch {
+                  setHistoricalError(true);
+                }
+              })();
+            }}
+            style={styles.retryBtn}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="refresh-outline" size={16} color={COLORS.orange} />
+          </TouchableOpacity>
         </View>
       )}
 
@@ -1086,6 +1106,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   dbErrorText: { flex: 1, fontSize: FONT.sm, lineHeight: 18 },
+  retryBtn: { padding: 4 },
 
   card: { borderRadius: RADIUS.lg, padding: SPACING.md, gap: SPACING.sm },
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
