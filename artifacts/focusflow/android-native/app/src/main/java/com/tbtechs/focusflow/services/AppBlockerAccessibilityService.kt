@@ -950,8 +950,9 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
         // ── Content-specific guards ──────────────────────────────────────────
         // Each toggle is opt-in and runs continuously whenever it is on —
-        // independent of any focus session or standalone block. The user
-        // explicitly opted in by enabling the toggle in Block Enforcement.
+        // independent of any focus session, standalone block, or always-on
+        // enforcement. The user explicitly opted in by enabling the toggle in
+        // Block Enforcement, so these are always enforced when their flag is set.
         //
         //   • blockInstallActions  — Play Store / packageinstaller install,
         //                            update, and uninstall confirmation dialogs.

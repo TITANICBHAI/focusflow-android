@@ -198,10 +198,11 @@ function SettingsScreen() {
   };
 
   const handleSaveAllowedApps = async (packages: string[]) => {
+    // updateSettings already calls SharedPrefsModule.setAllowedPackages inside
+    // its Promise.all when a focus session is active, so the explicit extra call
+    // here was a redundant double-write that could cause a race condition.
+    // updateSettings handles the full sync path — no extra call needed.
     await update({ allowedInFocus: packages });
-    if (state.focusSession?.isActive) {
-      await SharedPrefsModule.setAllowedPackages(packages);
-    }
   };
 
   const handleImportFromOtherApp = async (packages: string[]) => {
@@ -458,10 +459,16 @@ function SettingsScreen() {
             <Switch
               value={settings.pinProtectionEnabled ?? false}
               onValueChange={(v) => {
-                void update({ pinProtectionEnabled: v });
                 if (!v) {
-                  // Reset "don't ask again" so the prompt shows fresh next time the toggle is enabled.
-                  void SharedPrefsModule.putString('pin_setup_prompt_dismissed', '');
+                  // Security fix: disabling PIN protection must also require a
+                  // defense PIN if one is set — otherwise any user who picks up
+                  // the phone can tap this toggle to bypass all protections.
+                  withDefensePin(() => {
+                    void update({ pinProtectionEnabled: false });
+                    void SharedPrefsModule.putString('pin_setup_prompt_dismissed', '');
+                  });
+                } else {
+                  void update({ pinProtectionEnabled: true });
                 }
               }}
               trackColor={{ false: COLORS.border, true: COLORS.primary + '88' }}
@@ -692,6 +699,12 @@ function SettingsScreen() {
             label="Privacy & Terms"
             description="How FocusFlow handles your data and the rules of use"
             onPress={() => router.push('/privacy-policy')}
+          />
+          <SettingButton
+            icon="desktop-outline"
+            label="FocusFlow for Windows"
+            description="Also available as a native Windows desktop app — focusflowpc.pages.dev"
+            onPress={() => Linking.openURL('https://focusflowpc.pages.dev/')}
           />
           <SettingButton
             icon="mail-outline"

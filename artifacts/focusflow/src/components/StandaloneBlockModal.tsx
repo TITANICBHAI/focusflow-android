@@ -569,12 +569,17 @@ export function StandaloneBlockModal({
   const onTimeChange = (_: DateTimePickerEvent, date?: Date) => {
     setShowTimePicker(false);
     if (date) {
-      const merged = dayjs(untilDate)
+      let merged = dayjs(untilDate)
         .hour(date.getHours())
         .minute(date.getMinutes())
-        .second(0)
-        .toDate();
-      setUntilDate(merged);
+        .second(0);
+      // If the resulting datetime is in the past (user picked an earlier time
+      // on today's date), auto-advance to the next day so the block always
+      // starts in the future and handleSave never rejects it silently.
+      if (merged.isBefore(dayjs())) {
+        merged = merged.add(1, 'day');
+      }
+      setUntilDate(merged.toDate());
     }
   };
 

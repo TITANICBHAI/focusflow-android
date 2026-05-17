@@ -808,13 +808,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         void logger.warn('AppContext', `expired standalone block clear failed: ${String(e)}`);
       }
       let updatedAlwaysOn = settings.alwaysOnPackages ?? [];
-      if ((settings.autoCopyToAlwaysOn ?? true) && packages.length > 0) {
+      // Bug fix: default was incorrectly `?? true` here while everywhere else
+      // (DB default, UI toggle, focus.tsx, setStandaloneBlock) defaults to false.
+      // Using `?? true` caused the expiry path to strip packages from alwaysOn
+      // even for users who never enabled autoCopy, silently un-blocking apps.
+      if ((settings.autoCopyToAlwaysOn ?? false) && packages.length > 0) {
         const toRemove = new Set(packages);
         updatedAlwaysOn = updatedAlwaysOn.filter((p) => !toRemove.has(p));
       }
       const cleared = { ...settings, standaloneBlockUntil: null, alwaysOnPackages: updatedAlwaysOn };
       try { await dbSaveSettings(cleared); } catch (e) { void logger.warn('AppContext', `_syncStandaloneBlock expiry clear: dbSaveSettings non-fatal: ${String(e)}`); }
       dispatch({ type: 'SET_SETTINGS', payload: cleared });
+      // CRITICAL: sync always-on block after expiry so SharedPrefs reflects the
+      // updated (possibly empty) alwaysOnPackages list. Without this, the Kotlin
+      // AccessibilityService keeps seeing the old packages in always_block_packages
+      // and keeps blocking them even after the standalone session has expired.
+      try { await _syncAlwaysBlock(cleared); } catch (e) { void logger.warn('AppContext', `_syncStandaloneBlock expiry _syncAlwaysBlock non-fatal: ${String(e)}`); }
     } else {
       try {
         await SharedPrefsModule.setStandaloneBlock(true, packages, untilMs);
@@ -1006,7 +1015,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (msUntilExpiry <= 0) return;
     const t = setTimeout(() => {
       void _syncStandaloneBlock(stateRef.current.settings);
-    }, msUntilExpiry + 500); // +500 ms buffer so the clock has definitely passed
+    }, msUntilExpiry + 2000); // +2 s buffer — 500 ms was too short on low-end Android power-saving modes
     return () => clearTimeout(t);
   }, [state.settings.standaloneBlockUntil]);
 
@@ -1516,6 +1525,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Optimistic UI: dispatch first so toggles flip instantly. The DB write
     // and the half-dozen native bridge syncs below were previously awaited
     // serially before the dispatch, which made every Switch feel laggy.
+    //
+    // Bug fix: capture the previous state before dispatching so we can roll it
+    // back if the DB save fails. Without this, a failed save leaves the UI
+    // showing the new (unsaved) settings, which revert silently on next reload.
+    const prevSettings = stateRef.current.settings;
     dispatch({ type: 'SET_SETTINGS', payload: settings });
     try {
       await dbSaveSettings(settings);
@@ -1536,6 +1550,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         _syncSystemGuard(settings),
       ]);
     } catch (e) {
+      // Rollback the optimistic dispatch so the UI doesn't permanently show
+      // settings that were never written to the database.
+      dispatch({ type: 'SET_SETTINGS', payload: prevSettings });
       void logger.error('AppContext', `updateSettings failed: ${String(e)}`);
       throw e;
     }
@@ -1596,14 +1613,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const untilIso = untilMs ? new Date(untilMs).toISOString() : null;
     let alwaysOnPackages = state.settings.alwaysOnPackages ?? [];
     const autoCopy = state.settings.autoCopyToAlwaysOn ?? false;
+    const prevStandalone = state.settings.standaloneBlockPackages ?? [];
     if (autoCopy && packages.length > 0) {
-      // Auto-copy: merge incoming packages into the always-on list
-      const merged = new Set([...alwaysOnPackages, ...packages]);
+      // Auto-copy: first remove packages that were previously auto-copied but
+      // are no longer in the new list (user removed them from the session).
+      // Then merge the new list in. This prevents removed apps from staying
+      // permanently in the always-on block after a session list edit.
+      const removedFromSession = new Set(prevStandalone.filter((p) => !packages.includes(p)));
+      const cleaned = alwaysOnPackages.filter((p) => !removedFromSession.has(p));
+      const merged = new Set([...cleaned, ...packages]);
       alwaysOnPackages = Array.from(merged);
     } else if (autoCopy && packages.length === 0) {
-      // Block is being cleared — remove the previously auto-copied packages so
-      // a 30-minute block doesn't silently become a permanent 24/7 block.
-      const prevStandalone = state.settings.standaloneBlockPackages ?? [];
+      // Block is being cleared — remove ALL previously auto-copied packages so
+      // a timed block doesn't silently become a permanent 24/7 block.
       alwaysOnPackages = alwaysOnPackages.filter((p) => !prevStandalone.includes(p));
     }
     const newSettings: AppSettings = {
@@ -1648,14 +1670,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const untilIso = untilMs ? new Date(untilMs).toISOString() : null;
     let alwaysOnPackages = state.settings.alwaysOnPackages ?? [];
     const autoCopy = state.settings.autoCopyToAlwaysOn ?? false;
+    const prevStandalone = state.settings.standaloneBlockPackages ?? [];
     if (autoCopy && packages.length > 0) {
-      // Auto-copy: merge incoming packages into the always-on list
-      const merged = new Set([...alwaysOnPackages, ...packages]);
+      // Auto-copy: first remove packages that were previously auto-copied but
+      // are no longer in the new list (user removed them from the session).
+      // Then merge the new list in, preventing ghost always-on blocks.
+      const removedFromSession = new Set(prevStandalone.filter((p) => !packages.includes(p)));
+      const cleaned = alwaysOnPackages.filter((p) => !removedFromSession.has(p));
+      const merged = new Set([...cleaned, ...packages]);
       alwaysOnPackages = Array.from(merged);
     } else if (autoCopy && packages.length === 0) {
-      // Block is being cleared — remove previously auto-copied packages so a
+      // Block is being cleared — remove ALL previously auto-copied packages so a
       // timed block doesn't silently become a permanent 24/7 always-on block.
-      const prevStandalone = state.settings.standaloneBlockPackages ?? [];
       alwaysOnPackages = alwaysOnPackages.filter((p) => !prevStandalone.includes(p));
     }
     // Preserve existing vpnPackages if not explicitly passed

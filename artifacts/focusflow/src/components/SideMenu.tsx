@@ -23,6 +23,7 @@ import {
   Dimensions,
   PanResponder,
   ScrollView,
+  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -303,20 +304,31 @@ export function SideMenu({ visible, onOpen, onClose, tabBarHeight }: SideMenuPro
 
         {/* ── Footer ───────────────────────────────────────────────── */}
         <View style={[styles.footer, { borderTopColor: isDark ? COLORS.darkBorder : COLORS.border }]}>
-          <TouchableOpacity style={styles.footerBtn} onPress={() => navigate('/privacy-policy')}>
-            <Ionicons name="shield-outline" size={14} color={isDark ? COLORS.muted : COLORS.textSecondary} />
-            <Text style={[styles.footerText, { color: isDark ? COLORS.muted : COLORS.textSecondary }]}>Privacy</Text>
+          {/* Windows PC link — full-width row above the other links */}
+          <TouchableOpacity
+            style={styles.footerPcBtn}
+            onPress={() => Linking.openURL('https://focusflowpc.pages.dev/')}
+          >
+            <Ionicons name="desktop-outline" size={13} color={COLORS.primary} />
+            <Text style={[styles.footerText, { color: COLORS.primary, fontWeight: '600' }]}>Also on Windows — focusflowpc.pages.dev</Text>
           </TouchableOpacity>
-          <View style={[styles.footerDivider, { backgroundColor: isDark ? COLORS.darkBorder : COLORS.border }]} />
-          <TouchableOpacity style={styles.footerBtn} onPress={() => navigate('/terms-of-service')}>
-            <Ionicons name="document-text-outline" size={14} color={isDark ? COLORS.muted : COLORS.textSecondary} />
-            <Text style={[styles.footerText, { color: isDark ? COLORS.muted : COLORS.textSecondary }]}>Terms of Service</Text>
-          </TouchableOpacity>
-          <View style={[styles.footerDivider, { backgroundColor: isDark ? COLORS.darkBorder : COLORS.border }]} />
-          <TouchableOpacity style={styles.footerBtn} onPress={() => navigate('/how-to-use')}>
-            <Ionicons name="help-circle-outline" size={14} color={isDark ? COLORS.muted : COLORS.textSecondary} />
-            <Text style={[styles.footerText, { color: isDark ? COLORS.muted : COLORS.textSecondary }]}>How to Use</Text>
-          </TouchableOpacity>
+          {/* Standard links row */}
+          <View style={styles.footerLinks}>
+            <TouchableOpacity style={styles.footerBtn} onPress={() => navigate('/privacy-policy')}>
+              <Ionicons name="shield-outline" size={14} color={isDark ? COLORS.muted : COLORS.textSecondary} />
+              <Text style={[styles.footerText, { color: isDark ? COLORS.muted : COLORS.textSecondary }]}>Privacy</Text>
+            </TouchableOpacity>
+            <View style={[styles.footerDivider, { backgroundColor: isDark ? COLORS.darkBorder : COLORS.border }]} />
+            <TouchableOpacity style={styles.footerBtn} onPress={() => navigate('/terms-of-service')}>
+              <Ionicons name="document-text-outline" size={14} color={isDark ? COLORS.muted : COLORS.textSecondary} />
+              <Text style={[styles.footerText, { color: isDark ? COLORS.muted : COLORS.textSecondary }]}>Terms</Text>
+            </TouchableOpacity>
+            <View style={[styles.footerDivider, { backgroundColor: isDark ? COLORS.darkBorder : COLORS.border }]} />
+            <TouchableOpacity style={styles.footerBtn} onPress={() => navigate('/how-to-use')}>
+              <Ionicons name="help-circle-outline" size={14} color={isDark ? COLORS.muted : COLORS.textSecondary} />
+              <Text style={[styles.footerText, { color: isDark ? COLORS.muted : COLORS.textSecondary }]}>How to Use</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </Animated.View>
 
@@ -644,12 +656,22 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'column',
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.md,
     borderTopWidth: StyleSheet.hairlineWidth,
     marginTop: SPACING.sm,
+    gap: SPACING.xs,
+  },
+  footerPcBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 2,
+  },
+  footerLinks: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: SPACING.sm,
   },
   footerBtn: {
