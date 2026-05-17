@@ -77,6 +77,16 @@ const CHANGELOG: Entry[] = [
           'Fixed keyword list not syncing on backup restore — _syncBlockedWords was missing from the updateSettings Promise.all; bulk settings updates (including backup restores) now push the full blocked-word list to SharedPrefs so the AccessibilityService enforces it immediately',
         ],
       },
+      {
+        heading: 'Nuclear Mode Fix',
+        icon: 'nuclear-outline',
+        items: [
+          'Fixed Nuclear Mode uninstall button doing nothing — the AccessibilityService was immediately intercepting and dismissing the system uninstall dialog (across all 4 guard paths: launcher long-press, Settings, OEM package installer, and launcher block) before the user could confirm it',
+          'NuclearModeModule now sets a nuclear_mode_bypass flag in SharedPreferences just before launching the system uninstall dialog; all four uninstall-blocking paths in the AccessibilityService check this flag and let the dialog through when it was opened by FocusFlow itself',
+          'Bypass flag auto-clears after 8 seconds so normal uninstall protection resumes immediately after the dialog is dismissed or confirmed',
+          'Uninstall button now shows a clear "native module unavailable" error on Expo Go builds instead of silently doing nothing',
+        ],
+      },
     ],
   },
   {

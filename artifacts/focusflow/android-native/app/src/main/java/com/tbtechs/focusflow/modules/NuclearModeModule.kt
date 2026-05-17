@@ -1,5 +1,6 @@
 package com.tbtechs.focusflow.modules
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import com.facebook.react.bridge.Promise
@@ -7,6 +8,7 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.WritableNativeArray
+import com.tbtechs.focusflow.services.AppBlockerAccessibilityService
 import org.json.JSONArray
 
 /**
@@ -90,9 +92,28 @@ class NuclearModeModule(private val reactContext: ReactApplicationContext) :
         }
     }
 
-    // ─── Helper ───────────────────────────────────────────────────────────────
+    // ─── Helpers ──────────────────────────────────────────────────────────────
+
+    /**
+     * Temporarily sets the nuclear_mode_bypass flag in SharedPreferences so
+     * AppBlockerAccessibilityService allows the system uninstall dialog through
+     * instead of immediately dismissing it. The flag auto-clears after 8 s.
+     */
+    private fun setNuclearBypass(active: Boolean) {
+        reactContext
+            .getSharedPreferences(AppBlockerAccessibilityService.PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(AppBlockerAccessibilityService.PREF_NUCLEAR_BYPASS, active)
+            .apply()
+    }
 
     private fun launchUninstallDialog(packageName: String) {
+        // Tell the AccessibilityService to let this dialog through.
+        setNuclearBypass(true)
+        // Auto-clear the bypass after 8 s (covers slow devices and user hesitation).
+        android.os.Handler(android.os.Looper.getMainLooper())
+            .postDelayed({ setNuclearBypass(false) }, 8_000L)
+
         val intent = Intent(Intent.ACTION_DELETE).apply {
             data = Uri.parse("package:$packageName")
             flags = Intent.FLAG_ACTIVITY_NEW_TASK

@@ -120,6 +120,9 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         const val PREF_LAUNCHER_LOCK_DURING_SA  = "launcher_lock_during_standalone"
         /** Whether to suppress long-press Uninstall independently of systemGuard. */
         const val PREF_LAUNCHER_BLOCK_UNINSTALL = "launcher_block_uninstall"
+        /** Set to true by NuclearModeModule just before launching a system uninstall
+         *  dialog so the AccessibilityService does not block it. Auto-cleared after 8 s. */
+        const val PREF_NUCLEAR_BYPASS = "nuclear_mode_bypass"
         /** JSON array of package names hidden from the FocusFlow launcher drawer. */
         const val PREF_LAUNCHER_HIDDEN_PKGS     = "launcher_hidden_packages"
 
@@ -850,13 +853,17 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 // context popup (App info / Uninstall / Remove from Home) inside its
                 // own process — isUninstallDialog() catches "uninstall"/"remove app"
                 // in that popup's node tree and blocks it before it can be tapped.
-                if (isLauncherPkg && isUninstallDialog(ev)) {
+                // Skip when Nuclear Mode has set the bypass flag (user-initiated uninstall).
+                if (isLauncherPkg &&
+                    !prefs.getBoolean(PREF_NUCLEAR_BYPASS, false) &&
+                    isUninstallDialog(ev)) {
                     handleBlockedApp(pkg)
                     return
                 }
 
                 // Block uninstall dialogs — show overlay so user sees why they're blocked.
-                if (isUninstallDialog(ev)) {
+                // Skip when Nuclear Mode has set the bypass flag (user-initiated uninstall).
+                if (!prefs.getBoolean(PREF_NUCLEAR_BYPASS, false) && isUninstallDialog(ev)) {
                     handleBlockedApp(pkg)
                     return
                 }
@@ -926,9 +933,11 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // second check that fires for them when System Protection is on.
         // Both systemGuardEnabled AND an active enforcement mode must be true (AND, not OR)
         // so we don't intercept uninstalls when the user has no blocking active at all.
+        // Skip when Nuclear Mode has set the bypass flag (user-initiated uninstall).
         if (systemGuardEnabled &&
             (focusActive || saActive || alwaysBlockActive) &&
             INSTALLER_PACKAGES.any { pkg.equals(it, ignoreCase = true) } &&
+            !prefs.getBoolean(PREF_NUCLEAR_BYPASS, false) &&
             isUninstallDialog(ev)
         ) {
             handleBlockedApp(pkg)
@@ -940,8 +949,10 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // not already caught above — e.g. a 3rd-party launcher that is neither in
         // INSTALLER_PACKAGES nor BLOCKABLE_AFTER_WARNING.  Uses HOME press rather
         // than the full block overlay so the home screen stays visible.
+        // Skip when Nuclear Mode has set the bypass flag (user-initiated uninstall).
         if (prefs.getBoolean(PREF_LAUNCHER_BLOCK_UNINSTALL, false) &&
             (focusActive || saActive || alwaysBlockActive) &&
+            !prefs.getBoolean(PREF_NUCLEAR_BYPASS, false) &&
             isUninstallDialog(ev)
         ) {
             handler.post { performGlobalAction(GLOBAL_ACTION_HOME) }
