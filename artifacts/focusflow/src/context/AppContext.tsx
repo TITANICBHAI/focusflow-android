@@ -1544,6 +1544,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         _syncDailyAllowance(settings),
         _syncAlwaysBlock(settings),
         _syncAversions(settings),
+        // Bug fix: _syncBlockedWords was missing here — backup restores and any
+        // other bulk updateSettings call would save blocked words to SQLite but
+        // never push them to SharedPrefs, so the AccessibilityService kept
+        // enforcing the old keyword list until the next dedicated setBlockedWords call.
+        _syncBlockedWords(settings),
         GreyoutModule.setSchedule(_recurringSchedulesToGreyoutWindows(settings)).catch((e) =>
           void logger.warn('AppContext', `greyout sync failed: ${String(e)}`),
         ),
